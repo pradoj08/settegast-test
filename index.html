@@ -1351,8 +1351,34 @@ body{font-family:var(--sans);font-size:12px;color:var(--text);background:var(--s
   border-color:rgba(34,197,94,.35);
   box-shadow:0 0 12px rgba(34,197,94,.15);
 }
-.ob-filter-btn.ob-collapse-btn{
-  min-width:98px;
+
+/* Dwell Turnover header-click collapse behavior */
+.ob-panel.dwell-turnover-panel .ob-banner.full-banner.ob-click-toggle,
+.ob-panel.dwell-turnover-panel .ob-tbl thead.ob-click-toggle{
+  cursor:pointer;
+}
+.ob-panel.dwell-turnover-panel .ob-banner.full-banner.ob-click-toggle:hover{
+  filter:brightness(1.06);
+}
+.ob-header-toggle-hint{
+  margin-left:12px;
+  padding:4px 9px;
+  border-radius:999px;
+  border:1px solid rgba(251,146,60,.34);
+  background:rgba(249,115,22,.12);
+  color:#fed7aa;
+  font-family:var(--mono);
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.ob-banner.full-banner.collapsed .ob-header-toggle-hint{
+  border-color:rgba(251,146,60,.46);
+  background:rgba(249,115,22,.18);
+  color:#ffedd5;
 }
 
 
@@ -1574,11 +1600,12 @@ body{font-family:var(--sans);font-size:12px;color:var(--text);background:var(--s
 }
 
 /* Per-column overrides */
-.cp-car-yd   {color:#334155;}
-.cp-car-track{color:#334155;}
-.cp-car-seq  {color:#475569;}
+/* Match low-priority numeric/meta columns to the ARRIVAL value color for readability. */
+.cp-car-yd   {color:#94a3b8;}
+.cp-car-track{color:#94a3b8;}
+.cp-car-seq  {color:#94a3b8;}
 .cp-car-id   {font-size:13px;font-weight:800;color:#f1f5f9;letter-spacing:.3px;}
-.cp-car-tons {text-align:right;color:#475569;}
+.cp-car-tons {text-align:right;color:#94a3b8;}
 .cp-car-ln   {text-align:right;color:#93c5fd;font-weight:700;}
 .cp-car-bk1,.cp-car-bk2{color:#34d399;font-weight:600;}
 .cp-car-tih  {}
@@ -5817,7 +5844,345 @@ body.help-tips-on .help-hover-outline{
   },true);
 })();
 </script>
+
+<style id="current-board-ss-time-css">
+.current-edit-ss-time-field{display:none;}
+.current-edit-ss-time-field.show{display:flex;}
+.current-edit-ss-note{margin-top:3px;font-family:var(--sans);font-size:10px;line-height:1.35;color:#bae6fd;}
+.current-edit-ss-start-badge{margin-left:6px;padding:1px 6px;border-radius:999px;border:1px solid rgba(56,189,248,.34);background:rgba(14,165,233,.12);color:#bae6fd;font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;vertical-align:middle;}
+</style>
+
+
+<!-- === PATCH: Match first/second bowl table proportions === -->
+<style id="bowl-table-matching-proportions-css">
+  /* Make CURRENT RAMP BLOCKING and POST OUTBOUND CONSIST use the same visual grid. */
+  #ob-view .bowl-board,
+  #ob-frozen .bowl-board{
+    table-layout:fixed !important;
+    border-collapse:collapse !important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-track,
+  #ob-frozen .bowl-board col.bowl-col-track{
+    width:102px !important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-current,
+  #ob-frozen .bowl-board col.bowl-col-current{
+    width:128px !important;
+  }
+
+  #ob-view .bowl-board th,
+  #ob-frozen .bowl-board th{
+    height:28px !important;
+    padding:6px 8px !important;
+    line-height:1 !important;
+  }
+
+  #ob-view .bowl-board td,
+  #ob-frozen .bowl-board td{
+    height:32px !important;
+    min-height:32px !important;
+    padding-top:3px !important;
+    padding-bottom:3px !important;
+    line-height:1 !important;
+    vertical-align:middle !important;
+  }
+
+  /* Same TRACK cell geometry on both tables. The first table gets an invisible
+     add-button placeholder so its label/current column align visually with the second table. */
+  #ob-view .bowl-board .bowl-track,
+  #ob-frozen .bowl-board .bowl-track{
+    width:102px !important;
+    min-width:102px !important;
+    max-width:102px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:9px !important;
+    padding-left:8px !important;
+    padding-right:8px !important;
+    text-align:center !important;
+    box-sizing:border-box !important;
+  }
+
+  #ob-view .bowl-board:not(.bowl-board-after) .bowl-track::after,
+  #ob-frozen .bowl-board:not(.bowl-board-after) .bowl-track::after{
+    content:"+";
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;
+    height:18px;
+    min-width:18px;
+    border-radius:999px;
+    border:1px solid rgba(96,165,250,.48);
+    background:rgba(30,64,175,.30);
+    color:#bfdbfe;
+    font-size:11px;
+    font-weight:900;
+    opacity:0;
+    pointer-events:none;
+  }
+
+  #ob-view .bowl-board.bowl-board-after .bowl-track-add-btn,
+  #ob-frozen .bowl-board.bowl-board-after .bowl-track-add-btn{
+    width:18px !important;
+    height:18px !important;
+    min-width:18px !important;
+    flex:0 0 18px !important;
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    margin:0 !important;
+    padding:0 !important;
+    line-height:1 !important;
+  }
+
+  #ob-view .bowl-board .bowl-current,
+  #ob-frozen .bowl-board .bowl-current{
+    width:128px !important;
+    min-width:128px !important;
+    max-width:128px !important;
+    height:32px !important;
+    box-sizing:border-box !important;
+    font-size:11px !important;
+    line-height:1 !important;
+  }
+
+  #ob-view .bowl-board .bowl-segments-cell,
+  #ob-frozen .bowl-board .bowl-segments-cell{
+    height:32px !important;
+    padding:3px 6px !important;
+  }
+
+  #ob-view .bowl-board .bowl-segments-wrap,
+  #ob-frozen .bowl-board .bowl-segments-wrap{
+    min-height:24px !important;
+    align-items:center !important;
+  }
+
+  #ob-view .bowl-board .bowl-block,
+  #ob-frozen .bowl-board .bowl-block{
+    min-height:22px !important;
+    padding:3px 7px !important;
+    border-radius:5px !important;
+    line-height:1 !important;
+  }
+
+  #ob-view .bowl-board .bowl-dwell,
+  #ob-frozen .bowl-board .bowl-dwell{
+    min-height:18px !important;
+    padding:2px 6px !important;
+    line-height:1 !important;
+  }
+</style>
 </body>
+
+
+<!-- === PATCH: top Current Ramp Blocking numeric columns use red / amber / green capacity design === -->
+<style id="top-current-ramp-capacity-column-color-design-css">
+  /* Mirrors the narrow capacity-column design: dark red for low/negative, amber for tight, green for healthy. */
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-good,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-good{
+    background:linear-gradient(180deg, rgba(6,78,59,.92), rgba(5,46,22,.96))!important;
+    color:#86efac!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(34,197,94,.28)!important;
+    border-left:1px solid rgba(34,197,94,.36)!important;
+    border-right:1px solid rgba(34,197,94,.22)!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-warn,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-warn{
+    background:linear-gradient(180deg, rgba(82,56,9,.94), rgba(52,35,6,.96))!important;
+    color:#fcd34d!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(245,158,11,.26)!important;
+    border-left:1px solid rgba(245,158,11,.38)!important;
+    border-right:1px solid rgba(245,158,11,.24)!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-bad,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-bad{
+    background:linear-gradient(180deg, rgba(69,18,25,.96), rgba(49,14,20,.98))!important;
+    color:#fca5a5!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(239,68,68,.24)!important;
+    border-left:1px solid rgba(248,113,113,.34)!important;
+    border-right:1px solid rgba(248,113,113,.22)!important;
+  }
+</style>
+<script id="top-current-ramp-capacity-column-color-design-js">
+(function(){
+  'use strict';
+  function parseNum(txt){
+    var n=Number(String(txt||'').replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function clsFor(v){
+    return v>=750 ? 'capacity-good' : (v>=300 ? 'capacity-warn' : 'capacity-bad');
+  }
+  function paintCell(td){
+    if(!td) return;
+    td.classList.remove('capacity-good','capacity-warn','capacity-bad','good','warn','bad');
+    td.classList.add(clsFor(parseNum(td.textContent)));
+    /* Some cells were rendered with inline !important styles, so set the final paint inline as well. */
+    var c=td.classList.contains('capacity-good')?'good':(td.classList.contains('capacity-warn')?'warn':'bad');
+    if(c==='good'){
+      td.style.setProperty('background','linear-gradient(180deg, rgba(6,78,59,.92), rgba(5,46,22,.96))','important');
+      td.style.setProperty('color','#86efac','important');
+      td.style.setProperty('border-left','1px solid rgba(34,197,94,.36)','important');
+      td.style.setProperty('border-right','1px solid rgba(34,197,94,.22)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(34,197,94,.28)','important');
+    }else if(c==='warn'){
+      td.style.setProperty('background','linear-gradient(180deg, rgba(82,56,9,.94), rgba(52,35,6,.96))','important');
+      td.style.setProperty('color','#fcd34d','important');
+      td.style.setProperty('border-left','1px solid rgba(245,158,11,.38)','important');
+      td.style.setProperty('border-right','1px solid rgba(245,158,11,.24)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(245,158,11,.26)','important');
+    }else{
+      td.style.setProperty('background','linear-gradient(180deg, rgba(69,18,25,.96), rgba(49,14,20,.98))','important');
+      td.style.setProperty('color','#fca5a5','important');
+      td.style.setProperty('border-left','1px solid rgba(248,113,113,.34)','important');
+      td.style.setProperty('border-right','1px solid rgba(248,113,113,.22)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(239,68,68,.24)','important');
+    }
+    td.style.setProperty('font-weight','900','important');
+  }
+  function apply(){
+    document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(function(tr){
+      paintCell(tr.querySelector('td.bowl-current'));
+      paintCell(tr.querySelector('td.bowl-delta'));
+    });
+  }
+  window.applyTopRampCapacityColumnColors=apply;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply);
+  else apply();
+  setTimeout(apply,50);
+  setTimeout(apply,250);
+  try{
+    var target=document.getElementById('tab-outbound') || document.body;
+    new MutationObserver(function(){ apply(); }).observe(target,{childList:true,subtree:true,characterData:true});
+  }catch(e){}
+})();
+</script>
+
+
+
+<!-- === FINAL OVERRIDE: equalize Current Ramp Blocking and Post Outbound CURRENT column widths === -->
+<style id="final-bowl-current-column-parity-css">
+  /* Reason for the mismatch: an earlier first-board repair patch overrode only
+     .bowl-board:not(.bowl-board-after) and shrank the first CURRENT col to 88px
+     (76px on mobile). This override makes both bowl boards use the same colgroup
+     and visible cell geometry. */
+  #ob-view .bowl-board,
+  #ob-frozen .bowl-board{
+    table-layout:fixed!important;
+    border-collapse:collapse!important;
+    min-width:980px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-track,
+  #ob-frozen .bowl-board col.bowl-col-track{
+    width:110px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-current,
+  #ob-frozen .bowl-board col.bowl-col-current{
+    width:128px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-delta,
+  #ob-frozen .bowl-board col.bowl-col-delta{
+    width:82px!important;
+  }
+
+  #ob-view .bowl-board .bowl-track,
+  #ob-frozen .bowl-board .bowl-track{
+    width:110px!important;
+    min-width:110px!important;
+    max-width:110px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+    padding-left:6px!important;
+    padding-right:6px!important;
+    white-space:nowrap!important;
+  }
+
+  #ob-view .bowl-board td.bowl-current,
+  #ob-frozen .bowl-board td.bowl-current,
+  #ob-view .bowl-board th:nth-child(2),
+  #ob-frozen .bowl-board th:nth-child(2){
+    width:128px!important;
+    min-width:128px!important;
+    max-width:128px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+  }
+
+  #ob-view .bowl-board .bowl-delta,
+  #ob-frozen .bowl-board .bowl-delta{
+    width:82px!important;
+    min-width:82px!important;
+    max-width:82px!important;
+    box-sizing:border-box!important;
+  }
+
+  /* Keep the second table plus button from making the TRACK/CURRENT boundary drift. */
+  #ob-view .bowl-board.bowl-board-after .bowl-track-add-btn,
+  #ob-frozen .bowl-board.bowl-board-after .bowl-track-add-btn{
+    display:inline-flex!important;
+    width:18px!important;
+    height:18px!important;
+    min-width:18px!important;
+    margin-left:6px!important;
+    vertical-align:middle!important;
+    position:static!important;
+    transform:none!important;
+  }
+
+  /* Keep the invisible spacer in the first table equal to the real plus button. */
+  #ob-view .bowl-board:not(.bowl-board-after) .bowl-track::after,
+  #ob-frozen .bowl-board:not(.bowl-board-after) .bowl-track::after{
+    content:"+"!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:18px!important;
+    height:18px!important;
+    min-width:18px!important;
+    margin-left:6px!important;
+    border-radius:999px!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    vertical-align:middle!important;
+  }
+
+  @media(max-width:760px){
+    #ob-view .bowl-board,
+    #ob-frozen .bowl-board{
+      min-width:980px!important;
+    }
+    #ob-view .bowl-board col.bowl-col-track,
+    #ob-frozen .bowl-board col.bowl-col-track,
+    #ob-view .bowl-board .bowl-track,
+    #ob-frozen .bowl-board .bowl-track{
+      width:110px!important;
+      min-width:110px!important;
+      max-width:110px!important;
+    }
+    #ob-view .bowl-board col.bowl-col-current,
+    #ob-frozen .bowl-board col.bowl-col-current,
+    #ob-view .bowl-board td.bowl-current,
+    #ob-frozen .bowl-board td.bowl-current,
+    #ob-view .bowl-board th:nth-child(2),
+    #ob-frozen .bowl-board th:nth-child(2){
+      width:128px!important;
+      min-width:128px!important;
+      max-width:128px!important;
+    }
+  }
+</style>
+
 </html>
 </template>
 
@@ -7700,6 +8065,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
 
         if(active && active.key===key){
           active.ft+=ln;
+          if(!active.train) active.train=clean(row[CI.train]);
+          if(!active.ssStartRaw) active.ssStartRaw=clean(row[CI.timeInHold]);
           if(rowOldestRank && (!active.oldestRank || rowOldestRank<active.oldestRank)) active.oldestRank=rowOldestRank;
           if(netDwell!==null){
             const w=ln||1;
@@ -7718,7 +8085,9 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
             dwellFt:netDwell!==null?w:0,
             dwellVal:netDwell!==null?netDwell:null,
             dwell:netDwell!==null?dwellTextFromAvg(netDwell):'',
-            dwellCls:netDwell!==null?dwellClassFromAvg(netDwell):''
+            dwellCls:netDwell!==null?dwellClassFromAvg(netDwell):'',
+            train:clean(row[CI.train]),
+            ssStartRaw:clean(row[CI.timeInHold])
           };
         }
       });
@@ -7789,7 +8158,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const currentEditBtn=(!isAfterBoard && !seg.manual) ? `<button class="current-block-edit-btn" type="button" title="Edit block">✎</button>` : '';
         const arrivalTitle=seg.manual&&seg.arrival ? ` title="Arrival: ${String(seg.arrival).replace(/"/g,'&quot;')}"` : '';
         const fiAttrs=seg.futureInbound ? ` data-future-inbound-id="${String(seg.id||'').replace(/"/g,'&quot;')}" data-future-inbound-group="${String(seg.groupId||'').replace(/"/g,'&quot;')}" data-future-inbound-train="${String(seg.departureTrain||seg.futureBlock||'').replace(/"/g,'&quot;')}"` : '';
-        return `<div class="bowl-block ${seg.cls}"${arrivalTitle}${fiAttrs}><span><b>${fmtN(seg.ft)}</b> | ${seg.label}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
+        const currentAttrs=(!isAfterBoard && !seg.manual) ? ` data-current-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-current-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}"` : '';
+        return `<div class="bowl-block ${seg.cls}"${arrivalTitle}${fiAttrs}${currentAttrs}><span><b>${fmtN(seg.ft)}</b> | ${seg.label}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
       }).join('');
 
       tr.innerHTML=[
@@ -7822,7 +8192,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls">'+        '<button class="bowl-btn bowl-head-btn" data-bowl-dwell-toggle type="button">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button>'+        '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+(hideTrackSuffix?'SHOW [TRACK]':'HIDE [TRACK]')+'</button>'+        '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+(hideFutureInboundTag?'SHOW FUTURE TAG':'HIDE FUTURE TAG')+'</button>'+        '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+(hideFutureInboundBlocks?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS')+'</button>'+        '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+(hidePreviousDepartingBlocks?'SHOW PREV IHOSA/MHOAS':'HIDE PREV IHOSA/MHOAS')+'</button>'+        '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+(hideTomorrowDepartingBlocks?'SHOW TOMORROW IHOSA/MHOAS':'HIDE TOMORROW IHOSA/MHOAS')+'</button>'+      '</div>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
     wrap.appendChild(afterTitle);
 
-    wrap.appendChild(buildBoard('POST OUTBOUND CONSIST','REMAINING',selectedIds));
+    wrap.appendChild(buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds));
   }
 
   // Attach the generated bowl turnover boards to the requested container.
@@ -9318,22 +9688,44 @@ function renderOB(){
     });
     fullBannerEl.appendChild(filterGroup);
 
-    // Collapse button
-    const colBtn=document.createElement('button');
-    colBtn.className='ob-filter-btn ob-collapse-btn';
-    colBtn.textContent=window._obTableExpanded?'▾ COLLAPSE':'▸ EXPAND';
-    colBtn.addEventListener('click',()=>{
-      window._obTableExpanded=!window._obTableExpanded;
+    // Header click toggles DWELL TURNOVER table expand/collapse.
+    // No separate collapse button: click the orange table header/banner or the column header row.
+    if(typeof window._obTableExpanded==='undefined') window._obTableExpanded=true;
+    let headerHint=fullBannerEl.querySelector('.ob-header-toggle-hint');
+    if(!headerHint){
+      headerHint=document.createElement('div');
+      headerHint.className='ob-header-toggle-hint';
+      fullBannerEl.appendChild(headerHint);
+    }
+    const syncTurnoverHeaderToggle=()=>{
       fullTblEl.style.display=window._obTableExpanded?'':'none';
-      colBtn.textContent=window._obTableExpanded?'▾ COLLAPSE':'▸ EXPAND';
+      fullBannerEl.classList.toggle('collapsed',!window._obTableExpanded);
+      headerHint.textContent=window._obTableExpanded?'▾ CLICK HEADER TO COLLAPSE':'▸ CLICK HEADER TO EXPAND';
+      fullBannerEl.title=window._obTableExpanded?'Click header to collapse dwell turnover table':'Click header to expand dwell turnover table';
+    };
+    const toggleTurnoverHeader=(evt)=>{
+      if(evt && evt.target && evt.target.closest('button,input,select,textarea,a')) return;
+      window._obTableExpanded=!window._obTableExpanded;
+      syncTurnoverHeaderToggle();
+    };
+    fullBannerEl.classList.add('ob-click-toggle');
+    fullBannerEl.setAttribute('role','button');
+    fullBannerEl.setAttribute('tabindex','0');
+    fullBannerEl.addEventListener('click',toggleTurnoverHeader);
+    fullBannerEl.addEventListener('keydown',(evt)=>{
+      if(evt.key==='Enter' || evt.key===' '){evt.preventDefault();toggleTurnoverHeader(evt);}
     });
-    fullBannerEl.appendChild(colBtn);
+    const fullTblHead=fullTblEl.querySelector('thead');
+    if(fullTblHead){
+      fullTblHead.classList.add('ob-click-toggle');
+      fullTblHead.title='Click header row to expand/collapse dwell turnover table';
+      fullTblHead.addEventListener('click',toggleTurnoverHeader);
+    }
+    syncTurnoverHeaderToggle();
   }
 
-  // Apply initial filter — restore saved expand state (default expanded)
+  // Apply initial filter — expand state is restored by the header-toggle handler above.
   applyOutboundFilter(fullTblEl, groups);
-  if(typeof window._obTableExpanded==='undefined') window._obTableExpanded=true;
-  fullTblEl.style.display=window._obTableExpanded?'':'none';
   syncFreezeBtn();
   syncProjectedDwellBtn();
 
@@ -13340,9 +13732,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(raw==='SS') return null;
     const out=(typeof normalizeFutureInboundBlock==='function') ? normalizeFutureInboundBlock(raw||'IHOSA') : (normalizeOutboundTrain(raw)||'IHOSA');
     if(out==='SS') return null;
+
+    // Future-inbound blocks on the POST OUTBOUND CONSIST belong to the TOMORROW
+    // outbound window. IHOSA tomorrow is +1 day at the IHOSA time; MHOAS tomorrow
+    // is the following 03:00, which is +2 days from today's date. The old logic
+    // used +1 day for both trains, so a tomorrow MHOAS block could calculate
+    // against today's/overnight MHOAS release and clamp to 0.
     const cfg=(out==='MHOAS') ? (depTimes&&depTimes.mhoas?depTimes.mhoas:{h:3,m:0}) : (depTimes&&depTimes.ihosa?depTimes.ihosa:{h:20,m:30});
     const d=new Date();
-    d.setDate(d.getDate()+1);
+    d.setDate(d.getDate()+(out==='MHOAS'?2:1));
     d.setHours(+cfg.h||0,+cfg.m||0,0,0);
     return d;
   }
@@ -13370,9 +13768,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     const arrival=document.getElementById('manual-after-arrival');
     const block=document.getElementById('manual-after-block');
     const net=document.getElementById('manual-after-net');
+    const arrivalLabel=document.getElementById('manual-after-arrival-label');
     if(!arrival||!block||!net) return;
     const future=cleanManual(block.value).toUpperCase();
-    if(future==='SS'){ net.value='SS — NO RELEASE DWELL'; return; }
+    if(arrivalLabel) arrivalLabel.textContent=(future==='SS')?'Went Into SS':'Arrival';
+    if(future==='SS'){ net.value=arrival.value ? 'SS TIME ENTERED' : 'SELECT SS TIME'; return; }
     const val=computeManualFutureNetDwell({arrival:arrival.value,block:block.value,futureBlock:block.value});
     net.value=val===null ? 'ENTER ARRIVAL' : `${val.toFixed(1)} NET`;
   }
@@ -13389,12 +13789,12 @@ document.addEventListener('DOMContentLoaded',()=>{
           <button class="manual-after-close" type="button" data-manual-after-cancel>×</button>
         </div>
         <div class="manual-after-body">
-          <div class="manual-after-help">Output format: <b>1,500 | ZLBHO 22 IHOSA 16.9 NET | [802]</b>. Use the calendar/clock picker for arrival; net dwell is calculated from arrival to the selected next-day release time.</div>
+          <div class="manual-after-help">Output format: <b>1,500 | ZLBHO 22 IHOSA 16.9 NET | [802]</b>. Use the calendar/clock picker for arrival. If Future Block is SS, this time is required and means when the block went into SS.</div>
           <div class="manual-after-field"><label>Footage</label><input id="manual-after-ft" inputmode="numeric" placeholder="1500"></div>
           <div class="manual-after-field"><label>Display Track</label><input id="manual-after-outtrack" inputmode="numeric" placeholder="802"></div>
           <div class="manual-after-field"><label>Train / Inbound</label><input id="manual-after-train" placeholder="ZLBHO 22"></div>
           <div class="manual-after-field"><label>Future Block</label><select id="manual-after-block"><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option></select></div>
-          <div class="manual-after-field"><label>Arrival</label><input id="manual-after-arrival" type="datetime-local" step="60"></div>
+          <div class="manual-after-field"><label id="manual-after-arrival-label">Arrival</label><input id="manual-after-arrival" type="datetime-local" step="60"></div>
           <div class="manual-after-field"><label>Calculated Net Dwell</label><input id="manual-after-net" readonly value="ENTER ARRIVAL"></div>
           <div class="manual-after-actions">
             <button class="manual-after-btn" type="button" data-manual-after-cancel>Cancel</button>
@@ -13430,6 +13830,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!ft || ft<=0){ toastManual('Enter valid footage'); document.getElementById('manual-after-ft').focus(); return; }
     if(!train){ toastManual('Train / inbound is required'); document.getElementById('manual-after-train').focus(); return; }
     if(!(block==='IHOSA' || block==='MHOAS' || block==='SS')){ toastManual('Choose IHOSA, MHOAS, or SS'); document.getElementById('manual-after-block').focus(); return; }
+    if(block==='SS' && !arrival){ toastManual('Select when this block went into SS'); document.getElementById('manual-after-arrival').focus(); return; }
     if(block!=='SS' && net===null){ toastManual('Enter a valid arrival time so net dwell can calculate'); document.getElementById('manual-after-arrival').focus(); return; }
     const blocks=window.loadManualAfterBlocks();
     const idx=editingId ? blocks.findIndex(b=>String(b.id)===String(editingId)) : -1;
@@ -14033,6 +14434,10 @@ document.addEventListener('DOMContentLoaded',()=>{
 .after-edit-close{width:30px;height:30px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#cbd5e1;cursor:pointer;font-weight:900;}
 .after-edit-body{padding:14px 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .after-edit-help{grid-column:1/-1;font-family:var(--sans);font-size:11px;line-height:1.45;color:#cbd5e1;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.16);padding:9px 10px;border-radius:10px;}
+.after-edit-ss-time-field{display:none;}
+.after-edit-ss-time-field.show{display:flex;}
+.after-edit-ss-note{margin-top:3px;font-family:var(--sans);font-size:10px;line-height:1.35;color:#fde68a;}
+.after-edit-ss-start-badge{display:inline-flex;margin-left:6px;padding:1px 6px;border-radius:999px;border:1px solid rgba(251,191,36,.34);background:rgba(251,191,36,.10);color:#fde68a;font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:.8px;vertical-align:middle;}
 .after-edit-field{display:flex;flex-direction:column;gap:5px;}
 .after-edit-field.full{grid-column:1/-1;}
 .after-edit-field label{font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;}
@@ -14112,7 +14517,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   function getDwellText(block){const d=block.querySelector('.bowl-dwell');return d?clean(d.textContent):'';}
   function parseBlock(block){
     const clone=block.cloneNode(true);
-    clone.querySelectorAll('button,.manual-tag,.after-edit-badge,.after-depart-badge').forEach(x=>x.remove());
+    clone.querySelectorAll('button,.manual-tag,.after-edit-badge,.after-depart-badge,.after-edit-ss-start-badge').forEach(x=>x.remove());
     const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0');
     clone.querySelectorAll('b,.bowl-dwell').forEach(x=>x.remove());
     let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\s+/g,' ');
@@ -14132,14 +14537,31 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!dep) return '';
     return `<span class="after-depart-badge ${dep.toLowerCase()}">${dep}</span>`;
   }
+  function formatSsStartForDisplay(v){
+    const raw=clean(v);
+    if(!raw) return '';
+    const d=new Date(raw);
+    if(Number.isNaN(d.getTime())) return raw;
+    const p=n=>String(n).padStart(2,'0');
+    return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function setAfterEditSsTimeState(){
+    const dep=document.getElementById('after-edit-depart');
+    const wrap=document.getElementById('after-edit-ss-time-wrap');
+    const input=document.getElementById('after-edit-ss-start');
+    const isSS=!!dep && dep.value==='SS';
+    if(wrap) wrap.classList.toggle('show', isSS);
+    if(input) input.required=isSS;
+  }
   function renderOverride(block, ov){
     const dwellHtml=ov.dwellHtml || getDwellHtml(block);
     const displayTrack=clean(ov.displayTrack)||clean(ov.track)||'';
     const suffix=displayTrack ? ` | [${esc(displayTrack)}]` : '';
     const depVal=normalizeDepartTrain(ov.departureTrain || ov.departTrain || ov.outbound);
     const departHtml=departBadgeHtml(depVal);
+    const ssStartHtml=(depVal==='SS' && clean(ov.ssStartTime)) ? `<span class="after-edit-ss-start-badge" title="Went into SS: ${esc(ov.ssStartTime)}">SS ${esc(formatSsStartForDisplay(ov.ssStartTime))}</span>` : '';
     block.classList.toggle('after-departing-block', depVal==='IHOSA' || depVal==='MHOAS');
-    block.innerHTML=`<span><b>${fmt(ov.ft)}</b> | ${esc(ov.label)}${departHtml}${dwellHtml}${suffix}<span class="after-edit-badge">edited</span><button class="after-block-edit-btn" type="button" title="Edit block">✎</button></span>`;
+    block.innerHTML=`<span><b>${fmt(ov.ft)}</b> | ${esc(ov.label)}${departHtml}${ssStartHtml}${dwellHtml}${suffix}<span class="after-edit-badge">edited</span><button class="after-block-edit-btn" type="button" title="Edit block">✎</button></span>`;
     block.dataset.afterEdited='1';
   }
   function recalcAfterRows(){
@@ -14194,6 +14616,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           <div class="after-edit-field"><label>Footage</label><input id="after-edit-ft" inputmode="numeric"></div>
           <div class="after-edit-field"><label>Display Track</label><input id="after-edit-track" inputmode="numeric"></div>
           <div class="after-edit-field"><label>Depart On</label><select id="after-edit-depart"><option value="">Not Set</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option></select></div>
+          <div class="after-edit-field after-edit-ss-time-field" id="after-edit-ss-time-wrap"><label>Went Into SS</label><input id="after-edit-ss-start" type="datetime-local" step="60"><div class="after-edit-ss-note">Required when this second-table block is changed to SS.</div></div>
           <div class="after-edit-field"><label>Train / Block Label</label><input id="after-edit-label"></div>
           <div class="after-edit-field full"><label>Calculated Dwell — Locked</label><input id="after-edit-dwell" readonly></div>
           <div class="after-edit-actions"><button class="after-edit-btn danger" type="button" id="after-edit-reset">Reset</button><button class="after-edit-btn" type="button" data-after-edit-cancel>Cancel</button><button class="after-edit-btn primary" type="button" id="after-edit-save">Save Changes</button></div>
@@ -14204,6 +14627,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     modal.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAfterEditModal(); if((e.ctrlKey||e.metaKey)&&e.key==='Enter') saveAfterEditModal(); });
     modal.querySelector('#after-edit-save').addEventListener('click',saveAfterEditModal);
     modal.querySelector('#after-edit-reset').addEventListener('click',resetAfterEditModal);
+    modal.querySelector('#after-edit-depart').addEventListener('change',setAfterEditSsTimeState);
     return modal;
   }
   function closeAfterEditModal(){const m=document.getElementById('after-block-edit-modal'); if(m) m.classList.remove('open');}
@@ -14223,6 +14647,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('after-edit-track').value=ov.displayTrack||parsed.displayTrack||block.dataset.afterTrack||'';
     const depSel=document.getElementById('after-edit-depart');
     if(depSel) depSel.value=normalizeDepartTrain(ov.departureTrain || ov.departTrain || ov.outbound || '');
+    const ssStart=document.getElementById('after-edit-ss-start');
+    if(ssStart) ssStart.value=ov.ssStartTime||'';
+    setAfterEditSsTimeState();
     document.getElementById('after-edit-dwell').value=parsed.dwell||'NO DWELL VALUE';
     modal.classList.add('open');
     setTimeout(()=>document.getElementById('after-edit-ft').focus(),0);
@@ -14234,10 +14661,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     const label=clean(document.getElementById('after-edit-label').value).toUpperCase();
     const displayTrack=clean(document.getElementById('after-edit-track').value).replace(/[^0-9]/g,'');
     const departureTrain=normalizeDepartTrain(document.getElementById('after-edit-depart') && document.getElementById('after-edit-depart').value);
+    const ssStartTime=clean(document.getElementById('after-edit-ss-start') && document.getElementById('after-edit-ss-start').value);
     if(!ft || ft<=0){toastMsg('Enter valid footage'); return;}
     if(!label){toastMsg('Enter a train/block label'); return;}
+    if(departureTrain==='SS' && !ssStartTime){toastMsg('Select when this block went into SS'); const el=document.getElementById('after-edit-ss-start'); if(el) el.focus(); return;}
     const edits=loadEdits();
-    edits[key]={ft,label,displayTrack,departureTrain,dwellHtml:modal.dataset.dwellHtml||'',updatedAt:new Date().toISOString()};
+    edits[key]={ft,label,displayTrack,departureTrain,ssStartTime:(departureTrain==='SS'?ssStartTime:''),dwellHtml:modal.dataset.dwellHtml||'',updatedAt:new Date().toISOString()};
     saveEdits(edits);
     closeAfterEditModal();
     try{ if(typeof renderOB==='function') renderOB(); }catch(e){ enhanceAfterBoard(); }
@@ -16549,7 +16978,8 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
 .current-edit-field{display:flex;flex-direction:column;gap:5px;}
 .current-edit-field.full{grid-column:1/-1;}
 .current-edit-field label{font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;}
-.current-edit-field input{width:100%;padding:10px 11px;border-radius:10px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.92);color:#f8fafc;font-family:var(--mono);font-size:12px;outline:none;color-scheme:dark;}
+.current-edit-field input,.current-edit-field select{width:100%;padding:10px 11px;border-radius:10px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.92);color:#f8fafc;font-family:var(--mono);font-size:12px;outline:none;color-scheme:dark;}
+.current-edit-field input[readonly]{color:#93c5fd;background:rgba(15,23,42,.70);border-color:rgba(59,130,246,.30);}
 .current-edit-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:2px;}
 .current-edit-btn{padding:9px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);color:#cbd5e1;font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
 .current-edit-btn.primary{background:linear-gradient(180deg,#0284c7,#075985);border-color:#38bdf8;color:#fff;box-shadow:0 0 14px rgba(56,189,248,.18);}
@@ -16573,129 +17003,54 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
 </style>
 <script id="current-board-edit-icons-js">
 (function(){
-  const STORE='dwellCurrentBoardBlockEditsV1';
-  let activeBlock=null, activeKey='';
+  const STORE='dwellCurrentBoardBlockEditsV2';
+  const LEGACY_STORE='dwellCurrentBoardBlockEditsV1';
+  let activeBlock=null, activeKey='', activeOriginalRow=null;
   function clean(v){return String(v==null?'':v).trim();}
   function esc(s){return clean(s).replace(/[&<>\"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
-  function n(v){const x=parseFloat(clean(v).replace(/,/g,''));return Number.isFinite(x)?x:0;}
+  function n(v){const x=parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,''));return Number.isFinite(x)?x:0;}
   function fmt(v){return Math.round(n(v)).toLocaleString();}
-  function load(){try{return JSON.parse(localStorage.getItem(STORE)||'{}')||{};}catch(e){return {};}}
+  function load(){try{const fresh=JSON.parse(localStorage.getItem(STORE)||'{}')||{}; if(Object.keys(fresh).length) return fresh; return JSON.parse(localStorage.getItem(LEGACY_STORE)||'{}')||{};}catch(e){return {};}}
   function save(o){try{localStorage.setItem(STORE,JSON.stringify(o||{}));}catch(e){console.warn('current board edit save failed',e);}}
   function toastMsg(msg){try{ if(typeof toast==='function') toast(msg); else console.log(msg); }catch(e){console.log(msg);} }
-  function normalize(txt){return clean(txt).replace(/[✎×]/g,'').replace(/EDITED/gi,'').replace(/\s+/g,' ').slice(0,180);}
-  function getTrackFromRow(tr){const m=clean(tr.querySelector('.bowl-track')?.textContent||'').match(/06-(\d{3})/);return m?m[1]:'';}
+  function normalize(txt){return clean(txt).replace(/[✎×]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);}
+  function getTrackFromRow(tr){const m=clean(tr&&tr.querySelector('.bowl-track')?tr.querySelector('.bowl-track').textContent:'').match(/06-(\d{3})/);return m?m[1]:'';}
+  function findRowByTrack(track){track=clean(track).replace(/[^0-9]/g,''); let found=null; document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{if(getTrackFromRow(tr)===track) found=tr;}); return found;}
   function blockKey(block){const tr=block.closest('tr');return [getTrackFromRow(tr),normalize(block.textContent)].join('||');}
-  function parseBlock(block){
-    const clone=block.cloneNode(true);
-    clone.querySelectorAll('button,.current-edit-badge').forEach(x=>x.remove());
-    const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0');
-    const dwellEl=clone.querySelector('.bowl-dwell');
-    const dwell=clean(dwellEl?dwellEl.textContent:'');
-    if(dwellEl) dwellEl.remove();
-    clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove());
-    let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' ');
-    txt=txt.replace(/\|\s*$/,'').trim();
-    return {ft,label:txt,dwell:dwell};
-  }
-  function dwellClassFromText(txt){
-    const v=parseFloat(clean(txt));
-    if(!Number.isFinite(v)) return '';
-    if(v<7) return 'dw-green';
-    if(v<11) return 'dw-gold';
-    return 'dw-red';
-  }
-  function renderBlock(block,ov){
-    const ft=fmt(ov.ft);
-    const label=esc(ov.label||'—');
-    const dwell=clean(ov.dwell);
-    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:'';
-    block.innerHTML=`<span><b>${ft}</b> | ${label}${dwellHtml}<span class="current-edit-badge">edited</span><button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button></span>`;
-    block.dataset.currentEditKey=blockKey(block);
-  }
-  function recalcRow(tr){
-    if(!tr) return;
-    let total=0;
-    tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{ const bold=b.querySelector('b'); total += n(bold?bold.textContent:0); });
-    const cur=tr.querySelector('.bowl-current');
-    if(cur) cur.textContent=fmt(total);
-    const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
-    const track=getTrackFromRow(tr);
-    const delta=(capMap[track]||0)-total;
-    const d=tr.querySelector('.bowl-delta');
-    if(d){ d.textContent=fmt(delta); d.classList.remove('good','warn','bad'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad'); }
-  }
-  function enhance(){
-    const edits=load();
-    document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{
-      tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{
-        if(block.querySelector('.manual-tag')) return;
-        let key=block.dataset.currentEditKey || blockKey(block);
-        block.dataset.currentEditKey=key;
-        if(edits[key]){ renderBlock(block,edits[key]); key=block.dataset.currentEditKey; }
-        if(!block.querySelector('.current-block-edit-btn')){
-          const span=block.querySelector('span')||block;
-          span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button>');
-        }
-      });
-      recalcRow(tr);
-    });
-  }
-  function ensureModal(){
-    let m=document.getElementById('current-block-edit-modal');
-    if(m) return m;
-    m=document.createElement('div');
-    m.id='current-block-edit-modal';
-    m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block">
-      <div class="current-edit-head"><div class="current-edit-title">EDIT FIRST TABLE BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>×</button></div>
-      <div class="current-edit-body">
-        <div class="current-edit-help">Display-level edit for the first Current Ramp Blocking table. This does not change the raw imported car rows or Supabase schema.</div>
-        <div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric"></div>
-        <div class="current-edit-field"><label>Dwell</label><input id="current-edit-dwell" placeholder="13.1H NET"></div>
-        <div class="current-edit-field full"><label>Block / Inbound Label</label><input id="current-edit-label"></div>
-        <div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div>
-      </div></div>`;
-    document.body.appendChild(m);
-    m.addEventListener('click',e=>{if(e.target===m || e.target.closest('[data-current-edit-cancel]')) closeModal();});
-    m.querySelector('#current-edit-save').addEventListener('click',saveModal);
-    m.querySelector('#current-edit-reset').addEventListener('click',resetModal);
-    return m;
-  }
-  function openModal(block){
-    activeBlock=block; activeKey=block.dataset.currentEditKey || blockKey(block);
-    const edits=load(); const base=edits[activeKey] || parseBlock(block);
-    const m=ensureModal();
-    m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,'');
-    m.querySelector('#current-edit-label').value=base.label||'';
-    m.querySelector('#current-edit-dwell').value=base.dwell||'';
-    m.classList.add('open');
-    setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);
-  }
-  function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m) m.classList.remove('open'); activeBlock=null; activeKey='';}
-  function saveModal(){
-    if(!activeBlock||!activeKey) return;
-    const m=document.getElementById('current-block-edit-modal');
-    const ov={ft:n(m.querySelector('#current-edit-ft').value),label:clean(m.querySelector('#current-edit-label').value)||'—',dwell:clean(m.querySelector('#current-edit-dwell').value)};
-    const edits=load(); edits[activeKey]=ov; save(edits);
-    renderBlock(activeBlock,ov); recalcRow(activeBlock.closest('tr'));
-    closeModal(); toastMsg('First table block updated');
-  }
-  function resetModal(){
-    if(!activeBlock||!activeKey) return;
-    const edits=load(); delete edits[activeKey]; save(edits); closeModal(); toastMsg('First table edit reset');
-    try{ if(typeof renderOutbound==='function') renderOutbound(); else enhance(); }catch(e){ enhance(); }
-  }
-  document.addEventListener('click',function(e){
-    const btn=e.target.closest && e.target.closest('.current-block-edit-btn');
-    if(!btn) return;
-    const block=btn.closest('.bowl-block'); if(!block) return;
-    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); openModal(block);
-  },true);
+  function normBlock(v){const s=clean(v).toUpperCase(); if(s==='MHOAS') return 'MHOAS'; if(s==='SS' || s==='_SS') return 'SS'; return 'IHOSA';}
+  function isSSLabel(v){const s=clean(v).toUpperCase(); return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(s) || s==='SS' || s.includes('_SS');}
+  function blockTypeFromLabel(label){const s=clean(label).toUpperCase(); if(/(^|[^A-Z0-9])MHOAS([^A-Z0-9]|$)/.test(s)) return 'MHOAS'; if(isSSLabel(s)) return 'SS'; if(/(^|[^A-Z0-9])IHOSA([^A-Z0-9]|$)/.test(s)) return 'IHOSA'; return 'IHOSA';}
+  function trainFromLabel(label){let s=clean(label); s=s.replace(/\b(IHOSA|MHOAS|SS)\b/ig,' ').replace(/\s+/g,' ').trim(); return s;}
+  function makeLabel(train, block){train=clean(train).toUpperCase(); block=normBlock(block); return train ? (train+' '+block) : block;}
+  function dwellClassFromText(txt){const v=parseFloat(clean(txt)); if(!Number.isFinite(v)) return ''; if(v<7) return 'dw-green'; if(v<11) return 'dw-gold'; return 'dw-red';}
+  function parseCompact(raw){const s=clean(raw).replace(/\D/g,''); if(!(s.length===7||s.length===8)) return null; const yr=new Date().getFullYear(); let mo,dd,hh,mm; if(s.length===7){mo=+s[0];dd=+s.slice(1,3);hh=+s.slice(3,5);mm=+s.slice(5,7);}else{mo=+s.slice(0,2);dd=+s.slice(2,4);hh=+s.slice(4,6);mm=+s.slice(6,8);} if(mo<1||mo>12||dd<1||dd>31||hh>23||mm>59) return null; const d=new Date(yr,mo-1,dd,hh,mm,0,0); return Number.isNaN(d.getTime())?null:d;}
+  function parseAny(raw){const s=clean(raw); if(!s) return null; const local=s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); if(local){const d=new Date(+local[1],+local[2]-1,+local[3],+local[4],+local[5],0,0); return Number.isNaN(d.getTime())?null:d;} if(typeof parseCompactDate==='function'){try{const d=parseCompactDate(s); if(d&&!Number.isNaN(d.getTime())) return d;}catch(e){}} const c=parseCompact(s); if(c) return c; const d=new Date(s); return Number.isNaN(d.getTime())?null:d;}
+  function toLocalValue(raw){const d=parseAny(raw); if(!d) return ''; const pad=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+  function fmtShort(raw){const d=parseAny(raw); if(!d) return ''; const pad=x=>String(x).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+  function getArrivalForTrain(train, override){const o=parseAny(override); if(o) return o; const t=clean(train); if(!t) return null; if(typeof getArrival==='function'){try{const d=getArrival(t); if(d&&!Number.isNaN(new Date(d).getTime())) return new Date(d);}catch(e){}} if(window.arrOverrides && window.arrOverrides[t.toUpperCase()]){const d=new Date(window.arrOverrides[t.toUpperCase()]); if(!Number.isNaN(d.getTime())) return d;} return null;}
+  function calcArrivalToSS(train,ssStart,arrivalOverride){const arr=getArrivalForTrain(train,arrivalOverride); const ss=parseAny(ssStart); if(!arr||!ss) return null; const hrs=(ss-arr)/3600000; return Number.isFinite(hrs)?Math.max(0,hrs):null;}
+  function getCurrentReleaseDate(block){block=normBlock(block); if(block==='SS') return null; const cfg=(block==='MHOAS') ? (window.depTimes&&depTimes.mhoas?depTimes.mhoas:{h:3,m:0}) : (window.depTimes&&depTimes.ihosa?depTimes.ihosa:{h:20,m:30}); const d=new Date(); d.setDate(d.getDate()+(block==='MHOAS'?1:0)); d.setHours(+cfg.h||0,+cfg.m||0,0,0); return d;}
+  function calcArrivalToOutbound(train, block, arrivalOverride){const arr=getArrivalForTrain(train,arrivalOverride); const rel=getCurrentReleaseDate(block); if(!arr||!rel) return null; const hrs=(rel-arr)/3600000; return Number.isFinite(hrs)?Math.max(0,hrs):null;}
+  function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const train=trainFromLabel(txt)||clean(block.dataset.currentTrain||''); return {ft:ft,label:makeLabel(train,type),train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||'')};}
+  function renderBlock(block,ov){const ft=fmt(ov.ft); const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); const train=clean(ov.train||trainFromLabel(ov.label)||block.dataset.currentTrain||''); const label=makeLabel(train,blockType); let dwell=clean(ov.dwell); if(blockType==='SS' && ov.ssStart){const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}else if(blockType!=='SS' && ov.arrival){const calc=calcArrivalToOutbound(train,blockType,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}
+    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; const ssBadge=(blockType==='SS' && ov.ssStart) ? ` <span class="current-edit-ss-start-badge" title="Went into SS">SS ${esc(fmtShort(ov.ssStart))}</span>` : ''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b> | ${esc(label)}${ssBadge}${dwellHtml}<span class="current-edit-badge">edited</span><button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button></span>`; block.dataset.currentEditKey=blockKey(block);}
+  function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
+  function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button>');}}); recalcRow(tr);});}
+  function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>×</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">Arrival</label><input id="current-edit-time" type="datetime-local" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
+  function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent=(block==='SS')?'Went Into SS':'Arrival'; let val=null; if(block==='SS'){val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS TIME ENTERED':val.toFixed(1)+'H NET') : 'SELECT SS TIME';}else{val=calcArrivalToOutbound(train,block,time); if(net) net.value=val===null?'ENTER ARRIVAL':val.toFixed(1)+'H NET';}}
+  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); const blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); const train=clean(base.train||trainFromLabel(base.label)||block.dataset.currentTrain||''); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK — 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=blockType==='SS'?toLocalValue(base.ssStart||block.dataset.currentSsStart||''):toLocalValue(base.arrival||block.dataset.currentArrival||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
+  function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
+  function saveModal(){if(!activeBlock||!activeKey)return; const m=document.getElementById('current-block-edit-modal'); const ft=n(m.querySelector('#current-edit-ft').value); const outTrack=clean(m.querySelector('#current-edit-outtrack').value).replace(/[^0-9]/g,'')||m.dataset.originalTrack||''; const train=clean(m.querySelector('#current-edit-train').value).toUpperCase(); const blockType=normBlock(m.querySelector('#current-edit-block').value); const time=clean(m.querySelector('#current-edit-time').value); if(!ft||ft<=0){toastMsg('Enter valid footage'); m.querySelector('#current-edit-ft').focus(); return;} if(!train){toastMsg('Train / inbound is required'); m.querySelector('#current-edit-train').focus(); return;} if(blockType==='SS'&&!time){toastMsg('Select what time this block went into SS'); m.querySelector('#current-edit-time').focus(); return;} if(blockType!=='SS'&&!time){toastMsg('Select the arrival time so net dwell can calculate'); m.querySelector('#current-edit-time').focus(); return;} let dwell=''; if(blockType==='SS'){const calc=calcArrivalToSS(train,time,m.dataset.currentArrival||''); dwell=calc===null?'':calc.toFixed(1)+'H NET';}else{const calc=calcArrivalToOutbound(train,blockType,time); dwell=calc===null?'':calc.toFixed(1)+'H NET';}
+    const ov={ft:ft,train:train,blockType:blockType,label:makeLabel(train,blockType),dwell:dwell,arrival:blockType==='SS'?(m.dataset.currentArrival||''):time,ssStart:blockType==='SS'?time:''}; const edits=load(); delete edits[activeKey]; const targetRow=findRowByTrack(outTrack); const oldRow=activeOriginalRow||activeBlock.closest('tr'); if(targetRow&&targetRow!==oldRow){const wrap=targetRow.querySelector('.bowl-segments-wrap')||targetRow.querySelector('.bowl-segments-cell'); if(wrap)wrap.appendChild(activeBlock);} renderBlock(activeBlock,ov); const newKey=activeBlock.dataset.currentEditKey||blockKey(activeBlock); edits[newKey]=ov; save(edits); recalcRow(oldRow); recalcRow(activeBlock.closest('tr')); closeModal(); toastMsg(blockType==='SS'?'Current Ramp SS block updated':'Current Ramp block updated');}
+  function resetModal(){if(!activeBlock||!activeKey)return; const edits=load(); delete edits[activeKey]; save(edits); closeModal(); toastMsg('Current Ramp edit reset'); try{if(typeof renderOutbound==='function')renderOutbound(); else if(typeof renderOB==='function')renderOB(); else enhance();}catch(e){enhance();}}
+  document.addEventListener('click',function(e){const btn=e.target.closest&&e.target.closest('.current-block-edit-btn'); if(!btn)return; const block=btn.closest('.bowl-block'); if(!block)return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); openModal(block);},true);
   const mo=new MutationObserver(()=>{clearTimeout(window.__currentBoardEditEnhanceTimer); window.__currentBoardEditEnhanceTimer=setTimeout(enhance,80);});
   function start(){try{mo.observe(document.body,{childList:true,subtree:true});}catch(e){} enhance();}
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start); else start();
   window.enhanceCurrentBoardEditIcons=enhance;
 })();
 </script>
+
 
 
 
@@ -16913,6 +17268,13 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   },true);
 })();
 </script>
+
+<style id="current-board-ss-time-css">
+.current-edit-ss-time-field{display:none;}
+.current-edit-ss-time-field.show{display:flex;}
+.current-edit-ss-note{margin-top:3px;font-family:var(--sans);font-size:10px;line-height:1.35;color:#bae6fd;}
+.current-edit-ss-start-badge{margin-left:6px;padding:1px 6px;border-radius:999px;border:1px solid rgba(56,189,248,.34);background:rgba(14,165,233,.12);color:#bae6fd;font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;vertical-align:middle;}
+</style>
 </body>
 
 
@@ -17819,5 +18181,351 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
 
 
 </script>
+
+
+
+<!-- === PATCH: top Current Ramp Blocking numeric columns use red / amber / green capacity design === -->
+<style id="top-current-ramp-capacity-column-color-design-css">
+  /* Mirrors the narrow capacity-column design: dark red for low/negative, amber for tight, green for healthy. */
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-good,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-good{
+    background:linear-gradient(180deg, rgba(6,78,59,.92), rgba(5,46,22,.96))!important;
+    color:#86efac!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(34,197,94,.28)!important;
+    border-left:1px solid rgba(34,197,94,.36)!important;
+    border-right:1px solid rgba(34,197,94,.22)!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-warn,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-warn{
+    background:linear-gradient(180deg, rgba(82,56,9,.94), rgba(52,35,6,.96))!important;
+    color:#fcd34d!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(245,158,11,.26)!important;
+    border-left:1px solid rgba(245,158,11,.38)!important;
+    border-right:1px solid rgba(245,158,11,.24)!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.capacity-bad,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.capacity-bad{
+    background:linear-gradient(180deg, rgba(69,18,25,.96), rgba(49,14,20,.98))!important;
+    color:#fca5a5!important;
+    font-weight:900!important;
+    text-shadow:0 0 10px rgba(239,68,68,.24)!important;
+    border-left:1px solid rgba(248,113,113,.34)!important;
+    border-right:1px solid rgba(248,113,113,.22)!important;
+  }
+</style>
+<script id="top-current-ramp-capacity-column-color-design-js">
+(function(){
+  'use strict';
+  function parseNum(txt){
+    var n=Number(String(txt||'').replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function clsFor(v){
+    return v>=750 ? 'capacity-good' : (v>=300 ? 'capacity-warn' : 'capacity-bad');
+  }
+  function paintCell(td){
+    if(!td) return;
+    td.classList.remove('capacity-good','capacity-warn','capacity-bad','good','warn','bad');
+    td.classList.add(clsFor(parseNum(td.textContent)));
+    /* Some cells were rendered with inline !important styles, so set the final paint inline as well. */
+    var c=td.classList.contains('capacity-good')?'good':(td.classList.contains('capacity-warn')?'warn':'bad');
+    if(c==='good'){
+      td.style.setProperty('background','linear-gradient(180deg, rgba(6,78,59,.92), rgba(5,46,22,.96))','important');
+      td.style.setProperty('color','#86efac','important');
+      td.style.setProperty('border-left','1px solid rgba(34,197,94,.36)','important');
+      td.style.setProperty('border-right','1px solid rgba(34,197,94,.22)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(34,197,94,.28)','important');
+    }else if(c==='warn'){
+      td.style.setProperty('background','linear-gradient(180deg, rgba(82,56,9,.94), rgba(52,35,6,.96))','important');
+      td.style.setProperty('color','#fcd34d','important');
+      td.style.setProperty('border-left','1px solid rgba(245,158,11,.38)','important');
+      td.style.setProperty('border-right','1px solid rgba(245,158,11,.24)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(245,158,11,.26)','important');
+    }else{
+      td.style.setProperty('background','linear-gradient(180deg, rgba(69,18,25,.96), rgba(49,14,20,.98))','important');
+      td.style.setProperty('color','#fca5a5','important');
+      td.style.setProperty('border-left','1px solid rgba(248,113,113,.34)','important');
+      td.style.setProperty('border-right','1px solid rgba(248,113,113,.22)','important');
+      td.style.setProperty('text-shadow','0 0 10px rgba(239,68,68,.24)','important');
+    }
+    td.style.setProperty('font-weight','900','important');
+  }
+  function apply(){
+    document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(function(tr){
+      paintCell(tr.querySelector('td.bowl-current'));
+      paintCell(tr.querySelector('td.bowl-delta'));
+    });
+  }
+  window.applyTopRampCapacityColumnColors=apply;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply);
+  else apply();
+  setTimeout(apply,50);
+  setTimeout(apply,250);
+  try{
+    var target=document.getElementById('tab-outbound') || document.body;
+    new MutationObserver(function(){ apply(); }).observe(target,{childList:true,subtree:true,characterData:true});
+  }catch(e){}
+})();
+</script>
+
+
+
+<!-- === PATCH: copy Post Outbound Consist numeric-cell color design onto top Current Ramp Blocking table === -->
+<style id="copy-after-board-numeric-colors-to-current-board-css">
+  /* Do not invent a separate palette here: use the same good/warn/bad look as the second/Post Outbound table. */
+  .bowl-board:not(.bowl-board-after) td.bowl-current.good,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.good{
+    background:rgba(34,197,94,.18)!important;
+    color:#86efac!important;
+    font-weight:900!important;
+    border-left:1px solid rgba(34,197,94,.24)!important;
+    border-right:1px solid rgba(34,197,94,.18)!important;
+    text-shadow:none!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.warn,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.warn{
+    background:rgba(245,158,11,.18)!important;
+    color:#fcd34d!important;
+    font-weight:900!important;
+    border-left:1px solid rgba(245,158,11,.24)!important;
+    border-right:1px solid rgba(245,158,11,.18)!important;
+    text-shadow:none!important;
+  }
+  .bowl-board:not(.bowl-board-after) td.bowl-current.bad,
+  .bowl-board:not(.bowl-board-after) td.bowl-delta.bad{
+    background:rgba(239,68,68,.18)!important;
+    color:#fca5a5!important;
+    font-weight:900!important;
+    border-left:1px solid rgba(239,68,68,.24)!important;
+    border-right:1px solid rgba(239,68,68,.18)!important;
+    text-shadow:none!important;
+  }
+</style>
+<script id="copy-after-board-numeric-colors-to-current-board-js">
+(function(){
+  'use strict';
+  function parseNum(text){
+    var n = Number(String(text || '').replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function tone(value){
+    return value >= 750 ? 'good' : (value >= 300 ? 'warn' : 'bad');
+  }
+  function paint(td){
+    if(!td) return;
+    var t = tone(parseNum(td.textContent));
+
+    // Remove the previous custom capacity paint so the top table truly matches the second table.
+    td.classList.remove('capacity-good','capacity-warn','capacity-bad','good','warn','bad');
+    td.classList.add(t);
+
+    // The prior patch used inline !important styles, so the matching second-table palette is applied inline too.
+    var bg = t === 'good' ? 'rgba(34,197,94,.18)' : (t === 'warn' ? 'rgba(245,158,11,.18)' : 'rgba(239,68,68,.18)');
+    var fg = t === 'good' ? '#86efac' : (t === 'warn' ? '#fcd34d' : '#fca5a5');
+    var br = t === 'good' ? 'rgba(34,197,94,.24)' : (t === 'warn' ? 'rgba(245,158,11,.24)' : 'rgba(239,68,68,.24)');
+    td.style.setProperty('background', bg, 'important');
+    td.style.setProperty('color', fg, 'important');
+    td.style.setProperty('font-weight', '900', 'important');
+    td.style.setProperty('text-shadow', 'none', 'important');
+    td.style.setProperty('border-left', '1px solid '+br, 'important');
+    td.style.setProperty('border-right', '1px solid '+br, 'important');
+  }
+  function apply(){
+    document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(function(tr){
+      paint(tr.querySelector('td.bowl-current'));
+      paint(tr.querySelector('td.bowl-delta'));
+    });
+  }
+  window.applyTopRampSecondTableNumericColors = apply;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+  [25,75,150,300,600,1000].forEach(function(ms){ setTimeout(apply, ms); });
+  try{
+    var root = document.getElementById('tab-outbound') || document.body;
+    var pending = false;
+    new MutationObserver(function(){
+      if(pending) return;
+      pending = true;
+      requestAnimationFrame(function(){ pending = false; apply(); });
+    }).observe(root, {childList:true, subtree:true, characterData:true});
+  }catch(e){}
+})();
+</script>
+
+
+<!-- === PATCH: first Current Ramp Blocking CURRENT column matches Post Outbound CURRENT column design === -->
+<style id="first-current-match-post-outbound-current-css">
+  .bowl-board:not(.bowl-board-after) td.bowl-current{
+    background:linear-gradient(135deg,#1c1a08,#161410)!important;
+    color:#fbbf24!important;
+    font-weight:800!important;
+    border-left:2px solid rgba(251,191,36,.5)!important;
+    border-right:2px solid rgba(251,191,36,.5)!important;
+    text-shadow:0 0 10px rgba(251,191,36,.35)!important;
+  }
+</style>
+<script id="first-current-match-post-outbound-current-js">
+(function(){
+  'use strict';
+  var AMBER_BG='linear-gradient(135deg,#1c1a08,#161410)';
+  function paintCurrentCell(td){
+    if(!td) return;
+    td.classList.remove('capacity-good','capacity-warn','capacity-bad','good','warn','bad');
+    td.style.setProperty('background', AMBER_BG, 'important');
+    td.style.setProperty('color', '#fbbf24', 'important');
+    td.style.setProperty('font-weight', '800', 'important');
+    td.style.setProperty('border-left', '2px solid rgba(251,191,36,.5)', 'important');
+    td.style.setProperty('border-right', '2px solid rgba(251,191,36,.5)', 'important');
+    td.style.setProperty('text-shadow', '0 0 10px rgba(251,191,36,.35)', 'important');
+  }
+  function apply(){
+    document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody td.bowl-current').forEach(paintCurrentCell);
+  }
+  window.applyTopRampCurrentColumnLikePostOutbound = apply;
+  window.applyTopRampSecondTableNumericColors = function(){
+    try{
+      document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(function(tr){
+        var delta = tr.querySelector('td.bowl-delta');
+        if(!delta) return;
+        var value = Number(String(delta.textContent||'').replace(/[^0-9.-]/g,''));
+        var tone = value >= 750 ? 'good' : (value >= 300 ? 'warn' : 'bad');
+        delta.classList.remove('capacity-good','capacity-warn','capacity-bad','good','warn','bad');
+        delta.classList.add(tone);
+      });
+    }catch(e){}
+    apply();
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+  [0,25,75,150,300,600,1000,1500].forEach(function(ms){ setTimeout(apply, ms); });
+  try{
+    var root=document.getElementById('tab-outbound') || document.body;
+    var pending=false;
+    new MutationObserver(function(){
+      if(pending) return;
+      pending=true;
+      requestAnimationFrame(function(){ pending=false; apply(); });
+    }).observe(root,{childList:true,subtree:true,characterData:true});
+  }catch(e){}
+})();
+</script>
+
+
+<!-- === FINAL OVERRIDE: equalize Current Ramp Blocking and Post Outbound CURRENT column widths === -->
+<style id="final-bowl-current-column-parity-css">
+  /* Reason for the mismatch: an earlier first-board repair patch overrode only
+     .bowl-board:not(.bowl-board-after) and shrank the first CURRENT col to 88px
+     (76px on mobile). This override makes both bowl boards use the same colgroup
+     and visible cell geometry. */
+  #ob-view .bowl-board,
+  #ob-frozen .bowl-board{
+    table-layout:fixed!important;
+    border-collapse:collapse!important;
+    min-width:980px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-track,
+  #ob-frozen .bowl-board col.bowl-col-track{
+    width:110px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-current,
+  #ob-frozen .bowl-board col.bowl-col-current{
+    width:128px!important;
+  }
+
+  #ob-view .bowl-board col.bowl-col-delta,
+  #ob-frozen .bowl-board col.bowl-col-delta{
+    width:82px!important;
+  }
+
+  #ob-view .bowl-board .bowl-track,
+  #ob-frozen .bowl-board .bowl-track{
+    width:110px!important;
+    min-width:110px!important;
+    max-width:110px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+    padding-left:6px!important;
+    padding-right:6px!important;
+    white-space:nowrap!important;
+  }
+
+  #ob-view .bowl-board td.bowl-current,
+  #ob-frozen .bowl-board td.bowl-current,
+  #ob-view .bowl-board th:nth-child(2),
+  #ob-frozen .bowl-board th:nth-child(2){
+    width:128px!important;
+    min-width:128px!important;
+    max-width:128px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+  }
+
+  #ob-view .bowl-board .bowl-delta,
+  #ob-frozen .bowl-board .bowl-delta{
+    width:82px!important;
+    min-width:82px!important;
+    max-width:82px!important;
+    box-sizing:border-box!important;
+  }
+
+  /* Keep the second table plus button from making the TRACK/CURRENT boundary drift. */
+  #ob-view .bowl-board.bowl-board-after .bowl-track-add-btn,
+  #ob-frozen .bowl-board.bowl-board-after .bowl-track-add-btn{
+    display:inline-flex!important;
+    width:18px!important;
+    height:18px!important;
+    min-width:18px!important;
+    margin-left:6px!important;
+    vertical-align:middle!important;
+    position:static!important;
+    transform:none!important;
+  }
+
+  /* Keep the invisible spacer in the first table equal to the real plus button. */
+  #ob-view .bowl-board:not(.bowl-board-after) .bowl-track::after,
+  #ob-frozen .bowl-board:not(.bowl-board-after) .bowl-track::after{
+    content:"+"!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:18px!important;
+    height:18px!important;
+    min-width:18px!important;
+    margin-left:6px!important;
+    border-radius:999px!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    vertical-align:middle!important;
+  }
+
+  @media(max-width:760px){
+    #ob-view .bowl-board,
+    #ob-frozen .bowl-board{
+      min-width:980px!important;
+    }
+    #ob-view .bowl-board col.bowl-col-track,
+    #ob-frozen .bowl-board col.bowl-col-track,
+    #ob-view .bowl-board .bowl-track,
+    #ob-frozen .bowl-board .bowl-track{
+      width:110px!important;
+      min-width:110px!important;
+      max-width:110px!important;
+    }
+    #ob-view .bowl-board col.bowl-col-current,
+    #ob-frozen .bowl-board col.bowl-col-current,
+    #ob-view .bowl-board td.bowl-current,
+    #ob-frozen .bowl-board td.bowl-current,
+    #ob-view .bowl-board th:nth-child(2),
+    #ob-frozen .bowl-board th:nth-child(2){
+      width:128px!important;
+      min-width:128px!important;
+      max-width:128px!important;
+    }
+  }
+</style>
 
 </html>
