@@ -4688,6 +4688,58 @@ body.help-tips-on .help-hover-outline{
   color:#cbd5e1!important;
 }
 
+
+
+    /* Patch: move Shift / UPS / Units controls to the table footer beside Add Row */
+    .train-header .train-shift-field,
+    .train-header .ups-field,
+    .train-header .train-units-field{display:none!important;}
+    .table-footer.inbound-footer-controls{
+      display:flex!important;
+      align-items:center!important;
+      justify-content:space-between!important;
+      gap:14px!important;
+      flex-wrap:wrap!important;
+    }
+    .footer-left-actions{
+      display:flex!important;
+      align-items:flex-end!important;
+      gap:10px!important;
+      flex-wrap:wrap!important;
+    }
+    .footer-field{
+      display:flex!important;
+      flex-direction:column!important;
+      gap:4px!important;
+      align-items:flex-start!important;
+    }
+    .footer-label{
+      font-size:10px!important;
+      font-weight:900!important;
+      letter-spacing:1.3px!important;
+      text-transform:uppercase!important;
+      color:#6b5a42!important;
+      line-height:1!important;
+    }
+    .footer-input{
+      height:34px!important;
+      border-radius:8px!important;
+      border:1px solid #c6ad7e!important;
+      background:#fff8ea!important;
+      color:#111!important;
+      font-size:15px!important;
+      font-weight:900!important;
+      padding:0 10px!important;
+      outline:none!important;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.65)!important;
+    }
+    .footer-input:focus{
+      border-color:#d49a12!important;
+      box-shadow:0 0 0 2px rgba(212,154,18,.18), inset 0 1px 0 rgba(255,255,255,.65)!important;
+    }
+    .footer-shift-field .footer-input{width:170px!important;}
+    .footer-input.mini{width:78px!important;text-align:center!important;}
+
 </style>
 
 <style id="bowl-hide-controls-final-fix-css">
@@ -5123,6 +5175,265 @@ body.help-tips-on .help-hover-outline{
   })();
 })();
 </script>
+
+
+<style id="archive-action-display-error-fix">
+/* Fix Add to Archive / delete display error: keep delete as compact square. */
+.inbound-card-actions{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+}
+.inbound-card-actions .inbound-archive-row{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+  grid-template-columns:none!important;
+}
+.inbound-card-actions .inbound-archive-row > .btn.gold{
+  width:auto!important;
+  min-width:156px!important;
+  max-width:176px!important;
+  flex:0 0 auto!important;
+  padding:0 18px!important;
+}
+.inbound-card-actions .inbound-archive-row > .archive-delete-x,
+.inbound-card-actions button.archive-delete-x.btn.small.danger{
+  width:42px!important;
+  min-width:42px!important;
+  max-width:42px!important;
+  flex:0 0 42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  max-height:42px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  text-align:center!important;
+  line-height:1!important;
+  border-radius:12px!important;
+  overflow:hidden!important;
+}
+</style>
+
+
+<style id="footer-controls-table-style-final-fix">
+/* Final footer control styling: keep Shift / UPS / Units beside + Add Row and match the warm table UI */
+.table-footer.inbound-footer-controls{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  flex-wrap:wrap!important;
+  padding:12px 14px!important;
+  background:linear-gradient(180deg,#ddcda9 0%,#d4c19d 100%)!important;
+  border-top:1px solid rgba(123,92,42,.26)!important;
+}
+.table-footer.inbound-footer-controls .footer-left-actions{
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:flex-start!important;
+  gap:12px!important;
+  flex-wrap:wrap!important;
+}
+.table-footer.inbound-footer-controls .btn[data-action="add-row"]{
+  height:38px!important;
+  min-height:38px!important;
+  padding:0 18px!important;
+  margin:0!important;
+  align-self:flex-end!important;
+  border-radius:12px!important;
+  border:1px solid rgba(171,125,38,.45)!important;
+  background:#fff3d9!important;
+  color:#241807!important;
+  font-size:14px!important;
+  font-weight:900!important;
+  box-shadow:0 2px 4px rgba(82,52,12,.12), inset 0 1px 0 rgba(255,255,255,.72)!important;
+}
+.table-footer.inbound-footer-controls .footer-field{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:flex-end!important;
+  gap:5px!important;
+  margin:0!important;
+}
+.table-footer.inbound-footer-controls .footer-label{
+  display:block!important;
+  margin:0!important;
+  padding:0!important;
+  font-family:var(--mono, 'JetBrains Mono', monospace)!important;
+  font-size:10px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:1.6px!important;
+  text-transform:uppercase!important;
+  color:#6f6046!important;
+  text-align:left!important;
+}
+.table-footer.inbound-footer-controls .footer-input{
+  box-sizing:border-box!important;
+  height:38px!important;
+  min-height:38px!important;
+  margin:0!important;
+  padding:0 12px!important;
+  border-radius:8px!important;
+  border:1px solid #bda373!important;
+  background:#fff8eb!important;
+  color:#111!important;
+  font-family:var(--sans, Inter, sans-serif)!important;
+  font-size:17px!important;
+  line-height:38px!important;
+  font-weight:900!important;
+  outline:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+}
+.table-footer.inbound-footer-controls .footer-input:focus{
+  border-color:#d49a12!important;
+  box-shadow:0 0 0 2px rgba(212,154,18,.22), inset 0 1px 0 rgba(255,255,255,.75)!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field{width:190px!important;min-width:190px!important;}
+.table-footer.inbound-footer-controls .footer-ups-field,
+.table-footer.inbound-footer-controls .footer-units-field{width:96px!important;min-width:96px!important;}
+.table-footer.inbound-footer-controls .footer-input.mini{
+  width:100%!important;
+  text-align:center!important;
+  font-family:var(--mono, 'JetBrains Mono', monospace)!important;
+  font-size:16px!important;
+}
+.table-footer.inbound-footer-controls .footer-total{
+  margin-left:auto!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:9px!important;
+  flex-wrap:wrap!important;
+  font-weight:900!important;
+}
+@media (max-width: 760px){
+  .table-footer.inbound-footer-controls .footer-left-actions{width:100%!important;}
+  .table-footer.inbound-footer-controls .footer-shift-field{width:160px!important;min-width:160px!important;}
+  .table-footer.inbound-footer-controls .footer-ups-field,
+  .table-footer.inbound-footer-controls .footer-units-field{width:82px!important;min-width:82px!important;}
+}
+</style>
+
+
+<style id="footer-controls-compact-pill-restore">
+/* Restore compact Shift / UPS / Units footer controls to the warm pill-table style */
+.table-footer.inbound-footer-controls{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+  flex-wrap:wrap!important;
+  padding:10px 12px!important;
+  background:linear-gradient(180deg,#ddcda9 0%,#d4c19d 100%)!important;
+  border-top:1px solid rgba(123,92,42,.22)!important;
+}
+.table-footer.inbound-footer-controls .footer-left-actions{
+  display:flex!important;
+  align-items:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+.table-footer.inbound-footer-controls .btn[data-action="add-row"]{
+  height:38px!important;
+  min-height:38px!important;
+  padding:0 16px!important;
+  margin:0 4px 0 0!important;
+  align-self:flex-end!important;
+  border-radius:14px!important;
+  border:1px solid rgba(171,125,38,.45)!important;
+  background:#fff3d9!important;
+  color:#241807!important;
+  font-size:16px!important;
+  font-weight:900!important;
+  line-height:38px!important;
+  box-shadow:0 2px 4px rgba(82,52,12,.12), inset 0 1px 0 rgba(255,255,255,.72)!important;
+}
+.table-footer.inbound-footer-controls .footer-field{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:flex-end!important;
+  gap:3px!important;
+  margin:0!important;
+}
+.table-footer.inbound-footer-controls .footer-label{
+  display:block!important;
+  margin:0 0 0 2px!important;
+  padding:0!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:7px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:1px!important;
+  text-transform:uppercase!important;
+  color:#6f6046!important;
+  text-align:left!important;
+}
+.table-footer.inbound-footer-controls .footer-input{
+  box-sizing:border-box!important;
+  height:36px!important;
+  min-height:36px!important;
+  margin:0!important;
+  padding:0 10px!important;
+  border-radius:6px!important;
+  border:1px solid #bda373!important;
+  background:#fff8eb!important;
+  color:#111!important;
+  font-family:var(--sans,Inter,sans-serif)!important;
+  font-size:19px!important;
+  line-height:36px!important;
+  font-weight:900!important;
+  outline:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+}
+.table-footer.inbound-footer-controls .footer-input:focus{
+  border-color:#d49a12!important;
+  box-shadow:0 0 0 2px rgba(212,154,18,.22), inset 0 1px 0 rgba(255,255,255,.75)!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field{width:150px!important;min-width:150px!important;}
+.table-footer.inbound-footer-controls .footer-ups-field{width:68px!important;min-width:68px!important;}
+.table-footer.inbound-footer-controls .footer-units-field{width:100px!important;min-width:100px!important;}
+.table-footer.inbound-footer-controls .footer-input.mini{
+  width:100%!important;
+  text-align:center!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:18px!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-input{
+  border-color:#e1b52f!important;
+  background:#fff6cf!important;
+}
+.table-footer.inbound-footer-controls .footer-total{
+  margin-left:auto!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+  font-weight:900!important;
+}
+@media (max-width:760px){
+  .table-footer.inbound-footer-controls .footer-left-actions{width:100%!important;gap:7px!important;}
+  .table-footer.inbound-footer-controls .footer-shift-field{width:142px!important;min-width:142px!important;}
+  .table-footer.inbound-footer-controls .footer-ups-field{width:64px!important;min-width:64px!important;}
+  .table-footer.inbound-footer-controls .footer-units-field{width:90px!important;min-width:90px!important;}
+}
+</style>
+
 </head>
 <body>
 
@@ -5258,6 +5569,7 @@ body.help-tips-on .help-hover-outline{
       --shadow:0 16px 38px rgba(78,55,25,.18);
       --radius:18px;
       --table-scale:1;
+      --table-width:1180px;
     }
 
     *{box-sizing:border-box}
@@ -5272,8 +5584,11 @@ body.help-tips-on .help-hover-outline{
     }
 
     .app{
-      width:min(1180px, calc(100% - 28px));
+      width:calc(100% - 28px);
+      max-width:none;
       margin:24px auto 60px;
+      overflow-x:auto;
+      padding-bottom:4px;
     }
 
     .topbar{
@@ -5324,7 +5639,9 @@ body.help-tips-on .help-hover-outline{
       accent-color:#9a6a24;
       cursor:pointer;
     }
+    .size-control.width-control input[type=range]{width:170px;}
     .size-value{min-width:42px;text-align:right;color:#111;}
+    .width-value{min-width:58px;text-align:right;color:#111;}
 
     button, input, textarea{
       font:inherit;
@@ -5395,7 +5712,14 @@ body.help-tips-on .help-hover-outline{
 
     .panel-pad{padding:16px}
 
-    .summary-stack{display:flex; flex-direction:column; gap:18px;}
+    .summary-stack{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      width:min(var(--table-width), 100%);
+      min-width:min(720px, 100%);
+      max-width:100%;
+    }
 
     .rollup-card{
       border-radius:16px;
@@ -5736,8 +6060,10 @@ body.help-tips-on .help-hover-outline{
       justify-content:flex-end;
       gap:8px;
       align-self:stretch;
-      min-width:220px;
-      padding:7px;
+      width:auto;
+      min-width:0;
+      flex:0 0 auto;
+      padding:6px;
       border:1px solid rgba(124,91,18,.18);
       border-radius:14px;
       background:rgba(255,248,234,.42);
@@ -5745,10 +6071,10 @@ body.help-tips-on .help-hover-outline{
     }
     .inbound-archive-row{
       display:grid;
-      grid-template-columns:minmax(126px,1fr) 34px;
+      grid-template-columns:144px 34px;
       gap:8px;
       align-items:center;
-      width:100%;
+      width:auto;
     }
     .inbound-action-total{
       min-width:118px;
@@ -5829,6 +6155,120 @@ body.help-tips-on .help-hover-outline{
     }
 
     .divider{height:1px;background:#cdb893;margin:14px 0;}
+
+
+
+    /* Patch: center inbound rollup and train tables on the page */
+    .grid{
+      justify-items:center;
+    }
+    .summary-stack{
+      margin-left:auto;
+      margin-right:auto;
+      max-width:100%;
+    }
+    #trainStack{
+      align-items:center;
+    }
+    #trainStack .train-card,
+    .rollup-card{
+      width:100%;
+    }
+
+
+
+    /* Patch: cleaner centered inbound header alignment */
+    .train-header{
+      display:flex!important;
+      align-items:flex-end!important;
+      justify-content:center!important;
+      gap:12px!important;
+      flex-wrap:wrap!important;
+      padding:12px!important;
+    }
+    .train-header .head-field{
+      display:flex!important;
+      flex-direction:column!important;
+      justify-content:flex-end!important;
+      margin:0!important;
+    }
+    /* Patch: reduce Inbound Train field length by roughly one-third */
+    .train-name-field{flex:0 1 190px!important;min-width:150px!important;max-width:230px!important;}
+    /* Patch: reduce Date / Time field length by roughly one-third */
+    .train-date-field{flex:0 1 154px!important;min-width:145px!important;max-width:165px!important;}
+    .train-shift-field{flex:0 1 200px!important;min-width:160px!important;}
+    .ups-field{flex:0 0 92px!important;min-width:92px!important;}
+    .train-units-field{flex:0 0 128px!important;min-width:108px!important;}
+    .train-header .head-label{
+      height:16px!important;
+      line-height:16px!important;
+      margin:0 0 4px!important;
+      display:flex!important;
+      align-items:center!important;
+    }
+    .train-header .head-input{
+      height:44px!important;
+      min-height:44px!important;
+      padding:0 10px!important;
+      display:block!important;
+      font-size:20px!important;
+      line-height:44px!important;
+    }
+    .train-header .ups-field .head-input,
+    .train-header .train-units-field .head-input{
+      text-align:center!important;
+      font-size:18px!important;
+    }
+    .inbound-card-actions{
+      flex:0 0 auto!important;
+      width:auto!important;
+      min-width:0!important;
+      height:56px!important;
+      align-self:flex-end!important;
+      margin:0!important;
+      padding:7px!important;
+      display:flex!important;
+      align-items:center!important;
+      justify-content:center!important;
+    }
+    .inbound-archive-row{
+      width:auto!important;
+      grid-template-columns:148px 42px!important;
+      gap:10px!important;
+      align-items:center!important;
+    }
+    .inbound-card-actions .btn.small{
+      height:42px!important;
+      border-radius:12px!important;
+      font-size:13px!important;
+      width:148px!important;
+      padding:0 14px!important;
+      white-space:nowrap!important;
+    }
+    .inbound-card-actions .archive-delete-x{
+      width:42px!important;
+      min-width:42px!important;
+      height:42px!important;
+      border-radius:12px!important;
+      font-size:20px!important;
+    }
+    .inbound-action-total{
+      flex:0 0 134px!important;
+      min-width:134px!important;
+      height:56px!important;
+      align-self:flex-end!important;
+      margin-left:auto!important;
+      margin-right:0!important;
+      border-radius:14px!important;
+    }
+    .inbound-action-total .k{font-size:7px!important;letter-spacing:.14em!important;}
+    .inbound-action-total .v{font-size:16px!important;}
+    .auto-note{flex:1 0 100%!important;}
+
+    @media (max-width: 1120px){
+      .train-header{justify-content:flex-start!important;}
+      .inbound-action-total{margin-left:0!important;}
+    }
 
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr;}
@@ -6042,8 +6482,21 @@ body.help-tips-on .help-hover-outline{
     .archive-modal.archive-preview-only .archive-preview-title::after{content:'  — CLICKED FROM ARCHIVE';font-size:10px;color:#6b5b42;margin-left:8px;}
     .archive-preview-card{border:1px solid #bfa985;border-radius:14px;overflow:hidden;background:#fff8ea;}
     .archive-preview-title{background:#d9c9ad;padding:9px 11px;font-weight:950;color:#111;text-transform:uppercase;}
-    .archive-preview-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:9px 11px;border-bottom:1px solid #dac7a6;font-weight:900;color:#111;}
+    .archive-preview-meta{
+      display:grid;
+      grid-template-columns:repeat(5,minmax(95px,1fr));
+      gap:8px;
+      padding:9px 11px;
+      border-bottom:1px solid #dac7a6;
+      font-weight:900;
+      color:#111;
+      align-items:start;
+    }
+    .archive-preview-meta div{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .archive-preview-meta span{display:block;color:#6b5b42;font-size:10px;text-transform:uppercase;font-weight:950;}
+    @media (max-width: 760px){
+      .archive-preview-meta{grid-template-columns:repeat(2,minmax(120px,1fr));}
+    }
     .archive-preview-table{width:100%;min-width:0;border-collapse:collapse;border-spacing:0;}
     .archive-preview-table th,.archive-preview-table td{padding:6px 8px;border-bottom:1px solid #eadcc4;text-align:left;font-size:12px;color:#111;}
     .archive-preview-table th{background:#efe2cd;text-transform:uppercase;font-size:10px;font-weight:950;}
@@ -6059,7 +6512,7 @@ body.help-tips-on .help-hover-outline{
 
     @media (max-width: 620px){
       .app{width:min(100% - 16px, 1180px); margin-top:12px;}
-      .train-header{grid-template-columns:1fr;}
+      .train-header{flex-direction:column;align-items:stretch!important;}
       .form-row{grid-template-columns:1fr;}
       h1{font-size:30px;}
     }
@@ -6113,6 +6566,160 @@ body.help-tips-on .help-hover-outline{
     @media (max-width: 560px){.add-inbound-combo{grid-template-columns:1fr;}}
 
   </style>
+
+
+<style id="archive-action-display-error-fix">
+/* Fix Add to Archive / delete display error: keep delete as compact square. */
+.inbound-card-actions{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+}
+.inbound-card-actions .inbound-archive-row{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+  grid-template-columns:none!important;
+}
+.inbound-card-actions .inbound-archive-row > .btn.gold{
+  width:auto!important;
+  min-width:156px!important;
+  max-width:176px!important;
+  flex:0 0 auto!important;
+  padding:0 18px!important;
+}
+.inbound-card-actions .inbound-archive-row > .archive-delete-x,
+.inbound-card-actions button.archive-delete-x.btn.small.danger{
+  width:42px!important;
+  min-width:42px!important;
+  max-width:42px!important;
+  flex:0 0 42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  max-height:42px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  text-align:center!important;
+  line-height:1!important;
+  border-radius:12px!important;
+  overflow:hidden!important;
+}
+</style>
+
+<style id="footer-controls-compact-pill-restore">
+/* Restore compact Shift / UPS / Units footer controls to the warm pill-table style */
+.table-footer.inbound-footer-controls{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+  flex-wrap:wrap!important;
+  padding:10px 12px!important;
+  background:linear-gradient(180deg,#ddcda9 0%,#d4c19d 100%)!important;
+  border-top:1px solid rgba(123,92,42,.22)!important;
+}
+.table-footer.inbound-footer-controls .footer-left-actions{
+  display:flex!important;
+  align-items:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+.table-footer.inbound-footer-controls .btn[data-action="add-row"]{
+  height:38px!important;
+  min-height:38px!important;
+  padding:0 16px!important;
+  margin:0 4px 0 0!important;
+  align-self:flex-end!important;
+  border-radius:14px!important;
+  border:1px solid rgba(171,125,38,.45)!important;
+  background:#fff3d9!important;
+  color:#241807!important;
+  font-size:16px!important;
+  font-weight:900!important;
+  line-height:38px!important;
+  box-shadow:0 2px 4px rgba(82,52,12,.12), inset 0 1px 0 rgba(255,255,255,.72)!important;
+}
+.table-footer.inbound-footer-controls .footer-field{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:flex-end!important;
+  gap:3px!important;
+  margin:0!important;
+}
+.table-footer.inbound-footer-controls .footer-label{
+  display:block!important;
+  margin:0 0 0 2px!important;
+  padding:0!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:7px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:1px!important;
+  text-transform:uppercase!important;
+  color:#6f6046!important;
+  text-align:left!important;
+}
+.table-footer.inbound-footer-controls .footer-input{
+  box-sizing:border-box!important;
+  height:36px!important;
+  min-height:36px!important;
+  margin:0!important;
+  padding:0 10px!important;
+  border-radius:6px!important;
+  border:1px solid #bda373!important;
+  background:#fff8eb!important;
+  color:#111!important;
+  font-family:var(--sans,Inter,sans-serif)!important;
+  font-size:19px!important;
+  line-height:36px!important;
+  font-weight:900!important;
+  outline:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+}
+.table-footer.inbound-footer-controls .footer-input:focus{
+  border-color:#d49a12!important;
+  box-shadow:0 0 0 2px rgba(212,154,18,.22), inset 0 1px 0 rgba(255,255,255,.75)!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field{width:150px!important;min-width:150px!important;}
+.table-footer.inbound-footer-controls .footer-ups-field{width:68px!important;min-width:68px!important;}
+.table-footer.inbound-footer-controls .footer-units-field{width:100px!important;min-width:100px!important;}
+.table-footer.inbound-footer-controls .footer-input.mini{
+  width:100%!important;
+  text-align:center!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:18px!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-input{
+  border-color:#e1b52f!important;
+  background:#fff6cf!important;
+}
+.table-footer.inbound-footer-controls .footer-total{
+  margin-left:auto!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+  font-weight:900!important;
+}
+@media (max-width:760px){
+  .table-footer.inbound-footer-controls .footer-left-actions{width:100%!important;gap:7px!important;}
+  .table-footer.inbound-footer-controls .footer-shift-field{width:142px!important;min-width:142px!important;}
+  .table-footer.inbound-footer-controls .footer-ups-field{width:64px!important;min-width:64px!important;}
+  .table-footer.inbound-footer-controls .footer-units-field{width:90px!important;min-width:90px!important;}
+}
+</style>
+
 </head>
 <body>
   <main class="app">
@@ -6125,6 +6732,11 @@ body.help-tips-on .help-hover-outline{
           <span>Size</span>
           <input id="sizeSlider" type="range" min="0.75" max="1.35" step="0.05" value="1" />
           <span class="size-value" id="sizeValue">100%</span>
+        </div>
+        <div class="size-control width-control" title="Change inbound table width">
+          <span>Width</span>
+          <input id="widthSlider" type="range" min="820" max="1800" step="20" value="1180" />
+          <span class="width-value" id="widthValue">1180px</span>
         </div>
         <button class="btn gold" id="archiveBankBtn" title="Open the archived inbound bank page">Archive Page</button>
         <button class="btn primary" id="addTrainBtn">+ Add Inbound</button>
@@ -6218,12 +6830,21 @@ body.help-tips-on .help-hover-outline{
   <script>
     const STORAGE_KEY = 'inbound-summary-app-v1';
     const SIZE_KEY = 'inbound-summary-table-size-v1';
+    const WIDTH_KEY = 'inbound-summary-table-width-v1';
     const ARCHIVE_KEY = 'inbound-summary-archive-bank-v1';
     let inboundSortMode = 'date';
     let archiveBankOpen = false;
     let inboundArchiveBank = loadArchiveBank();
     let pendingArchiveState = null;
 
+
+    function getInboundTableMaxWidth(){
+      const app = document.querySelector('.app');
+      const grid = document.querySelector('.grid');
+      const available = Math.max(320, Math.floor((grid?.clientWidth || app?.clientWidth || window.innerWidth || 1180) - 2));
+      const scale = Math.min(1.35, Math.max(0.75, Number(getComputedStyle(document.documentElement).getPropertyValue('--table-scale')) || 1));
+      return Math.max(320, Math.floor(available / scale));
+    }
 
     function applyTableSize(value){
       const safe = Math.min(1.35, Math.max(0.75, Number(value) || 1));
@@ -6233,6 +6854,24 @@ body.help-tips-on .help-hover-outline{
       if(slider) slider.value = String(safe);
       if(label) label.textContent = `${Math.round(safe * 100)}%`;
       localStorage.setItem(SIZE_KEY, String(safe));
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
+    }
+
+    function applyTableWidth(value){
+      const maxWidth = getInboundTableMaxWidth();
+      const minWidth = Math.min(820, maxWidth);
+      const requested = Number(value) || Math.min(1180, maxWidth);
+      const safe = Math.min(maxWidth, Math.max(minWidth, requested));
+      document.documentElement.style.setProperty('--table-width', `${safe}px`);
+      const slider = document.getElementById('widthSlider');
+      const label = document.getElementById('widthValue');
+      if(slider){
+        slider.min = String(minWidth);
+        slider.max = String(maxWidth);
+        slider.value = String(safe);
+      }
+      if(label) label.textContent = `${Math.round(safe)}px`;
+      localStorage.setItem(WIDTH_KEY, String(safe));
     }
 
     const sampleTrain = {
@@ -6813,11 +7452,14 @@ body.help-tips-on .help-hover-outline{
 
     function renderArchivePreview(train){
       const rows = Array.isArray(train?.rows) ? train.rows : [];
+      const showUpsMetric = String(train?.train || '').toUpperCase().includes('ZPBHO') || String(train?.ups || '').trim() !== '';
+      const upsMetric = showUpsMetric ? `<div><span>UPS</span>${escapeHtml(String(train?.ups || '').trim() || '—')}</div>` : '';
       return `<div class="archive-preview-meta">
         <div><span>Inbound</span>${escapeHtml(train?.train || '')}</div>
         <div><span>Arrival</span>${escapeHtml(train?.dateTime || '')}</div>
-        <div><span>Total FT</span>${fmt(trainTotalFt(train || {rows:[]}))}</div>
         <div><span>Units</span>${escapeHtml(trainTotalUnits(train || {rows:[]}) || '—')}</div>
+        ${upsMetric}
+        <div><span>Total FT</span>${fmt(trainTotalFt(train || {rows:[]}))}</div>
       </div>
       <table class="archive-preview-table">
         <thead><tr><th>Block</th><th>Cars</th><th>Loads</th><th>MTY</th><th>WT</th><th>FT</th></tr></thead>
@@ -7032,25 +7674,13 @@ body.help-tips-on .help-hover-outline{
         return `${separator}
         <article class="train-card" data-train-id="${train.id}">
           <div class="train-header">
-            <div class="head-field">
+            <div class="head-field train-name-field">
               <div class="head-label">Inbound Train</div>
               <input class="head-input" value="${escapeHtml(train.train)}" data-action="train-field" data-index="${tIndex}" data-field="train" />
             </div>
-            <div class="head-field">
+            <div class="head-field train-date-field">
               <div class="head-label">Date / Time</div>
               <input class="head-input" value="${escapeHtml(train.dateTime)}" data-action="train-field" data-index="${tIndex}" data-field="dateTime" />
-            </div>
-            <div class="head-field">
-              <div class="head-label">Shift</div>
-              <input class="head-input" value="${escapeHtml(train.shift || guessShift(train.dateTime))}" data-action="train-field" data-index="${tIndex}" data-field="shift" />
-            </div>
-            <div class="head-field ups-field" style="${shouldShowUps(train) || train.ups ? '' : 'display:none;'}">
-              <div class="head-label">UPS</div>
-              <input class="head-input" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
-            </div>
-            <div class="head-field">
-              <div class="head-label">Units</div>
-              <input class="head-input" inputmode="numeric" value="${escapeHtml(train.units || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" placeholder="#" />
             </div>
             <div class="inbound-card-actions">
               <div class="inbound-archive-row">
@@ -7093,8 +7723,22 @@ body.help-tips-on .help-hover-outline{
               </tbody>
             </table>
           </div>
-          <div class="table-footer">
-            <button class="btn small" data-action="add-row" data-index="${tIndex}">+ Add Row</button>
+          <div class="table-footer inbound-footer-controls">
+            <div class="footer-left-actions">
+              <button class="btn small" data-action="add-row" data-index="${tIndex}">+ Add Row</button>
+              <div class="footer-field footer-shift-field">
+                <span class="footer-label">Shift</span>
+                <input class="footer-input" value="${escapeHtml(train.shift || guessShift(train.dateTime))}" data-action="train-field" data-index="${tIndex}" data-field="shift" />
+              </div>
+              <div class="footer-field footer-ups-field" style="${shouldShowUps(train) || train.ups ? '' : 'display:none;'}">
+                <span class="footer-label">UPS</span>
+                <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
+              </div>
+              <div class="footer-field footer-units-field">
+                <span class="footer-label">Units</span>
+                <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.units || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" placeholder="#" />
+              </div>
+            </div>
             <div class="footer-total"><span>Units</span><span class="total-pill units-pill" data-units-display data-index="${tIndex}">${escapeHtml(trainTotalUnits(train) || '—')}</span><span>Total FT</span><span class="total-pill" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
           </div>
         </article>`;
@@ -7237,6 +7881,13 @@ body.help-tips-on .help-hover-outline{
       applyTableSize(e.target.value);
     });
 
+    document.getElementById('widthSlider')?.addEventListener('input', (e) => {
+      applyTableWidth(e.target.value);
+    });
+    window.addEventListener('resize', () => {
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
+    });
+
 
     document.addEventListener('click', (e) => {
       const archiveItem = e.target.closest('.archive-bank-item[data-archive-id]');
@@ -7364,6 +8015,7 @@ body.help-tips-on .help-hover-outline{
     });
 
     applyTableSize(localStorage.getItem(SIZE_KEY) || '1');
+    applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
     render();
   </script>
 
