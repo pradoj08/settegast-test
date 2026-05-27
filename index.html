@@ -5511,6 +5511,179 @@ h1{
 }
 </style>
 
+
+
+
+
+<style id="inbound-zoom-density-match-patch">
+/* Match the wider desktop view: keep controls readable while reducing the table/card visual density. */
+:root{--inbound-density:.86;}
+.grid{
+  zoom:calc(var(--table-scale) * var(--inbound-density))!important;
+}
+.summary-stack{
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+.rollup-card,
+.train-card{
+  box-shadow:0 14px 32px rgba(78,55,25,.18)!important;
+}
+@media (max-width: 900px){
+  :root{--inbound-density:.92;}
+}
+</style>
+
+<style id="inbound-actions-right-lock-patch">
+/* Lock Add to Archive / Delete and Total FT to the right side of the inbound card header. */
+.train-header{
+  display:grid!important;
+  grid-template-columns:minmax(150px,190px) minmax(145px,154px) minmax(12px,1fr) auto auto!important;
+  align-items:end!important;
+  justify-content:stretch!important;
+  column-gap:12px!important;
+  row-gap:10px!important;
+  flex-wrap:nowrap!important;
+}
+.train-header .train-name-field{grid-column:1!important;justify-self:start!important;width:100%!important;}
+.train-header .train-date-field{grid-column:2!important;justify-self:start!important;width:100%!important;}
+.train-header .inbound-card-actions{
+  grid-column:4!important;
+  justify-self:end!important;
+  align-self:end!important;
+  margin-left:0!important;
+}
+.train-header .inbound-action-total{
+  grid-column:5!important;
+  justify-self:end!important;
+  align-self:end!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+.train-header .auto-note{grid-column:1 / -1!important;}
+@media (max-width: 760px){
+  .train-header{
+    grid-template-columns:1fr 1fr!important;
+  }
+  .train-header .train-name-field{grid-column:1 / -1!important;}
+  .train-header .train-date-field{grid-column:1 / -1!important;}
+  .train-header .inbound-card-actions{grid-column:1!important;justify-self:start!important;}
+  .train-header .inbound-action-total{grid-column:2!important;justify-self:end!important;}
+}
+</style>
+
+
+
+<style id="inbound-final-zoom-header-readable-patch">
+/* Final desktop density/readability patch: zoom the inbound page out and keep the header title fully readable. */
+:root{--inbound-density:.72!important;}
+.app{
+  width:100%!important;
+  max-width:100vw!important;
+  margin:12px 0 48px!important;
+  padding:0 clamp(6px,.75vw,12px) 4px!important;
+}
+.grid{
+  zoom:calc(var(--table-scale) * var(--inbound-density))!important;
+}
+.topbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  flex-wrap:nowrap!important;
+  gap:10px!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow:visible!important;
+  margin-bottom:12px!important;
+}
+.topbar > div:first-child{
+  flex:0 0 auto!important;
+  min-width:max-content!important;
+  max-width:none!important;
+  overflow:visible!important;
+}
+.topbar h1,
+h1{
+  display:block!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  font-size:clamp(24px,2.25vw,34px)!important;
+  line-height:1!important;
+  letter-spacing:-.035em!important;
+  max-width:none!important;
+}
+.actions{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:nowrap!important;
+  gap:6px!important;
+  overflow:hidden!important;
+}
+.size-control{
+  height:34px!important;
+  padding:5px 8px!important;
+  gap:5px!important;
+  border-radius:11px!important;
+  flex:0 1 auto!important;
+}
+.size-control span:first-child{
+  font-size:10px!important;
+  letter-spacing:.05em!important;
+}
+.size-control input[type=range]{
+  width:70px!important;
+  min-width:54px!important;
+}
+.size-control.width-control input[type=range]{
+  width:58px!important;
+  min-width:46px!important;
+}
+.size-value{
+  min-width:32px!important;
+  font-size:11px!important;
+}
+.width-value{
+  min-width:46px!important;
+  font-size:11px!important;
+}
+.actions .btn{
+  height:34px!important;
+  padding:0 10px!important;
+  border-radius:10px!important;
+  font-size:12px!important;
+  line-height:1!important;
+  flex:0 1 auto!important;
+}
+#archiveBankBtn{max-width:112px!important;}
+#addTrainBtn{max-width:128px!important;}
+#clearBtn{max-width:84px!important;}
+.summary-stack{width:min(var(--table-width),100%)!important;}
+@media (max-width:900px){
+  :root{--inbound-density:.80!important;}
+  .topbar{align-items:flex-start!important;}
+  .topbar h1,h1{font-size:22px!important;}
+  .actions{overflow-x:auto!important;justify-content:flex-start!important;padding-bottom:3px!important;}
+}
+</style>
+
+<script id="inbound-default-zoom-out-patch">
+(function(){
+  try{
+    document.addEventListener('DOMContentLoaded', function(){
+      var slider=document.getElementById('sizeSlider');
+      if(slider){ slider.min='0.55'; slider.max='1.15'; }
+    });
+  }catch(e){}
+})();
+</script>
+
 </head>
 <body>
 
@@ -5646,7 +5819,7 @@ h1{
       --shadow:0 16px 38px rgba(78,55,25,.18);
       --radius:18px;
       --table-scale:1;
-      --table-width:1180px;
+      --table-width:1050px;
     }
 
     *{box-sizing:border-box}
@@ -5825,10 +5998,14 @@ h1{
       text-transform:none;
       font-weight:800;
     }
-    .rollup-wrap{overflow-x:auto;background:#16251f;}
+    .rollup-wrap{
+      overflow-x:auto;
+      background:#16251f;
+      max-width:100%;
+    }
     .rollup-table{
       width:100%;
-      min-width:980px;
+      min-width:max-content;
       border-collapse:collapse;
       font-weight:950;
       color:#f7fff7;
@@ -5862,12 +6039,12 @@ h1{
       background:#16251f;
       font-size:16px;
     }
-    .rollup-table .inbound-cell{min-width:180px; text-align:center;}
-    .rollup-table .arrival-cell{min-width:160px; text-align:center;}
-    .rollup-table .shift-cell{min-width:150px; text-align:center;}
-    .rollup-table .ft-cell-rollup{text-align:center; min-width:100px;}
-    .rollup-table .units-cell-rollup{text-align:center; min-width:90px;}
-    .rollup-table .ups-cell-rollup{text-align:center; min-width:90px;}
+    .rollup-table .inbound-cell{min-width:max-content; text-align:center;}
+    .rollup-table .arrival-cell{min-width:max-content; text-align:center;}
+    .rollup-table .shift-cell{min-width:max-content; text-align:center;}
+    .rollup-table .ft-cell-rollup{text-align:center; min-width:max-content;}
+    .rollup-table .units-cell-rollup{text-align:center; min-width:max-content;}
+    .rollup-table .ups-cell-rollup{text-align:center; min-width:max-content;}
     .rollup-table .total-cell{
       width:150px;
       text-align:center;
@@ -5920,6 +6097,12 @@ h1{
     .rollup-table tbody tr:nth-child(odd) td.ft-cell-rollup{
       background:#17271f;
     }
+
+    /* Let the rollup shrink until the actual no-wrap cell content needs horizontal scrolling. */
+    @supports not (min-width: max-content){
+      .rollup-table{min-width:fit-content;}
+    }
+
     .rollup-empty{
       padding:18px;
       color:#f4f4f4;
@@ -6420,6 +6603,7 @@ h1{
     .archive-bank-item .archive-restore-btn{justify-self:end;padding:6px 10px;border-radius:10px;border:1px solid #15803d;background:#dcfce7;color:#14532d;font-weight:950;cursor:pointer;}
     .archive-bank-item .archive-view-btn:hover{filter:brightness(.96);transform:translateY(-1px);}
     .archive-bank-item .archive-restore-btn:hover{background:#bbf7d0;border-color:#166534;transform:translateY(-1px);}
+    .archive-bank-item .archive-restore-btn.restore-confirm{background:#15803d!important;border-color:#166534!important;color:#fff!important;box-shadow:0 0 0 2px rgba(21,128,61,.14);}
     .archive-bank-item .archive-delete-btn{justify-self:end;width:32px;height:32px;border-radius:10px;border:1px solid #dc2626;background:#fff4f0;color:#991b1b;font-weight:950;font-size:16px;line-height:1;cursor:pointer;}
     .archive-bank-item .archive-delete-btn:hover{background:#fee2e2;border-color:#b91c1c;transform:translateY(-1px);}
     .archive-bank-item .archive-delete-btn:focus-visible,.archive-bank-item .archive-view-btn:focus-visible,.archive-bank-item .archive-restore-btn:focus-visible{outline:3px solid rgba(255,212,0,.45);outline-offset:2px;}
@@ -6982,6 +7166,323 @@ html, body{
 }
 </style>
 
+
+
+
+
+<style id="inbound-zoom-density-match-patch">
+/* Match the wider desktop view: keep controls readable while reducing the table/card visual density. */
+:root{--inbound-density:.86;}
+.grid{
+  zoom:calc(var(--table-scale) * var(--inbound-density))!important;
+}
+.summary-stack{
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+.rollup-card,
+.train-card{
+  box-shadow:0 14px 32px rgba(78,55,25,.18)!important;
+}
+@media (max-width: 900px){
+  :root{--inbound-density:.92;}
+}
+</style>
+
+<style id="inbound-actions-right-lock-patch">
+/* Lock Add to Archive / Delete and Total FT to the right side of the inbound card header. */
+.train-header{
+  display:grid!important;
+  grid-template-columns:minmax(150px,190px) minmax(145px,154px) minmax(12px,1fr) auto auto!important;
+  align-items:end!important;
+  justify-content:stretch!important;
+  column-gap:12px!important;
+  row-gap:10px!important;
+  flex-wrap:nowrap!important;
+}
+.train-header .train-name-field{grid-column:1!important;justify-self:start!important;width:100%!important;}
+.train-header .train-date-field{grid-column:2!important;justify-self:start!important;width:100%!important;}
+.train-header .inbound-card-actions{
+  grid-column:4!important;
+  justify-self:end!important;
+  align-self:end!important;
+  margin-left:0!important;
+}
+.train-header .inbound-action-total{
+  grid-column:5!important;
+  justify-self:end!important;
+  align-self:end!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+.train-header .auto-note{grid-column:1 / -1!important;}
+@media (max-width: 760px){
+  .train-header{
+    grid-template-columns:1fr 1fr!important;
+  }
+  .train-header .train-name-field{grid-column:1 / -1!important;}
+  .train-header .train-date-field{grid-column:1 / -1!important;}
+  .train-header .inbound-card-actions{grid-column:1!important;justify-self:start!important;}
+  .train-header .inbound-action-total{grid-column:2!important;justify-self:end!important;}
+}
+</style>
+
+
+
+<style id="inbound-final-zoom-header-readable-patch">
+/* Final desktop density/readability patch: zoom the inbound page out and keep the header title fully readable. */
+:root{--inbound-density:.72!important;}
+.app{
+  width:100%!important;
+  max-width:100vw!important;
+  margin:12px 0 48px!important;
+  padding:0 clamp(6px,.75vw,12px) 4px!important;
+}
+.grid{
+  zoom:calc(var(--table-scale) * var(--inbound-density))!important;
+}
+.topbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  flex-wrap:nowrap!important;
+  gap:10px!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow:visible!important;
+  margin-bottom:12px!important;
+}
+.topbar > div:first-child{
+  flex:0 0 auto!important;
+  min-width:max-content!important;
+  max-width:none!important;
+  overflow:visible!important;
+}
+.topbar h1,
+h1{
+  display:block!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  font-size:clamp(24px,2.25vw,34px)!important;
+  line-height:1!important;
+  letter-spacing:-.035em!important;
+  max-width:none!important;
+}
+.actions{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:nowrap!important;
+  gap:6px!important;
+  overflow:hidden!important;
+}
+.size-control{
+  height:34px!important;
+  padding:5px 8px!important;
+  gap:5px!important;
+  border-radius:11px!important;
+  flex:0 1 auto!important;
+}
+.size-control span:first-child{
+  font-size:10px!important;
+  letter-spacing:.05em!important;
+}
+.size-control input[type=range]{
+  width:70px!important;
+  min-width:54px!important;
+}
+.size-control.width-control input[type=range]{
+  width:58px!important;
+  min-width:46px!important;
+}
+.size-value{
+  min-width:32px!important;
+  font-size:11px!important;
+}
+.width-value{
+  min-width:46px!important;
+  font-size:11px!important;
+}
+.actions .btn{
+  height:34px!important;
+  padding:0 10px!important;
+  border-radius:10px!important;
+  font-size:12px!important;
+  line-height:1!important;
+  flex:0 1 auto!important;
+}
+#archiveBankBtn{max-width:112px!important;}
+#addTrainBtn{max-width:128px!important;}
+#clearBtn{max-width:84px!important;}
+.summary-stack{width:min(var(--table-width),100%)!important;}
+@media (max-width:900px){
+  :root{--inbound-density:.80!important;}
+  .topbar{align-items:flex-start!important;}
+  .topbar h1,h1{font-size:22px!important;}
+  .actions{overflow-x:auto!important;justify-content:flex-start!important;padding-bottom:3px!important;}
+}
+</style>
+
+<script id="inbound-default-zoom-out-patch">
+(function(){
+  try{
+    document.addEventListener('DOMContentLoaded', function(){
+      var slider=document.getElementById('sizeSlider');
+      if(slider){ slider.min='0.55'; slider.max='1.15'; }
+    });
+  }catch(e){}
+})();
+</script>
+
+
+<style id="footer-even-spread-patch">
+/* Spread bottom inbound footer controls more evenly across the full row. */
+.table-footer.inbound-footer-controls{
+  display:grid!important;
+  grid-template-columns:max-content max-content max-content max-content max-content max-content!important;
+  justify-content:space-between!important;
+  align-items:end!important;
+  column-gap:14px!important;
+  row-gap:8px!important;
+  flex-wrap:nowrap!important;
+}
+.table-footer.inbound-footer-controls .footer-add-row{
+  justify-self:start!important;
+  margin:0!important;
+}
+.table-footer.inbound-footer-controls .footer-field,
+.table-footer.inbound-footer-controls .footer-total{
+  margin:0!important;
+}
+.table-footer.inbound-footer-controls .footer-total{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  white-space:nowrap!important;
+  justify-self:end!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units,
+.table-footer.inbound-footer-controls .footer-total-ft{
+  align-self:end!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field,
+.table-footer.inbound-footer-controls .footer-ups-field,
+.table-footer.inbound-footer-controls .footer-units-field{
+  align-self:end!important;
+}
+@media (max-width: 1180px){
+  .table-footer.inbound-footer-controls{
+    grid-template-columns:repeat(3,max-content)!important;
+    justify-content:space-between!important;
+  }
+  .table-footer.inbound-footer-controls .footer-total{
+    justify-self:start!important;
+  }
+}
+</style>
+
+<style id="footer-one-line-force-patch">
+/* Force inbound footer controls to remain on one line. */
+.table-footer.inbound-footer-controls{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:flex-end!important;
+  justify-content:space-between!important;
+  flex-wrap:nowrap!important;
+  gap:10px!important;
+  padding:9px 10px!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  white-space:nowrap!important;
+}
+.table-footer.inbound-footer-controls::-webkit-scrollbar{
+  height:6px!important;
+}
+.table-footer.inbound-footer-controls::-webkit-scrollbar-thumb{
+  background:rgba(120,84,28,.35)!important;
+  border-radius:999px!important;
+}
+.table-footer.inbound-footer-controls .footer-add-row,
+.table-footer.inbound-footer-controls .footer-field,
+.table-footer.inbound-footer-controls .footer-total{
+  flex:0 0 auto!important;
+  margin:0!important;
+  white-space:nowrap!important;
+}
+.table-footer.inbound-footer-controls .footer-add-row{
+  width:auto!important;
+  min-width:98px!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:0 12px!important;
+  line-height:34px!important;
+  font-size:14px!important;
+}
+.table-footer.inbound-footer-controls .footer-field{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-end!important;
+  gap:2px!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field{
+  width:138px!important;
+  min-width:138px!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field{
+  width:58px!important;
+  min-width:58px!important;
+}
+.table-footer.inbound-footer-controls .footer-units-field{
+  width:76px!important;
+  min-width:76px!important;
+}
+.table-footer.inbound-footer-controls .footer-input{
+  height:32px!important;
+  min-height:32px!important;
+  line-height:32px!important;
+  font-size:16px!important;
+  padding:0 8px!important;
+}
+.table-footer.inbound-footer-controls .footer-input.mini{
+  font-size:15px!important;
+}
+.table-footer.inbound-footer-controls .footer-label{
+  font-size:6px!important;
+  letter-spacing:.8px!important;
+  line-height:1!important;
+}
+.table-footer.inbound-footer-controls .footer-total{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+.table-footer.inbound-footer-controls .total-pill{
+  min-width:58px!important;
+  height:32px!important;
+  padding:0 12px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-size:13px!important;
+}
+.table-footer.inbound-footer-controls .units-pill{
+  min-width:52px!important;
+}
+@media (max-width: 900px){
+  .table-footer.inbound-footer-controls{
+    justify-content:flex-start!important;
+  }
+}
+</style>
+
 </head>
 <body>
   <main class="app">
@@ -6992,12 +7493,12 @@ html, body{
       <div class="actions">
         <div class="size-control" title="Change table size">
           <span>Size</span>
-          <input id="sizeSlider" type="range" min="0.75" max="1.35" step="0.05" value="1" />
+          <input id="sizeSlider" type="range" min="0.55" max="1.15" step="0.05" value="0.65" />
           <span class="size-value" id="sizeValue">100%</span>
         </div>
         <div class="size-control width-control" title="Change inbound table width">
           <span>Width</span>
-          <input id="widthSlider" type="range" min="820" max="1800" step="20" value="1180" />
+          <input id="widthSlider" type="range" min="820" max="1800" step="20" value="1050" />
           <span class="width-value" id="widthValue">1180px</span>
         </div>
         <button class="btn gold" id="archiveBankBtn" title="Open the archived inbound bank page">Archive Page</button>
@@ -7109,20 +7610,20 @@ html, body{
     }
 
     function applyTableSize(value){
-      const safe = Math.min(1.35, Math.max(0.75, Number(value) || 1));
+      const safe = Math.min(1.15, Math.max(0.55, Number(value) || 0.65));
       document.documentElement.style.setProperty('--table-scale', String(safe));
       const slider = document.getElementById('sizeSlider');
       const label = document.getElementById('sizeValue');
       if(slider) slider.value = String(safe);
       if(label) label.textContent = `${Math.round(safe * 100)}%`;
       localStorage.setItem(SIZE_KEY, String(safe));
-      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
     }
 
     function applyTableWidth(value){
       const maxWidth = getInboundTableMaxWidth();
       const minWidth = Math.min(620, maxWidth);
-      const requested = Number(value) || Math.min(1180, maxWidth);
+      const requested = Number(value) || Math.min(1050, maxWidth);
       const safe = Math.min(maxWidth, Math.max(minWidth, requested));
       document.documentElement.style.setProperty('--table-width', `${safe}px`);
       const slider = document.getElementById('widthSlider');
@@ -7717,11 +8218,6 @@ html, body{
       const id = String(archiveId || '');
       const item = inboundArchiveBank.find(x => String(x.archiveId || '') === id);
       if(!item) return;
-      const duplicate = findCurrentInboundDuplicate(item);
-      if(duplicate){
-        const ok = confirm(`${item.train || 'This inbound'} is already on the main page for this date. Restore another copy anyway?`);
-        if(!ok) return;
-      }
       const restored = JSON.parse(JSON.stringify(item));
       restored.id = crypto.randomUUID();
       restored.originalArchiveId = item.archiveId || '';
@@ -7739,7 +8235,32 @@ html, body{
       saveState();
       archiveBankOpen = false;
       render();
-      alert(`${item.train || 'Archived inbound'} restored to the main page.`);
+    }
+
+    function resetRestoreConfirmButtons(exceptBtn){
+      document.querySelectorAll('.archive-restore-btn.restore-confirm').forEach(btn => {
+        if(btn === exceptBtn) return;
+        btn.classList.remove('restore-confirm');
+        btn.dataset.confirmRestore = '';
+        btn.textContent = 'Restore';
+        btn.title = 'Restore archived inbound to the main page';
+      });
+    }
+
+    function handleArchiveRestoreButton(btn){
+      if(!btn) return;
+      const archiveId = btn.dataset.archiveId;
+      if(btn.dataset.confirmRestore === '1'){
+        restoreArchiveItem(archiveId);
+        return;
+      }
+      resetRestoreConfirmButtons(btn);
+      const item = inboundArchiveBank.find(x => String(x.archiveId || '') === String(archiveId || ''));
+      const duplicate = item && findCurrentInboundDuplicate(item);
+      btn.dataset.confirmRestore = '1';
+      btn.classList.add('restore-confirm');
+      btn.textContent = duplicate ? 'Confirm Duplicate' : 'Confirm';
+      btn.title = duplicate ? 'This train/date is already on the main page. Click to restore another copy.' : 'Click again to restore this inbound to the main page';
     }
 
     function renderArchivePreview(train){
@@ -8010,22 +8531,21 @@ html, body{
             </table>
           </div>
           <div class="table-footer inbound-footer-controls">
-            <div class="footer-left-actions">
-              <button class="btn small" data-action="add-row" data-index="${tIndex}">+ Add Row</button>
-              <div class="footer-field footer-shift-field">
-                <span class="footer-label">Shift</span>
-                <input class="footer-input" value="${escapeHtml(train.shift || guessShift(train.dateTime))}" data-action="train-field" data-index="${tIndex}" data-field="shift" />
-              </div>
-              <div class="footer-field footer-ups-field" style="${shouldShowUps(train) || train.ups ? '' : 'display:none;'}">
-                <span class="footer-label">UPS</span>
-                <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
-              </div>
-              <div class="footer-field footer-units-field">
-                <span class="footer-label">Units</span>
-                <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.units || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" placeholder="#" />
-              </div>
+            <button class="btn small footer-add-row" data-action="add-row" data-index="${tIndex}">+ Add Row</button>
+            <div class="footer-field footer-shift-field">
+              <span class="footer-label">Shift</span>
+              <input class="footer-input" value="${escapeHtml(train.shift || guessShift(train.dateTime))}" data-action="train-field" data-index="${tIndex}" data-field="shift" />
             </div>
-            <div class="footer-total"><span>Units</span><span class="total-pill units-pill" data-units-display data-index="${tIndex}">${escapeHtml(trainTotalUnits(train) || '—')}</span><span>Total FT</span><span class="total-pill" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
+            <div class="footer-field footer-ups-field" style="${shouldShowUps(train) || train.ups ? '' : 'display:none;'}">
+              <span class="footer-label">UPS</span>
+              <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
+            </div>
+            <div class="footer-field footer-units-field">
+              <span class="footer-label">Units</span>
+              <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.units || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" placeholder="#" />
+            </div>
+            <div class="footer-total footer-total-units"><span>Units</span><span class="total-pill units-pill" data-units-display data-index="${tIndex}">${escapeHtml(trainTotalUnits(train) || '—')}</span></div>
+            <div class="footer-total footer-total-ft"><span>Total FT</span><span class="total-pill" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
           </div>
         </article>`;
       }).join('');
@@ -8162,7 +8682,7 @@ html, body{
         deleteArchiveItem(btn.dataset.archiveId);
       }
       if(action === 'restore-archive'){
-        restoreArchiveItem(btn.dataset.archiveId);
+        handleArchiveRestoreButton(btn);
       }
     });
 
@@ -8174,7 +8694,7 @@ html, body{
       applyTableWidth(e.target.value);
     });
     window.addEventListener('resize', () => {
-      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
     });
 
 
@@ -8303,8 +8823,8 @@ html, body{
       }
     });
 
-    applyTableSize(localStorage.getItem(SIZE_KEY) || '1');
-    applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1180');
+    applyTableSize(localStorage.getItem(SIZE_KEY) || '0.65');
+    applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
     render();
   </script>
 
@@ -24873,5 +25393,46 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
 .size-control.width-control .width-value,
 .width-value{
   min-width:46px!important;
+}
+</style>
+
+<style id="daily-rollup-shrink-to-nowrap-patch">
+/* Let Daily Inbound Rollup shrink naturally until the text would need to wrap, then scroll inside the rollup only. */
+.rollup-card{
+  max-width:100%!important;
+  min-width:0!important;
+}
+.rollup-wrap{
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+}
+.rollup-table{
+  width:max-content!important;
+  min-width:100%!important;
+  table-layout:auto!important;
+}
+.rollup-table th,
+.rollup-table td,
+.rollup-table .day-cell,
+.rollup-table .inbound-cell,
+.rollup-table .arrival-cell,
+.rollup-table .shift-cell,
+.rollup-table .ft-cell-rollup,
+.rollup-table .units-cell-rollup,
+.rollup-table .ups-cell-rollup,
+.rollup-table .total-cell{
+  white-space:nowrap!important;
+  min-width:0!important;
+  width:auto!important;
+}
+.rollup-table th,
+.rollup-table td{
+  padding-left:clamp(6px,.8vw,12px)!important;
+  padding-right:clamp(6px,.8vw,12px)!important;
+}
+.rollup-title,
+.rollup-title small{
+  white-space:nowrap!important;
 }
 </style>
