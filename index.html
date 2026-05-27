@@ -1664,38 +1664,913 @@ th button[data-sort="ce"].ce-remove-ready {
   order: 3;
 }
 
+
+/* Single Cloud Sync button layout */
+.cloud-control-actions {
+  grid-template-columns: 1fr !important;
+}
+.btn-sync-cloud {
+  width: 100% !important;
+}
+
+
+/* Compact Cloud Sync card */
+.cloud-control-card {
+  min-width: 150px !important;
+  min-height: 58px !important;
+  padding: 8px 10px !important;
+  gap: 5px !important;
+  border-radius: 14px !important;
+  align-content: center !important;
+}
+.cloud-control-title {
+  font-size: 9px !important;
+  letter-spacing: .06em !important;
+  line-height: 1 !important;
+}
+.top-cloud-status,
+.cloud-status {
+  min-height: 22px !important;
+  padding: 0 8px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+.cloud-control-actions {
+  gap: 4px !important;
+}
+.btn-sync-cloud {
+  min-height: 24px !important;
+  padding: 4px 8px !important;
+  font-size: 10px !important;
+  border-radius: 10px !important;
+}
+
+
+/* Standalone Force Save button, no Cloud Sync metric card */
+.cloud-status-hidden {
+  display: none !important;
+}
+.force-save-standalone {
+  order: 1 !important;
+  min-width: 112px !important;
+  min-height: 42px !important;
+  padding: 8px 13px !important;
+  border-radius: 14px !important;
+  font-size: 12px !important;
+  font-weight: 1000 !important;
+  background: rgba(16,185,129,.20) !important;
+  border-color: rgba(52,211,153,.42) !important;
+  color: #d1fae5 !important;
+}
+.header-controls .yard-card {
+  order: 2 !important;
+}
+.header-controls .calendar-top-btn {
+  order: 3 !important;
+}
+.cloud-control-card {
+  display: none !important;
+}
+
+
+/* Place Force Save directly left of Yard Checked */
+.force-save-standalone {
+  order: 1 !important;
+  min-width: 130px !important;
+  min-height: 86px !important;
+  padding: 10px 14px !important;
+  border-radius: 18px !important;
+  font-size: 13px !important;
+  font-weight: 1000 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  background:
+    radial-gradient(circle at top left, rgba(52,211,153,.20), transparent 11rem),
+    rgba(6,78,59,.28) !important;
+  border-color: rgba(52,211,153,.44) !important;
+  color: #d1fae5 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 28px rgba(6,78,59,.18) !important;
+}
+.header-controls .yard-card {
+  order: 2 !important;
+}
+.header-controls .calendar-top-btn {
+  order: 3 !important;
+}
+
+
+/* Header card order: Force Save left of Yard Checked and Calendar */
+.header-controls {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+}
+.header-controls #forceSaveBtn.force-save-standalone {
+  order: 1 !important;
+}
+.header-controls .yard-card {
+  order: 2 !important;
+}
+.header-controls .calendar-top-btn {
+  order: 3 !important;
+}
+.force-save-standalone {
+  min-width: 130px !important;
+  min-height: 86px !important;
+  padding: 10px 14px !important;
+  border-radius: 18px !important;
+  font-size: 13px !important;
+  font-weight: 1000 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  background:
+    radial-gradient(circle at top left, rgba(52,211,153,.20), transparent 11rem),
+    rgba(6,78,59,.28) !important;
+  border-color: rgba(52,211,153,.44) !important;
+  color: #d1fae5 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 28px rgba(6,78,59,.18) !important;
+}
+
+
+/* Force Save left-side placement */
+.hero {
+  align-items: stretch !important;
+}
+.hero > div:first-child {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+.hero-left-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  margin-top: 12px !important;
+}
+.force-save-side {
+  min-width: 128px !important;
+  min-height: 38px !important;
+  padding: 8px 14px !important;
+  border-radius: 14px !important;
+  font-size: 12px !important;
+  font-weight: 1000 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  background:
+    radial-gradient(circle at top left, rgba(52,211,153,.20), transparent 11rem),
+    rgba(6,78,59,.30) !important;
+  border-color: rgba(52,211,153,.44) !important;
+  color: #d1fae5 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 28px rgba(6,78,59,.18) !important;
+}
+.header-controls #forceSaveBtn {
+  display: none !important;
+}
+.header-controls .yard-card {
+  order: 1 !important;
+}
+.header-controls .calendar-top-btn {
+  order: 2 !important;
+}
+
+
+/* Clean rebuilt main page header */
+.clean-hero {
+  display: grid !important;
+  grid-template-columns: minmax(300px, 1fr) auto !important;
+  align-items: center !important;
+  gap: 22px !important;
+  padding: 24px !important;
+  border-radius: 28px !important;
+  overflow: visible !important;
+}
+.hero-title-block {
+  min-width: 0 !important;
+}
+.clean-hero .eyebrow {
+  width: fit-content !important;
+  margin-bottom: 16px !important;
+}
+.clean-hero h1 {
+  margin: 0 !important;
+  white-space: nowrap !important;
+  font-size: clamp(36px, 4vw, 54px) !important;
+  line-height: .92 !important;
+  letter-spacing: -.065em !important;
+}
+.hero-actions {
+  display: grid !important;
+  grid-template-columns: 132px 268px 132px !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+.hero-action-card,
+.hero-yard-card {
+  height: 108px !important;
+  border-radius: 20px !important;
+  box-sizing: border-box !important;
+}
+.hero-action-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  padding: 14px !important;
+  border: 1px solid rgba(96,165,250,.38) !important;
+  background:
+    radial-gradient(circle at top left, rgba(96,165,250,.16), transparent 11rem),
+    rgba(15,23,42,.72) !important;
+  color: #dbeafe !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 34px rgba(0,0,0,.20) !important;
+}
+.force-save-card {
+  border-color: rgba(52,211,153,.42) !important;
+  background:
+    radial-gradient(circle at top left, rgba(52,211,153,.20), transparent 11rem),
+    rgba(6,78,59,.26) !important;
+  color: #d1fae5 !important;
+}
+.calendar-top-btn {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  order: initial !important;
+  transform: none !important;
+}
+.hero-action-icon {
+  font-size: 24px !important;
+  line-height: 1 !important;
+}
+.hero-action-label {
+  font-size: 12px !important;
+  font-weight: 1000 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  line-height: 1 !important;
+}
+.hero-yard-card {
+  display: grid !important;
+  align-content: center !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 16px !important;
+  border: 1px solid rgba(96,165,250,.38) !important;
+  background: rgba(15,23,42,.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 34px rgba(0,0,0,.20) !important;
+}
+.hero-yard-card label {
+  color: #bfdbfe !important;
+  font-size: 11px !important;
+  font-weight: 1000 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  line-height: 1.1 !important;
+}
+.hero-yard-card select {
+  width: 100% !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+  padding: 0 14px !important;
+  color: #facc15 !important;
+  background: rgba(7,13,30,.86) !important;
+  border: 1px solid rgba(96,165,250,.30) !important;
+  font-size: 15px !important;
+  font-weight: 1000 !important;
+}
+.cloud-status-hidden {
+  display: none !important;
+}
+
+/* Neutralize old accumulated header-placement rules */
+.header-controls,
+.hero-left-actions,
+.cloud-control-card {
+  all: unset;
+  display: contents !important;
+}
+.header-controls #forceSaveBtn {
+  display: flex !important;
+}
+
+@media(max-width: 1050px) {
+  .clean-hero {
+    grid-template-columns: 1fr !important;
+  }
+  .clean-hero h1 {
+    white-space: normal !important;
+  }
+  .hero-actions {
+    width: 100% !important;
+    grid-template-columns: minmax(110px, 1fr) minmax(220px, 2fr) minmax(110px, 1fr) !important;
+  }
+}
+@media(max-width: 720px) {
+  .hero-actions {
+    grid-template-columns: 1fr !important;
+  }
+  .hero-action-card,
+  .hero-yard-card {
+    height: auto !important;
+    min-height: 76px !important;
+  }
+}
+
+
+/* Updated On Hand metric card color */
+.metrics .metric:first-child {
+  border-color: rgba(129,140,248,.48) !important;
+  background:
+    radial-gradient(circle at top left, rgba(129,140,248,.26), transparent 12rem),
+    linear-gradient(145deg, rgba(30,41,99,.82), rgba(15,23,42,.92)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 14px 34px rgba(30,41,99,.22) !important;
+}
+.metrics .metric:first-child .icon {
+  background: rgba(129,140,248,.22) !important;
+  color: #e0e7ff !important;
+}
+.metrics .metric:first-child .value {
+  color: #e0e7ff !important;
+}
+.metrics .metric:first-child .label {
+  color: #c7d2fe !important;
+}
+
+
+/* Chassis note popup + purple N badge */
+.chassis-note-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.chassis-note-btn:hover .chassis-id-text {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.note-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: #a855f7;
+  border: 1px solid #e9d5ff;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 1000;
+  box-shadow: 0 0 0 3px rgba(168,85,247,.18);
+  vertical-align: middle;
+}
+.note-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10005;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2,6,23,.78);
+  backdrop-filter: blur(10px);
+}
+.note-modal.show {
+  display: grid;
+}
+.note-page {
+  width: min(620px, 100%);
+  border: 1px solid rgba(168,85,247,.42);
+  background:
+    radial-gradient(circle at top left, rgba(168,85,247,.20), transparent 20rem),
+    linear-gradient(135deg, rgba(15,23,42,.98), rgba(7,13,30,.98));
+  border-radius: 26px;
+  padding: 20px;
+  box-shadow: 0 28px 90px rgba(0,0,0,.55);
+}
+.note-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  border-bottom: 1px solid rgba(148,163,184,.16);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+.note-kicker {
+  display: inline-flex;
+  color: #e9d5ff;
+  border: 1px solid rgba(168,85,247,.38);
+  background: rgba(168,85,247,.13);
+  border-radius: 999px;
+  padding: 5px 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 1000;
+}
+.note-head h2 {
+  margin: 10px 0 4px;
+  color: #f8fafc;
+  font-size: 28px;
+  line-height: 1;
+}
+.note-head p {
+  margin: 0;
+  color: #9fb0cd;
+  font-size: 12px;
+  font-weight: 800;
+}
+.note-close,
+.note-cancel-btn {
+  background: rgba(71,85,105,.28);
+  border-color: rgba(148,163,184,.28);
+  color: #dbeafe;
+}
+.note-textarea {
+  width: 100%;
+  min-height: 170px;
+  resize: vertical;
+  border: 1px solid rgba(168,85,247,.38);
+  background: rgba(7,13,30,.88);
+  color: #f8fafc;
+  border-radius: 16px;
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.note-save-btn {
+  background: rgba(168,85,247,.24);
+  border-color: rgba(216,180,254,.46);
+  color: #f3e8ff;
+}
+.note-delete-btn {
+  background: rgba(225,29,72,.18);
+  border-color: rgba(251,113,133,.42);
+  color: #ffe4e6;
+}
+.note-delete-btn.armed {
+  background: #fb7185 !important;
+  border-color: #fecdd3 !important;
+  color: #450a0a !important;
+}
+
+
+/* Orange note badge with spacing */
+.note-badge {
+  margin-left: 9px !important;
+  background: #ff7a00 !important;
+  border-color: #fed7aa !important;
+  color: #451a03 !important;
+  box-shadow: 0 0 0 3px rgba(255,122,0,.18) !important;
+}
+.kind .note-badge {
+  vertical-align: middle !important;
+}
+
+
+/* Note modal chassis history */
+.note-history {
+  margin-top: 12px;
+  border: 1px solid rgba(251,146,60,.24);
+  background: rgba(15,23,42,.50);
+  border-radius: 16px;
+  padding: 12px;
+}
+.note-history-title {
+  color: #fed7aa;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 9px;
+}
+.note-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 230px;
+  overflow: auto;
+}
+.note-history-empty {
+  color: #9fb0cd;
+  border: 1px dashed rgba(148,163,184,.24);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 850;
+}
+.note-history-row {
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(30,41,59,.42);
+  border-radius: 12px;
+  padding: 9px;
+}
+.note-history-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.note-history-name {
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 1000;
+}
+.note-history-date {
+  color: #bfdbfe;
+  font-size: 10px;
+  font-weight: 950;
+}
+.note-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.note-history-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(15,23,42,.54);
+  color: #cbd5e1;
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 900;
+}
+.note-history-note {
+  margin-top: 7px;
+  color: #fed7aa;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 850;
+}
+
+
+/* Dashboard summary overhaul */
+#banner.banner {
+  position: relative !important;
+  overflow: hidden !important;
+  padding: 18px !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(168,85,247,.55) !important;
+  background:
+    radial-gradient(circle at 2% 10%, rgba(236,72,153,.26), transparent 24rem),
+    radial-gradient(circle at 80% 5%, rgba(96,165,250,.22), transparent 26rem),
+    linear-gradient(135deg, rgba(76,29,149,.82), rgba(30,27,75,.96)) !important;
+  box-shadow:
+    0 24px 80px rgba(76,29,149,.35),
+    inset 0 1px 0 rgba(255,255,255,.14) !important;
+}
+#banner.banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.08), transparent 18%, transparent 80%, rgba(255,255,255,.06)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 1px, transparent 1px 14px);
+  opacity: .55;
+}
+#banner .banner-head {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin-bottom: 14px !important;
+}
+#banner .banner-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: #fff !important;
+  font-size: 15px !important;
+  letter-spacing: .10em !important;
+  text-transform: uppercase !important;
+  font-weight: 1000 !important;
+}
+#banner .banner-title::before {
+  content: "⚡";
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(216,180,254,.32);
+  background: rgba(88,28,135,.46);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+  font-size: 15px;
+}
+#bannerToggle.banner-toggle {
+  min-width: 70px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(216,180,254,.55) !important;
+  background: linear-gradient(135deg, rgba(168,85,247,.92), rgba(124,58,237,.82)) !important;
+  color: #fff !important;
+  font-weight: 1000 !important;
+  box-shadow: 0 12px 28px rgba(88,28,135,.28), inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+#bannerGrid.banner-grid {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(150px, 210px)) !important;
+  gap: 10px !important;
+  justify-content: start !important;
+  align-items: stretch !important;
+}
+#bannerGrid.banner-hidden {
+  display: none !important;
+}
+#bannerGrid .banner-card {
+  position: relative !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 72px !important;
+  padding: 12px 13px !important;
+  border-radius: 17px !important;
+  border: 1px solid rgba(216,180,254,.28) !important;
+  background:
+    linear-gradient(145deg, rgba(15,23,42,.80), rgba(30,27,75,.74)) !important;
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  grid-template-areas:
+    "label value"
+    "hint value" !important;
+  align-items: center !important;
+  column-gap: 10px !important;
+  row-gap: 5px !important;
+  box-shadow:
+    0 14px 36px rgba(15,23,42,.30),
+    inset 0 1px 0 rgba(255,255,255,.10) !important;
+}
+#bannerGrid .banner-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f0abfc, #60a5fa);
+  opacity: .95;
+}
+#bannerGrid .banner-label {
+  grid-area: label !important;
+  max-width: 120px !important;
+  color: #ede9fe !important;
+  font-size: 9px !important;
+  font-weight: 1000 !important;
+  line-height: 1.08 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+}
+#bannerGrid .banner-value {
+  grid-area: value !important;
+  color: #fff !important;
+  font-size: 32px !important;
+  line-height: .9 !important;
+  font-weight: 1000 !important;
+  letter-spacing: -.08em !important;
+  text-align: right !important;
+  text-shadow: 0 2px 0 rgba(0,0,0,.18) !important;
+}
+#bannerGrid .banner-hint {
+  grid-area: hint !important;
+  width: fit-content !important;
+  color: #e9d5ff !important;
+  background: rgba(124,58,237,.32) !important;
+  border: 1px solid rgba(216,180,254,.25) !important;
+  border-radius: 999px !important;
+  padding: 4px 7px !important;
+  font-size: 10px !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+
+/* Metric cards overhaul */
+.metrics {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(170px, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+.metrics .metric {
+  position: relative !important;
+  overflow: hidden !important;
+  min-height: 126px !important;
+  padding: 18px 18px 16px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(96,165,250,.22) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255,255,255,.08), transparent 9rem),
+    linear-gradient(145deg, rgba(15,23,42,.86), rgba(15,23,42,.68)) !important;
+  box-shadow:
+    0 16px 38px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.09) !important;
+}
+.metrics .metric::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: rgba(96,165,250,.38);
+}
+.metrics .metric .icon {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 999px !important;
+  background: rgba(148,163,184,.16) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  font-size: 18px !important;
+}
+.metrics .metric .label {
+  color: #bfdbfe !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 1000 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  margin-bottom: 14px !important;
+}
+.metrics .metric .value {
+  color: #fff !important;
+  font-size: 38px !important;
+  line-height: .95 !important;
+  font-weight: 1000 !important;
+  letter-spacing: -.07em !important;
+  margin-bottom: 9px !important;
+  text-shadow: 0 2px 0 rgba(0,0,0,.18) !important;
+}
+.metrics .metric .hint {
+  color: #b6c4da !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  font-weight: 850 !important;
+  max-width: 220px !important;
+}
+.metrics .metric:first-child {
+  border-color: rgba(129,140,248,.48) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(129,140,248,.28), transparent 10rem),
+    linear-gradient(145deg, rgba(30,41,99,.88), rgba(15,23,42,.92)) !important;
+}
+.metrics .metric.cyan {
+  border-color: rgba(6,182,212,.42) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(6,182,212,.24), transparent 10rem),
+    linear-gradient(145deg, rgba(8,47,73,.86), rgba(15,23,42,.88)) !important;
+}
+.metrics .metric.green {
+  border-color: rgba(45,212,191,.40) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(45,212,191,.22), transparent 10rem),
+    linear-gradient(145deg, rgba(4,47,46,.82), rgba(15,23,42,.90)) !important;
+}
+.metrics .metric.amber {
+  border-color: rgba(245,158,11,.50) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245,158,11,.20), transparent 10rem),
+    linear-gradient(145deg, rgba(69,26,3,.72), rgba(15,23,42,.90)) !important;
+}
+.metrics .metric.pink {
+  border-color: rgba(236,72,153,.42) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(236,72,153,.20), transparent 10rem),
+    linear-gradient(145deg, rgba(80,7,36,.70), rgba(15,23,42,.92)) !important;
+}
+
+@media(max-width: 1100px) {
+  #bannerGrid.banner-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr)) !important;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(170px, 1fr)) !important;
+  }
+}
+@media(max-width: 650px) {
+  #banner .banner-head {
+    align-items: flex-start !important;
+  }
+  #bannerGrid.banner-grid,
+  .metrics {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* Mobile-safe Force Save button feedback */
+#forceSaveBtn:disabled {
+  opacity: .72 !important;
+  cursor: wait !important;
+}
+
+
+/* Chas HC populated warning color */
+.hc-chip.populated {
+  color: #ffe4e6 !important;
+  background: rgba(225,29,72,.24) !important;
+  border-color: rgba(251,113,133,.52) !important;
+  box-shadow: 0 0 0 3px rgba(225,29,72,.14) !important;
+}
+
+
+/* Per-row chassis copy icon */
+.chassis-cell-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+.copy-one-chassis-btn {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(96,165,250,.34) !important;
+  background: rgba(37,99,235,.18) !important;
+  color: #dbeafe !important;
+  font-size: 13px !important;
+  font-weight: 1000 !important;
+  padding: 0 !important;
+  cursor: pointer;
+}
+.copy-one-chassis-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+  box-shadow: 0 0 0 3px rgba(96,165,250,.14);
+}
+
+
+/* Fix per-row copy tap/click behavior */
+.copy-one-chassis-btn {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  z-index: 2 !important;
+  position: relative !important;
+}
+.chassis-cell-wrap {
+  position: relative !important;
+}
+
 </style>
 <!-- REVIEW FLAGS: 3-4 days = Low Warning | 5-9 days = Moderate Warning | 10+ days = Flagged for Delete -->
 <!-- REVIEW FLAGS ACTIVE: 1 day = Event Recorded Yesterday | 2-4 days = Low Warning | 5-9 days = Moderate Warning | 10+ days = Flagged for Delete -->
 </head>
 <body>
+<span id="cloudStatus" class="cloud-status-hidden" aria-hidden="true"></span>
 <main class="app">
-  <section class="hero">
-    <div>
+
+  <section class="hero clean-hero">
+    <div class="hero-title-block">
       <div class="eyebrow">SETTEGAST TERMINAL</div>
       <h1>Chassis Reconciliation Report</h1>
     </div>
-    <div class="header-controls">
-<div class="cloud-control-card">
-        <div class="cloud-control-title">Cloud Sync</div>
-        <span id="cloudStatus" class="cloud-status top-cloud-status">Cloud: connecting</span>
-        <div class="cloud-control-actions">
-          <button id="forceSaveBtn" class="btn-sync-cloud" type="button">Force Save</button>
-          <button id="reloadCloudBtn" class="btn-reload-cloud" type="button">Reload Cloud</button>
-        </div>
-      </div>
-<button id="calendarTopBtn" class="calendar-top-btn" type="button">
-        <span>📅</span>
-        <strong>Calendar</strong>
+
+    <div class="hero-actions">
+      <button id="forceSaveBtn" class="hero-action-card force-save-card" type="button">
+        <span class="hero-action-icon">💾</span>
+        <span class="hero-action-label">Force Save</span>
       </button>
-<div class="yard-card">
+
+      <div class="yard-card hero-yard-card">
         <label id="yardLabel" for="yardSelect">Yard checked 05/26/2026</label>
         <select id="yardSelect"></select>
       </div>
-</div>
+
+      <button id="calendarTopBtn" class="hero-action-card calendar-top-btn" type="button">
+        <span class="hero-action-icon">🗓️</span>
+        <span class="hero-action-label">Calendar</span>
+      </button>
+    </div>
   </section>
 
-  <section class="banner" id="banner">
+<section class="banner" id="banner">
     <div class="banner-head">
       <div class="banner-title">Missing Event Today Breakdown</div>
       <button id="bannerToggle" class="banner-toggle" type="button">Hide</button>
@@ -1923,12 +2798,37 @@ th button[data-sort="ce"].ce-remove-ready {
   </div>
 </section>
 
+
+<section id="noteModal" class="note-modal" aria-hidden="true">
+  <div class="note-page">
+    <div class="note-head">
+      <div>
+        <div class="note-kicker">Chassis Note</div>
+        <h2 id="noteTitle">Chassis</h2>
+        <p>Save a note for this chassis. A purple N appears next to the Chas Kind when a note exists.</p>
+      </div>
+      <button id="noteCloseBtn" class="note-close" type="button">Close</button>
+    </div>
+    <textarea id="noteText" class="note-textarea" placeholder="Type note here..."></textarea>
+    <div class="note-history">
+      <div class="note-history-title">Chassis History From Old Reports</div>
+      <div id="noteHistoryList" class="note-history-list"></div>
+    </div>
+
+    <div class="note-actions">
+      <button id="noteDeleteBtn" class="note-delete-btn" type="button">Delete Note</button>
+      <button id="noteCancelBtn" class="note-cancel-btn" type="button">Cancel</button>
+      <button id="noteSaveBtn" class="note-save-btn" type="button">Save Note</button>
+    </div>
+  </div>
+</section>
+
 </main>
 <script>
 const REPORT_TODAY = new Date("2026-05-26T00:00:00");
-const YARD_OPTIONS = ["TGRP 40/45","DCLI 40/45","TGRP & DCLP 20","FLEXI 40/20","SCLU 53/SNBZ 40","UP 53"];
-const INITIAL_ROWS = [[1, "DCNZ 408123", "DIRT - DIRT", "DCLP", "05/26/2026 14:52:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [2, "MSCZ 250233", "DIRT - DIRT", "DCLP", "05/25/2026 10:38:03", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [3, "DCNZ 606582", "DIRT - DIRT", "DCLP", "05/26/2026 14:18:03", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [4, "DECZ 405057", "DIRT - DIRT", "DCLP", "05/26/2026 14:26:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [5, "DCLZ 710906", "D - D - 31", "DCLP", "05/26/2026 07:15:29", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [6, "APMZ 418007", "L - L - 47", "DCLP", "05/26/2026 10:25:13", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [7, "DCLZ 404907", "06801 - 801", "DCLP", "05/25/2026 14:08:49", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [8, "MAEC 685232", "R - R - 16", "DCLP", "05/26/2026 15:36:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [9, "APMZ 700430", "P - P - 12", "DCLP", "05/26/2026 15:38:54", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [10, "DECZ 403537", "O - O - 19", "DCLP", "05/26/2026 10:27:59", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [11, "DECZ 405061", "I - I - 17", "DCLP", "05/26/2026 08:56:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [12, "MSCZ 140062", "06801 - 801", "DCLP", "05/25/2026 13:47:51", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [13, "DCNZ 415587", "I - I - 41", "DCLP", "05/26/2026 09:01:30", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [14, "APMZ 406229", "DIRT - DIRT", "DCLP", "05/26/2026 14:39:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [15, "APMZ 412267", "M - M - 157", "DCLP", "05/26/2026 05:33:52", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [16, "POCZ 2001", "06802 - 802", "DCLP", "05/13/2026 06:44:05", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [17, "MSCZ 140374", "N - N - 79", "DCLP", "05/26/2026 15:42:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [18, "APMZ 417637", "N - N - 36", "DCLP", "05/26/2026 15:52:09", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [19, "DCLZ 700661", "06802 - 802", "DCLP", "05/05/2026 10:44:55", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [20, "APMZ 405743", "M - M - 101", "DCLP", "05/26/2026 05:47:46", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [21, "APMZ 400723", "M - M - 7", "DCLP", "05/01/2026 07:22:04", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [22, "NEDZ 409299", "O - O - 43", "DCLP", "05/26/2026 10:30:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [23, "APMZ 410315", "DIRT - DIRT", "DCLP", "05/26/2026 14:54:24", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [24, "PONZ 457834", "I - I - 42", "DCLP", "05/26/2026 09:01:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [25, "PONZ 456960", "DIRT - DIRT", "DCLP", "05/26/2026 14:14:13", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [26, "DCLZ 405582", "DIRT - DIRT", "DCLP", "05/26/2026 14:42:44", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [27, "DCLZ 404028", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [28, "DCLZ 413504", "I - I - 7", "DCLP", "05/26/2026 08:53:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [29, "MAEC 710520", "L - L - 15", "DCLP", "05/26/2026 09:56:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [30, "APMZ 405404", "M - M - 124", "DCLP", "05/26/2026 05:43:23", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [31, "POCZ 400837", "D - D - 29", "DCLP", "05/26/2026 07:15:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [32, "DCLZ 420214", "N - N - 19", "DCLP", "05/26/2026 15:54:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [33, "MAEC 666017", "06801 - 801", "DCLP", "05/26/2026 09:31:54", "MOVE(Move)", "Q40", "Current(Park - UP Storage)"], [34, "DCSZ 711698", "N - N - 75", "DCLP", "05/26/2026 15:43:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [35, "DCNZ 507068", "I - I - 3", "DCLP", "05/26/2026 08:53:17", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [36, "MAEC 734047", "SHOP - SHOP", "DCLP", "05/25/2026 13:42:12", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [37, "IPPZ 400539", "06801 - 801", "DCLP", "05/24/2026 23:44:01", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [38, "MAEC 450170", "S - S - 31", "DCLP", "05/26/2026 15:33:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [39, "MAEC 623989", "M - M - 100", "DCLP", "05/26/2026 05:47:51", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [40, "MSCZ 423300", "DIRT - DIRT", "DCLP", "05/26/2026 14:49:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [41, "APMZ 406431", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [42, "DCLZ 700401", "N - N - 10", "DCLP", "05/26/2026 15:55:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [43, "MAEC 731800", "I - I - 24", "DCLP", "05/21/2026 07:56:15", "INUP(Inventory Update)", "Q40", "Current(Park - UP Storage)"], [44, "DCNZ 405302", "DIRT - DIRT", "DCLP", "05/26/2026 14:15:58", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [45, "DCLZ 406511", "DIRT - DIRT", "DCLP", "05/26/2026 14:16:31", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [46, "MSCZ 423689", "DIRT - DIRT", "DCLP", "05/26/2026 14:35:01", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [47, "APMZ 411438", "BOWL - BOWL", "DCLP", "05/18/2026 14:02:53", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [48, "MSCZ 451085", "06808 - 808", "DCLP", "05/08/2026 20:13:28", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [49, "DCNZ 498301", "DIRT - DIRT", "DCLP", "05/26/2026 14:21:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [50, "DECZ 403469", "K - K - 10", "DCLP", "05/26/2026 09:29:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [51, "APMZ 426111", "M - M - 99", "DCLP", "05/26/2026 05:47:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [52, "APMZ 701853", "I - I - 28", "DCLP", "05/26/2026 09:00:00", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"]].map(([id,chassis,location,pool,eventDate,event,kind,status])=>({id,chassis,location,pool,eventDate,event,kind,status,hc:"",ce:false}));
-let tableRows=[...INITIAL_ROWS], query="", filter="all", sortConfig={key:"id",direction:"asc"}, showBanner=true, clearArmed=false, clearTimer=null, importedFileArchives=[], archiveDeleteArmedId=null, archiveDeleteTimer=null, recycleDeleteArmedId=null, recycleDeleteTimer=null, emptyRecycleArmed=false, emptyRecycleTimer=null, recycleExpanded=false, archiveRenameId=null, ceSelectedIds=new Set(), ceDragActive=false, ceDragStartId=null;
+const YARD_OPTIONS = ["TGRP 40/45","DCLI 40/45","TGRP & DCLP 20","FLEXI 40/20","SCLU 53/SNBZ 40","DCLI/UP 53"];
+const INITIAL_ROWS = [[1, "DCNZ 408123", "DIRT - DIRT", "DCLP", "05/26/2026 14:52:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [2, "MSCZ 250233", "DIRT - DIRT", "DCLP", "05/25/2026 10:38:03", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [3, "DCNZ 606582", "DIRT - DIRT", "DCLP", "05/26/2026 14:18:03", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [4, "DECZ 405057", "DIRT - DIRT", "DCLP", "05/26/2026 14:26:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [5, "DCLZ 710906", "D - D - 31", "DCLP", "05/26/2026 07:15:29", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [6, "APMZ 418007", "L - L - 47", "DCLP", "05/26/2026 10:25:13", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [7, "DCLZ 404907", "06801 - 801", "DCLP", "05/25/2026 14:08:49", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [8, "MAEC 685232", "R - R - 16", "DCLP", "05/26/2026 15:36:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [9, "APMZ 700430", "P - P - 12", "DCLP", "05/26/2026 15:38:54", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [10, "DECZ 403537", "O - O - 19", "DCLP", "05/26/2026 10:27:59", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [11, "DECZ 405061", "I - I - 17", "DCLP", "05/26/2026 08:56:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [12, "MSCZ 140062", "06801 - 801", "DCLP", "05/25/2026 13:47:51", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [13, "DCNZ 415587", "I - I - 41", "DCLP", "05/26/2026 09:01:30", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [14, "APMZ 406229", "DIRT - DIRT", "DCLP", "05/26/2026 14:39:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [15, "APMZ 412267", "M - M - 157", "DCLP", "05/26/2026 05:33:52", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [16, "POCZ 2001", "06802 - 802", "DCLP", "05/13/2026 06:44:05", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [17, "MSCZ 140374", "N - N - 79", "DCLP", "05/26/2026 15:42:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [18, "APMZ 417637", "N - N - 36", "DCLP", "05/26/2026 15:52:09", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [19, "DCLZ 700661", "06802 - 802", "DCLP", "05/05/2026 10:44:55", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [20, "APMZ 405743", "M - M - 101", "DCLP", "05/26/2026 05:47:46", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [21, "APMZ 400723", "M - M - 7", "DCLP", "05/01/2026 07:22:04", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [22, "NEDZ 409299", "O - O - 43", "DCLP", "05/26/2026 10:30:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [23, "APMZ 410315", "DIRT - DIRT", "DCLP", "05/26/2026 14:54:24", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [24, "PONZ 457834", "I - I - 42", "DCLP", "05/26/2026 09:01:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [25, "PONZ 456960", "DIRT - DIRT", "DCLP", "05/26/2026 14:14:13", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [26, "DCLZ 405582", "DIRT - DIRT", "DCLP", "05/26/2026 14:42:44", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [27, "DCLZ 404028", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [28, "DCLZ 413504", "I - I - 7", "DCLP", "05/26/2026 08:53:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [29, "MAEC 710520", "L - L - 15", "DCLP", "05/26/2026 09:56:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [30, "APMZ 405404", "M - M - 124", "DCLP", "05/26/2026 05:43:23", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [31, "POCZ 400837", "D - D - 29", "DCLP", "05/26/2026 07:15:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [32, "DCLZ 420214", "N - N - 19", "DCLP", "05/26/2026 15:54:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [33, "MAEC 666017", "06801 - 801", "DCLP", "05/26/2026 09:31:54", "MOVE(Move)", "Q40", "Current(Park - UP Storage)"], [34, "DCSZ 711698", "N - N - 75", "DCLP", "05/26/2026 15:43:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [35, "DCNZ 507068", "I - I - 3", "DCLP", "05/26/2026 08:53:17", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [36, "MAEC 734047", "SHOP - SHOP", "DCLP", "05/25/2026 13:42:12", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [37, "IPPZ 400539", "06801 - 801", "DCLP", "05/24/2026 23:44:01", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [38, "MAEC 450170", "S - S - 31", "DCLP", "05/26/2026 15:33:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [39, "MAEC 623989", "M - M - 100", "DCLP", "05/26/2026 05:47:51", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [40, "MSCZ 423300", "DIRT - DIRT", "DCLP", "05/26/2026 14:49:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [41, "APMZ 406431", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [42, "DCLZ 700401", "N - N - 10", "DCLP", "05/26/2026 15:55:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [43, "MAEC 731800", "I - I - 24", "DCLP", "05/21/2026 07:56:15", "INUP(Inventory Update)", "Q40", "Current(Park - UP Storage)"], [44, "DCNZ 405302", "DIRT - DIRT", "DCLP", "05/26/2026 14:15:58", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [45, "DCLZ 406511", "DIRT - DIRT", "DCLP", "05/26/2026 14:16:31", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [46, "MSCZ 423689", "DIRT - DIRT", "DCLP", "05/26/2026 14:35:01", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [47, "APMZ 411438", "BOWL - BOWL", "DCLP", "05/18/2026 14:02:53", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [48, "MSCZ 451085", "06808 - 808", "DCLP", "05/08/2026 20:13:28", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [49, "DCNZ 498301", "DIRT - DIRT", "DCLP", "05/26/2026 14:21:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [50, "DECZ 403469", "K - K - 10", "DCLP", "05/26/2026 09:29:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [51, "APMZ 426111", "M - M - 99", "DCLP", "05/26/2026 05:47:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [52, "APMZ 701853", "I - I - 28", "DCLP", "05/26/2026 09:00:00", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"]].map(([id,chassis,location,pool,eventDate,event,kind,status])=>({id,chassis,location,pool,eventDate,event,kind,status,hc:"",ce:false,note:""}));
+let tableRows=[...INITIAL_ROWS], query="", filter="all", sortConfig={key:"id",direction:"asc"}, showBanner=true, clearArmed=false, clearTimer=null, importedFileArchives=[], archiveDeleteArmedId=null, archiveDeleteTimer=null, recycleDeleteArmedId=null, recycleDeleteTimer=null, emptyRecycleArmed=false, emptyRecycleTimer=null, recycleExpanded=false, archiveRenameId=null, ceSelectedIds=new Set(), ceDragActive=false, ceDragStartId=null, activeNoteRowId=null, noteDeleteArmed=false, noteDeleteTimer=null;
 const filters=[["all","On Hand"],["yardChecked","Yard Checked"],["today","Event Today"],["missingToday","Missing Event Today"],["tenPlus","Flagged for Delete"],["notChecked","Not Yard Checked"]];
 const $=id=>document.getElementById(id);
 
@@ -1950,12 +2850,16 @@ function cloudHeaders(extra={}){
     ...extra
   };
 }
-async function cloudUpsert(key,value){
-  const res=await fetch(`${SUPABASE_URL}/rest/v1/chassis_reconciliation_state?on_conflict=state_key`,{
+async function cloudUpsert(key,value,options={}){
+  const payload=JSON.stringify({state_key:key,state_value:value,updated_at:new Date().toISOString()});
+  const fetchOptions={
     method:"POST",
     headers:cloudHeaders({"Prefer":"resolution=merge-duplicates,return=representation"}),
-    body:JSON.stringify({state_key:key,state_value:value,updated_at:new Date().toISOString()})
-  });
+    body:payload
+  };
+  if(options.keepalive && payload.length < 60000) fetchOptions.keepalive=true;
+
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/chassis_reconciliation_state?on_conflict=state_key`,fetchOptions);
   if(!res.ok){
     const text=await res.text().catch(()=>"");
     throw new Error(`Supabase upsert failed ${res.status}: ${text}`);
@@ -1990,7 +2894,7 @@ async function testCloudConnection(){
 function makeCurrentSessionSnapshot(){
   return {
     savedAt:new Date().toISOString(),
-    reportDate:REPORT_TODAY.toISOString(),
+    reportDate:getReportBaseDate().toISOString(),
     yardChecked:$("yardSelect")?.value||"",
     tableRows,
     query,
@@ -2017,35 +2921,43 @@ function queueCloudSave(){
   cloudSaveTimer=setTimeout(saveCurrentSessionToCloud,350);
 }
 async function saveCurrentSessionToCloud(){
-  if(cloudLoading)return;
   try{
-    await cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot());
+    await cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot(),{keepalive:true});
     cloudReady=true;
     cloudLastSavedAt=new Date().toISOString();
     setCloudStatus("Cloud: saved","ok");
   }catch(err){
     console.error("Cloud current-session save failed",err);
     setCloudStatus("Cloud: save failed","err");
+    if(typeof showArchiveToast==="function")showArchiveToast("Cloud save failed on this device.");
   }
 }
 async function saveAllCloudState(){
-  if(cloudLoading)return;
   try{
     setCloudStatus("Cloud: saving","warn");
-    await Promise.all([
-      cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot()),
-      cloudUpsert(CLOUD_KEYS.archives,getArchiveList()),
-      cloudUpsert(CLOUD_KEYS.recycle,getRecycleBin()),
-      cloudUpsert(CLOUD_KEYS.calendar,getYardCalendarState())
-    ]);
+    const btn=$("forceSaveBtn");
+    const oldText=btn?btn.textContent:"";
+    if(btn){btn.textContent="Saving...";btn.disabled=true}
+
+    await cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot());
+    await cloudUpsert(CLOUD_KEYS.archives,getArchiveList());
+    await cloudUpsert(CLOUD_KEYS.recycle,getRecycleBin());
+    await cloudUpsert(CLOUD_KEYS.calendar,getYardCalendarState());
+
     cloudReady=true;
     cloudLastSavedAt=new Date().toISOString();
     setCloudStatus("Cloud: force saved","ok");
-    if(typeof showArchiveToast==="function")showArchiveToast("Cloud force save complete.");
+    if(typeof showArchiveToast==="function")showArchiveToast("Cloud save complete.");
+    if(btn){btn.textContent=oldText||"Force Save";btn.disabled=false}
+    return true;
   }catch(err){
     console.error("Cloud full save failed",err);
     setCloudStatus("Cloud: force failed","err");
-    alert("Cloud save failed. Run the latest SQL, then try Force Save again.\n\n"+(err&&err.message?err.message:err));
+    const btn=$("forceSaveBtn");
+    if(btn){btn.textContent="Force Save";btn.disabled=false}
+    if(typeof showArchiveToast==="function")showArchiveToast("Cloud save failed on this device.");
+    alert("Cloud save failed on this device. Make sure the phone is using the deployed https:// website, not a local file, and that Supabase SQL v4 has been run.\\n\\n"+(err&&err.message?err.message:err));
+    return false;
   }
 }
 async function loadCloudState(){
@@ -2082,9 +2994,74 @@ async function reloadCloudState(){
   await loadCloudState();
   if(typeof showArchiveToast==="function")showArchiveToast("Cloud data reloaded.");
 }
-function parseEventDate(v){const [dp,tp="00:00:00"]=String(v||"").split(" ");const [m,d,y]=dp.split("/").map(Number);const [hh,mm,ss]=tp.split(":").map(Number);return new Date(y||1900,(m||1)-1,d||1,hh||0,mm||0,ss||0)}
-function formatDateShort(v){const [dp,tp=""]=String(v||"").split(" ");const [m,d]=dp.split("/");const [hh,mm]=tp.split(":");return `${m||"--"}/${d||"--"}${hh&&mm?` ${hh}:${mm}`:""}`}
-function daysOld(r){const ev=parseEventDate(r.eventDate);const mid=new Date(ev.getFullYear(),ev.getMonth(),ev.getDate());return Math.floor((REPORT_TODAY-mid)/86400000)}
+window.testChassisCloudSave=saveAllCloudState;
+function parseEventDate(v){
+  const raw=String(v||"").trim();
+  if(!raw)return new Date(1900,0,1);
+
+  // Handles Excel serial dates if they ever come through as a number/string number.
+  if(/^\d+(\.\d+)?$/.test(raw)){
+    const n=Number(raw);
+    if(n>20000 && n<90000){
+      const epoch=new Date(Date.UTC(1899,11,30));
+      const ms=epoch.getTime()+n*86400000;
+      const d=new Date(ms);
+      return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+    }
+  }
+
+  const [dp,tp="00:00:00"]=raw.split(/\s+/);
+  let m,d,y;
+
+  if(dp.includes("/")){
+    [m,d,y]=dp.split("/").map(Number);
+  }else if(dp.includes("-")){
+    const parts=dp.split("-").map(Number);
+    if(String(parts[0]).length===4){y=parts[0];m=parts[1];d=parts[2];}
+    else {m=parts[0];d=parts[1];y=parts[2];}
+  }
+
+  if(y && y<100)y+=2000;
+
+  const [hh=0,mm=0,ss=0]=tp.split(":").map(Number);
+  return new Date(y||1900,(m||1)-1,d||1,hh||0,mm||0,ss||0);
+}
+function dateOnly(d){
+  return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
+function getReportBaseDate(){
+  const dates=(tableRows||[])
+    .map(r=>parseEventDate(r.eventDate))
+    .filter(d=>d instanceof Date && !Number.isNaN(d.getTime()) && d.getFullYear()>1950);
+
+  if(!dates.length)return dateOnly(REPORT_TODAY);
+
+  const max=new Date(Math.max(...dates.map(d=>dateOnly(d).getTime())));
+  return dateOnly(max);
+}
+function formatReportDate(){
+  const d=getReportBaseDate();
+  return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
+}
+function formatDateShort(v){
+  const raw=String(v||"");
+  const [dp,tp=""]=raw.split(/\s+/);
+  let m="--",d="--";
+  if(dp.includes("/")){[m,d]=dp.split("/");}
+  else if(dp.includes("-")){
+    const p=dp.split("-");
+    if(p[0]&&p[0].length===4){m=p[1]||"--";d=p[2]||"--";}
+    else {m=p[0]||"--";d=p[1]||"--";}
+  }
+  const [hh,mm]=tp.split(":");
+  return `${m||"--"}/${d||"--"}${hh&&mm?` ${hh}:${mm}`:""}`;
+}
+function daysOld(r){
+  const ev=dateOnly(parseEventDate(r.eventDate));
+  const base=getReportBaseDate();
+  const diff=Math.floor((base-ev)/86400000);
+  return Math.max(0,diff);
+}
 function ageBucket(r){
   const d=daysOld(r);
   if(d===0)return{key:"today",label:"Today"};
@@ -2109,7 +3086,7 @@ function issueTag(r){
   return{label:"OK",cls:"ok"};
 }
 function locClass(loc){if(loc.includes("DIRT"))return"dirt";if(loc.includes("SHOP"))return"shop";if(loc.includes("068"))return"rail";if(loc.includes("BOWL"))return"bowl";return"normal"}
-function enrich(){return tableRows.map(r=>{const bucket=ageBucket(r);return{...r,hc:r.hc||"",ce:!!r.ce,daysOld:daysOld(r),bucket,yardChecked:isYardChecked(r),issue:issueTag(r)}})}
+function enrich(){return tableRows.map(r=>{const bucket=ageBucket(r);return{...r,hc:r.hc||"",ce:!!r.ce,note:cleanImportedNoteValue(r.note),daysOld:daysOld(r),bucket,yardChecked:isYardChecked(r),issue:issueTag(r)}})}
 function applyFilters(rows){return rows.filter(r=>{const text=Object.values(r).join(" ").toLowerCase();const q=text.includes(query.toLowerCase());const f=filter==="all"||(filter==="yardChecked"&&r.yardChecked)||(filter==="today"&&r.bucket.key==="today")||(filter==="missingToday"&&r.bucket.key!=="today")||(filter==="tenPlus"&&r.bucket.key==="tenPlus")||(filter==="notChecked"&&!r.yardChecked);return q&&f})}
 function sortRows(rows){const val=(r,k)=>k==="yardChecked"?(r.yardChecked?1:0):k==="eventAge"?r.daysOld:k==="eventDate"?parseEventDate(r.eventDate).getTime():k==="reviewFlag"?r.issue.label.replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,""):k==="ce"?(r.ce?1:0):r[k]??"";return [...rows].sort((a,b)=>{const av=val(a,sortConfig.key),bv=val(b,sortConfig.key);if(typeof av==="number"&&typeof bv==="number")return sortConfig.direction==="asc"?av-bv:bv-av;const res=String(av).localeCompare(String(bv),undefined,{numeric:true,sensitivity:"base"});return sortConfig.direction==="asc"?res:-res})}
 function currentRows(){return sortRows(applyFilters(enrich()))}
@@ -2166,10 +3143,195 @@ function renderSort(){
     if(k==="ce"){b.classList.remove("ce-ready");b.classList.remove("ce-remove-ready");}
   });
 }
+
+
+function getChassisHistory(chassis){
+  const q=String(chassis||"").trim().toLowerCase();
+  if(!q)return [];
+  const sources=[
+    ...getArchiveList().map(a=>({...a,_source:"Archive"})),
+    ...getRecycleBin().map(a=>({...a,_source:"Recycle Bin"}))
+  ];
+  const out=[];
+  sources.forEach(archive=>{
+    (archive.tableRows||[]).forEach(row=>{
+      if(String(row.chassis||"").trim().toLowerCase()===q){
+        out.push({archive,row});
+      }
+    });
+  });
+  return out.sort((a,b)=>new Date(b.archive.savedAt||0)-new Date(a.archive.savedAt||0));
+}
+function renderNoteHistory(row){
+  const box=$("noteHistoryList");
+  if(!box)return;
+  const history=getChassisHistory(row.chassis);
+  if(!history.length){
+    box.innerHTML=`<div class="note-history-empty">No old archived reports found for ${escapeHtml(row.chassis||"this chassis")}.</div>`;
+    return;
+  }
+  box.innerHTML=history.map(({archive,row:r})=>`
+    <div class="note-history-row">
+      <div class="note-history-top">
+        <div class="note-history-name">${escapeHtml(archive.name||"Chassis Archive")}</div>
+        <div class="note-history-date">${archive.savedAt?new Date(archive.savedAt).toLocaleString():"No saved date"}</div>
+      </div>
+      <div class="note-history-meta">
+        <span class="note-history-pill">${escapeHtml(archive._source||"Archive")}</span>
+        <span class="note-history-pill">Yard: ${escapeHtml(archive.yardChecked||"—")}</span>
+        <span class="note-history-pill">Kind: ${escapeHtml(r.kind||"—")}</span>
+        <span class="note-history-pill">HC: ${escapeHtml(r.hc||"—")}</span>
+        <span class="note-history-pill">Location: ${escapeHtml(r.location||"—")}</span>
+        <span class="note-history-pill">Event: ${escapeHtml(r.event||"—")}</span>
+        <span class="note-history-pill">Date: ${escapeHtml(formatDateShort(r.eventDate||""))}</span>
+        <span class="note-history-pill">Pool: ${escapeHtml(r.pool||"—")}</span>
+        <span class="note-history-pill">CE: ${r.ce?"Yes":"No"}</span>
+      </div>
+      ${String(r.note||"").trim()?`<div class="note-history-note">Note: ${escapeHtml(r.note)}</div>`:""}
+    </div>
+  `).join("");
+}
+
+function rowHasNote(r){
+  return cleanImportedNoteValue(r.note).length>0;
+}
+function openNoteModal(id){
+  activeNoteRowId=String(id);
+  noteDeleteArmed=false;
+  clearTimeout(noteDeleteTimer);
+  const row=tableRows.find(r=>String(r.id)===activeNoteRowId);
+  const modal=$("noteModal");
+  if(!row||!modal)return;
+  $("noteTitle").textContent=row.chassis||"Chassis";
+  $("noteText").value=cleanImportedNoteValue(row.note);
+  const del=$("noteDeleteBtn");
+  if(del){
+    del.textContent="Delete Note";
+    del.classList.remove("armed");
+    del.style.display=rowHasNote(row)?"inline-flex":"none";
+  }
+  renderNoteHistory(row);
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+  setTimeout(()=>$("noteText")?.focus(),50);
+}
+function closeNoteModal(){
+  const modal=$("noteModal");
+  if(!modal)return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+  activeNoteRowId=null;
+  noteDeleteArmed=false;
+  clearTimeout(noteDeleteTimer);
+}
+
+function forceSaveAfterNoteChange(){
+  try{
+    queueCloudSave();
+    saveAllCloudState();
+  }catch(err){
+    console.error("Note force-save failed",err);
+  }
+}
+
+async function saveActiveNote(){
+  if(activeNoteRowId==null)return;
+  const text=String($("noteText")?.value||"").trim();
+  tableRows=tableRows.map(r=>String(r.id)===activeNoteRowId?{...r,note:text}:r);
+  render();
+  await saveAllCloudState();
+  closeNoteModal();
+  if(typeof showArchiveToast==="function")showArchiveToast(text?"Note saved and force-saved.":"Note cleared and force-saved.");
+}
+async function deleteActiveNote(){
+  if(activeNoteRowId==null)return;
+  const btn=$("noteDeleteBtn");
+  if(!noteDeleteArmed){
+    noteDeleteArmed=true;
+    if(btn){
+      btn.textContent="Confirm Delete";
+      btn.classList.add("armed");
+    }
+    clearTimeout(noteDeleteTimer);
+    noteDeleteTimer=setTimeout(()=>{
+      noteDeleteArmed=false;
+      if(btn){
+        btn.textContent="Delete Note";
+        btn.classList.remove("armed");
+      }
+    },4500);
+    return;
+  }
+  tableRows=tableRows.map(r=>String(r.id)===activeNoteRowId?{...r,note:""}:r);
+  render();
+  await saveAllCloudState();
+  closeNoteModal();
+  if(typeof showArchiveToast==="function")showArchiveToast("Note deleted and force-saved.");
+}
+
+
+async function copySingleChassis(id, fallbackValue=""){
+  const row=tableRows.find(r=>String(r.id)===String(id));
+  const value=String(row?.chassis||fallbackValue||"").trim();
+  if(!value)return;
+
+  let copied=false;
+
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(value);
+      copied=true;
+    }
+  }catch(err){
+    copied=false;
+  }
+
+  if(!copied){
+    const ta=document.createElement("textarea");
+    ta.value=value;
+    ta.setAttribute("readonly","");
+    ta.style.position="fixed";
+    ta.style.top="-1000px";
+    ta.style.left="-1000px";
+    ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try{
+      copied=document.execCommand("copy");
+    }catch(err){
+      copied=false;
+    }
+    ta.remove();
+  }
+
+  if(typeof showArchiveToast==="function")showArchiveToast(copied?`Copied ${value}`:`Copy ready: ${value}`);
+  if(!copied){
+    console.warn("Clipboard copy may have been blocked by the browser.");
+  }
+}
 function renderTable(rows,total){
   $("showing").textContent=`Showing ${rows.length} of ${total} chassis`;
   $("empty").style.display=rows.length?"none":"block";
-  $("tbody").innerHTML=rows.map(r=>`<tr><td>${r.id}</td><td><span class="chassis">${r.chassis}<span class="kind">${r.kind}</span></span></td><td><span class="chip ${r.yardChecked?"yes":"no"}">${r.yardChecked?"⊙ Yes":"No"}</span></td><td><span class="event-age-combo"><strong>${r.daysOld}d</strong><span class="chip ${r.bucket.key}">${r.bucket.label}</span></span></td><td><span class="loc ${locClass(r.location)}">⌾ ${r.location}</span></td><td>◷ ${formatDateShort(r.eventDate)}</td><td><span class="hc-chip">${r.hc||"—"}</span></td><td><span class="event-type">${r.event}</span></td><td><span class="review ${r.issue.cls}">${r.issue.label}</span></td><td><span class="pool">${r.pool}</span></td><td class="ce-cell ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-cell="${r.id}"><button type="button" class="ce-flag ${r.ce?'active':''} ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-toggle="${r.id}">${r.ce?'CE':'—'}</button></td></tr>`).join("");
+  $("tbody").innerHTML=rows.map(r=>`<tr><td>${r.id}</td><td>
+  <div class="chassis-cell-wrap">
+    <button type="button" class="copy-one-chassis-btn" data-copy-one="${r.id}" data-copy-value="${String(r.chassis||'').replace(/"/g,'&quot;')}" title="Copy chassis">⧉</button>
+    <button type="button" class="chassis-note-btn" data-note-open="${r.id}"><span class="chassis"><span class="chassis-id-text">${r.chassis}</span><span class="kind">${r.kind}${rowHasNote(r)?'<span class="note-badge">N</span>':''}</span></span></button>
+  </div>
+</td><td><span class="chip ${r.yardChecked?"yes":"no"}">${r.yardChecked?"⊙ Yes":"No"}</span></td><td><span class="event-age-combo"><strong>${r.daysOld}d</strong><span class="chip ${r.bucket.key}">${r.bucket.label}</span></span></td><td><span class="loc ${locClass(r.location)}">⌾ ${r.location}</span></td><td>◷ ${formatDateShort(r.eventDate)}</td><td><span class="hc-chip ${String(r.hc||"").trim()&&String(r.hc||"").trim()!=="—"?"populated":""}">${r.hc||"—"}</span></td><td><span class="event-type">${r.event}</span></td><td><span class="review ${r.issue.cls}">${r.issue.label}</span></td><td><span class="pool">${r.pool}</span></td><td class="ce-cell ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-cell="${r.id}"><button type="button" class="ce-flag ${r.ce?'active':''} ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-toggle="${r.id}">${r.ce?'CE':'—'}</button></td></tr>`).join("");
+
+  document.querySelectorAll("[data-copy-one]").forEach(btn=>{
+    const runCopy=(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      copySingleChassis(btn.dataset.copyOne,btn.dataset.copyValue);
+    };
+    btn.onclick=runCopy;
+    btn.onpointerup=runCopy;
+    btn.ontouchend=runCopy;
+  });
+
+  document.querySelectorAll("[data-note-open]").forEach(btn=>{btn.onclick=()=>openNoteModal(btn.dataset.noteOpen)});
 
   document.querySelectorAll("[data-ce-cell]").forEach(cell=>{
     cell.onpointerdown=(event)=>startCeDrag(cell.dataset.ceCell,event);
@@ -2282,14 +3444,28 @@ function handleCePointerMove(event){
   if(cell)extendCeDrag(cell.dataset.ceCell,event);
 }
 
+
+function updateReportDateLabel(){
+  const label=$("yardLabel");
+  if(label)label.textContent=`Yard checked ${formatReportDate()}`;
+}
+
 function render(){const e=enrich(),rows=sortRows(applyFilters(e));renderMetrics(e);renderBanner(e);renderFilters();renderSort();renderTable(rows,e.length)}
 function normHeader(v){return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
 function pick(row,map,cands,fallback=-1){
   const h=cands.map(normHeader).find(n=>map[n]!==undefined);
   return h?row[map[h]]??"—":fallback>=0?row[fallback]??"—":"—";
 }
-function normalizeRows(data,start){if(data.length<2)return[];const headers=data[0].map(h=>normHeader(h));const map=headers.reduce((a,h,i)=>{a[h]=i;return a},{});return data.slice(1).map((row,i)=>{const chassis=pick(row,map,["chassis","chassis #","chassis number","chassis id"],1);const location=pick(row,map,["location","loc","current location","parking location"],2);const pool=pick(row,map,["chas pool","chassis pool","pool"],3);const eventDate=pick(row,map,["event date","event datetime","date"],4);const event=pick(row,map,["event","event type","last event"],5);const kind=pick(row,map,["chas car kind","chas/car kind","chassis car kind","car kind","chas kind","kind","chassis kind","type"],-1);const hc=pick(row,map,["chas hc","hc","chassis hc","hazard class","height code"],-1);const status=pick(row,map,["status","current status"],7);const ce=pick(row,map,["ce","c/e","customer exception","ce flag"],-1);return{id:start+i+1,chassis:String(chassis||"—"),location:String(location||"—"),pool:String(pool||"—"),eventDate:String(eventDate||"01/01/1900 00:00:00"),event:String(event||"—"),kind:String(kind&&kind!==eventDate?kind:"—"),status:String(status||"—")}}).filter(r=>r.chassis!=="—")}
-async function importFiles(files){const all=[];importedFileArchives=[];for(const file of [...files]){let dataUrl='';try{dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}catch{}importedFileArchives.push({name:file.name,size:file.size,type:file.type,lastModified:file.lastModified,dataUrl});const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:false});const sh=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(sh,{header:1,defval:""}).filter(r=>r.some(Boolean));all.push(...normalizeRows(data,all.length))}tableRows=all.map((r,i)=>({...r,id:i+1}));query="";filter="all";sortConfig={key:"id",direction:"asc"};$("search").value="";render();queueCloudSave()}
+
+function cleanImportedNoteValue(value){
+  const s=String(value ?? "").trim();
+  if(!s)return "";
+  if(["-","—","--","n/a","na","none","null","undefined"].includes(s.toLowerCase()))return "";
+  return s;
+}
+
+function normalizeRows(data,start){if(data.length<2)return[];const headers=data[0].map(h=>normHeader(h));const map=headers.reduce((a,h,i)=>{a[h]=i;return a},{});return data.slice(1).map((row,i)=>{const chassis=pick(row,map,["chassis","chassis #","chassis number","chassis id"],1);const location=pick(row,map,["location","loc","current location","parking location"],2);const pool=pick(row,map,["chas pool","chassis pool","pool"],3);const eventDate=pick(row,map,["event date","event datetime","date"],4);const event=pick(row,map,["event","event type","last event"],5);const kind=pick(row,map,["chas car kind","chas/car kind","chassis car kind","car kind","chas kind","kind","chassis kind","type"],-1);const hc=pick(row,map,["chas hc","hc","chassis hc","hazard class","height code"],-1);const status=pick(row,map,["status","current status"],7);const ce=pick(row,map,["ce","c/e","customer exception","ce flag"],-1);const note=pick(row,map,["note","notes","chassis note"],-1);return{id:start+i+1,chassis:String(chassis||"—"),location:String(location||"—"),pool:String(pool||"—"),eventDate:String(eventDate||"01/01/1900 00:00:00"),event:String(event||"—"),kind:String(kind&&kind!==eventDate?kind:"—"),hc:String(hc&&hc!==eventDate?hc:""),status:String(status||"—"),ce:String(ce||"").toLowerCase().includes("ce")||String(ce||"").toLowerCase()==="yes"||String(ce||"").toLowerCase()==="true",note:cleanImportedNoteValue(note!==eventDate?note:"")}}).filter(r=>r.chassis!=="—")}
+async function importFiles(files){const all=[];importedFileArchives=[];for(const file of [...files]){let dataUrl='';try{dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}catch{}importedFileArchives.push({name:file.name,size:file.size,type:file.type,lastModified:file.lastModified,dataUrl});const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:false});const sh=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(sh,{header:1,defval:""}).filter(r=>r.some(Boolean));all.push(...normalizeRows(data,all.length))}tableRows=all.map((r,i)=>({...r,id:i+1,note:cleanImportedNoteValue(r.note)}));query="";filter="all";sortConfig={key:"id",direction:"asc"};$("search").value="";render();queueCloudSave()}
 function csvEscape(value){
   const s=String(value ?? "");
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
@@ -2303,7 +3479,7 @@ function downloadBlob(blob, filename){
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
 }
 function downloadImportReadyCsv(rows){
-  const headers=["Chassis","Location","Chas Pool","Event Date","Event","Chas Car Kind","Chas HC","Status","CE","Yard Checked","Event Age","Days Old","Review Flag"];
+  const headers=["Chassis","Location","Chas Pool","Event Date","Event","Chas Car Kind","Chas HC","Status","CE","Note","Yard Checked","Event Age","Days Old","Review Flag"];
   const csv=[headers.join(","),...rows.map(row=>headers.map(h=>csvEscape(row[h])).join(","))].join("\n");
   downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`chassis-reconciliation-import-ready-${new Date().toISOString().slice(0,10)}.csv`);
 }
@@ -2388,10 +3564,17 @@ function showArchiveToast(message){
 function getArchiveList(){try{return JSON.parse(localStorage.getItem("chassisReconciliationArchiveList")||"[]")||[]}catch{return[]}}
 function saveArchiveList(list){localStorage.setItem("chassisReconciliationArchiveList",JSON.stringify(list));cloudUpsert(CLOUD_KEYS.archives,list).then(()=>setCloudStatus("Cloud: saved","ok")).catch(err=>{console.error(err);setCloudStatus("Cloud: save failed","err")})}
 function makeArchiveId(){return "archive_"+Date.now()+"_"+Math.random().toString(16).slice(2)}
-function makeArchiveName(){const d=new Date();return `Chassis Archive ${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`}
+function makeArchiveName(){
+  const d=new Date();
+  const mm=String(d.getMonth()+1).padStart(2,"0");
+  const dd=String(d.getDate()).padStart(2,"0");
+  const hh=String(d.getHours()).padStart(2,"0");
+  const min=String(d.getMinutes()).padStart(2,"0");
+  return `Chassis Archive ${mm}/${dd} ${hh}:${min}`;
+}
 function makeSnapshot(){
   const e=enrich();
-  return {id:makeArchiveId(),name:makeArchiveName(),savedAt:new Date().toISOString(),reportDate:REPORT_TODAY.toISOString(),yardChecked:$("yardSelect")?.value||"",tableRows,query,filter,sortConfig,showBanner,importedFileArchives,counts:{onHand:e.length,yardChecked:e.filter(r=>r.yardChecked).length,eventToday:e.filter(r=>r.bucket.key==="today").length,missingToday:e.filter(r=>r.bucket.key!=="today").length,flaggedDelete:e.filter(r=>r.bucket.key==="tenPlus").length}};
+  return {id:makeArchiveId(),name:makeArchiveName(),savedAt:new Date().toISOString(),reportDate:getReportBaseDate().toISOString(),yardChecked:$("yardSelect")?.value||"",tableRows,query,filter,sortConfig,showBanner,importedFileArchives,counts:{onHand:e.length,yardChecked:e.filter(r=>r.yardChecked).length,eventToday:e.filter(r=>r.bucket.key==="today").length,missingToday:e.filter(r=>r.bucket.key!=="today").length,flaggedDelete:e.filter(r=>r.bucket.key==="tenPlus").length}};
 }
 function saveSnapshot(customName){
   const snap=makeSnapshot();
@@ -2414,6 +3597,7 @@ function makeReportWorkbookRows(){
     "Chas HC": r.hc || "",
     "Status": r.status || "",
     "CE": r.ce ? "CE" : "",
+    "Note": r.note || "",
     "Yard Checked": r.yardChecked ? "Yes" : "No",
     "Event Age": r.bucket.label,
     "Days Old": r.daysOld,
@@ -2426,7 +3610,7 @@ function todayCalendarKey(){
   return dateKey(d.getFullYear(),d.getMonth(),d.getDate());
 }
 function reportCalendarKey(){
-  return dateKey(REPORT_TODAY.getFullYear(),REPORT_TODAY.getMonth(),REPORT_TODAY.getDate());
+  const d=getReportBaseDate(); return dateKey(d.getFullYear(),d.getMonth(),d.getDate());
 }
 function currentReportDateKey(){
   return todayCalendarKey();
@@ -3419,18 +4603,26 @@ function renderYardCalendar(){
 
 function init(){
   $("yardSelect").innerHTML=YARD_OPTIONS.map(o=>`<option>${o}</option>`).join("");
-  $("yardLabel").textContent=`Yard checked ${String(REPORT_TODAY.getMonth()+1).padStart(2,"0")}/${String(REPORT_TODAY.getDate()).padStart(2,"0")}/${REPORT_TODAY.getFullYear()}`;setupDisplaySliders();
+  updateReportDateLabel();setupDisplaySliders();
   $("search").oninput=e=>{query=e.target.value;render();queueCloudSave()};
   document.querySelectorAll("th button[data-sort]").forEach(b=>b.onclick=()=>{const k=b.dataset.sort;if(k==="ce"&&applySelectedCeFlags())return;sortConfig={key:k,direction:sortConfig.key===k&&sortConfig.direction==="asc"?"desc":"asc"};render();queueCloudSave()});
   const bannerToggle=$("bannerToggle"); if(bannerToggle)bannerToggle.onclick=()=>{showBanner=!showBanner;render();queueCloudSave()};
   $("importBtn").onclick=()=>$("fileInput").click();
   $("fileInput").onchange=e=>{if(e.target.files?.length)importFiles(e.target.files);e.target.value=""};
   $("clearBtn").onclick=typeof handleClearClick==="function"?handleClearClick:()=>{tableRows=[];query="";filter="all";$("search").value="";render();queueCloudSave()};
-  const forceSaveBtn=$("forceSaveBtn"); if(forceSaveBtn)forceSaveBtn.onclick=saveAllCloudState;
-  const reloadCloudBtn=$("reloadCloudBtn"); if(reloadCloudBtn)reloadCloudBtn.onclick=reloadCloudState;
+  const forceSaveBtn=$("forceSaveBtn"); if(forceSaveBtn){
+    const doForceSave=e=>{if(e){e.preventDefault();e.stopPropagation()} saveAllCloudState()};
+    forceSaveBtn.onclick=doForceSave;
+    forceSaveBtn.ontouchend=doForceSave;
+  }
   const copyChassisBtn=$("copyChassisBtn"); if(copyChassisBtn)copyChassisBtn.onclick=copyFilteredChassisList;
   const emailReportBtn=$("emailReportBtn"); if(emailReportBtn)emailReportBtn.onclick=sendEmailReport;
   const calendarTopBtn=$("calendarTopBtn"); if(calendarTopBtn)calendarTopBtn.onclick=openYardCalendar;
+  const noteCloseBtn=$("noteCloseBtn"); if(noteCloseBtn)noteCloseBtn.onclick=closeNoteModal;
+  const noteCancelBtn=$("noteCancelBtn"); if(noteCancelBtn)noteCancelBtn.onclick=closeNoteModal;
+  const noteSaveBtn=$("noteSaveBtn"); if(noteSaveBtn)noteSaveBtn.onclick=saveActiveNote;
+  const noteDeleteBtn=$("noteDeleteBtn"); if(noteDeleteBtn)noteDeleteBtn.onclick=deleteActiveNote;
+  const noteModal=$("noteModal"); if(noteModal)noteModal.addEventListener("click",e=>{if(e.target===noteModal)closeNoteModal()});
   $("exportBtn").onclick=async()=>{const b=$("exportBtn");if(b){b.textContent="Exporting...";b.disabled=true}await Promise.resolve(exportReport());if(b){b.textContent="⇩ Export";b.disabled=false}};
   const archiveBtn=$("archiveBtn"); if(archiveBtn)archiveBtn.onclick=openArchiveConfirmModal;
   const archivePageBtn=$("archivePageBtn"); if(archivePageBtn)archivePageBtn.onclick=openArchiveModal;
