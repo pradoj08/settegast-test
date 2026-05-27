@@ -1,83 +1,3459 @@
--- Chassis Reconciliation Supabase Setup v3
--- Run this once in Supabase SQL Editor.
--- Then open the updated HTML and click Force Save.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chassis Reconciliation Report</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root {
+  --bg:#040916; --panel:#0b1326; --panel2:#111a2e; --line:#22304a; --text:#f8fafc; --muted:#8fa3c4;
+  --gold:#fbbf24; --green:#34d399; --blue:#60a5fa; --red:#fb7185; --orange:#fb923c; --purple:#a855f7;
+  --scale:1;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(96,165,250,.10),transparent 28rem),radial-gradient(circle at top right,rgba(168,85,247,.10),transparent 26rem),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;padding:18px}
+.app{max-width:1180px;margin:0 auto;display:grid;gap:20px}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--line);background:linear-gradient(135deg,rgba(17,26,46,.96),rgba(9,15,31,.96));border-radius:28px;padding:26px;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;color:#fde68a;border:1px solid rgba(251,191,36,.35);background:rgba(251,191,36,.10);border-radius:999px;padding:5px 12px;letter-spacing:.22em;text-transform:uppercase;font-size:11px;font-weight:1000}
+h1{margin:18px 0 0;font-size:clamp(34px,5vw,54px);line-height:.95;letter-spacing:-.06em;font-weight:1000;text-shadow:2px 2px 0 rgba(251,146,60,.45)}
+.header-controls{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
+.yard-card,.size-card{min-width:235px;border:1px solid rgba(96,165,250,.34);background:rgba(7,13,30,.82);border-radius:18px;padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.yard-card label,.size-card label{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;color:#bfdbfe;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:1000}
+select,input{width:100%;border:1px solid var(--line);background:#060b19;color:var(--text);border-radius:12px;outline:none;padding:10px 12px;font-weight:1000}
+select{height:43px;color:#facc15}
+input[type=range]{padding:0;accent-color:var(--blue);cursor:pointer}
+.banner{position:relative;overflow:hidden;border:1px solid rgba(216,180,254,.55);background:radial-gradient(circle at 8% 0%,rgba(236,72,153,.24),transparent 22rem),radial-gradient(circle at 88% 20%,rgba(96,165,250,.18),transparent 20rem),linear-gradient(135deg,rgba(76,29,149,.72),rgba(30,27,75,.96));border-radius:26px;padding:14px;box-shadow:0 24px 70px rgba(88,28,135,.42),inset 0 1px 0 rgba(255,255,255,.12)}
+.banner-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:10px}
+.banner-title{display:inline-flex;align-items:center;gap:9px;color:#fdf4ff;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+.banner-title:before{content:"⚡";display:grid;place-items:center;width:28px;height:28px;border-radius:999px;background:rgba(216,180,254,.16);border:1px solid rgba(216,180,254,.32)}
+.banner-toggle{height:34px;min-width:62px;border-radius:999px;padding:0 14px;border:1px solid rgba(216,180,254,.48);background:linear-gradient(135deg,rgba(168,85,247,.85),rgba(88,28,135,.72));color:#fff;font-size:12px;font-weight:1000}
+.banner-grid{display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;gap:10px}
+.banner-card{position:relative;overflow:hidden;width:205px;min-height:74px;border:1px solid rgba(216,180,254,.28);background:linear-gradient(145deg,rgba(15,23,42,.78),rgba(30,27,75,.72));border-radius:15px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;grid-template-areas:"label value" "hint value";align-items:center;column-gap:12px;row-gap:5px;box-shadow:0 12px 32px rgba(15,23,42,.28),inset 0 1px 0 rgba(255,255,255,.10)}
+.banner-card:after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c084fc,#f0abfc,#60a5fa)}
+.banner-label{grid-area:label;max-width:135px;color:#ede9fe;font-size:10px;font-weight:1000;line-height:1.05;text-transform:uppercase;letter-spacing:.03em}
+.banner-value{grid-area:value;font-size:34px;line-height:1;font-weight:1000;letter-spacing:-.07em;text-align:right}
+.banner-hint{grid-area:hint;display:inline-flex;width:max-content;padding:4px 7px;border-radius:999px;background:rgba(168,85,247,.18);border:1px solid rgba(216,180,254,.18);color:#d8b4fe;font-size:9px;font-weight:950}
+.scaled{transform:none;transform-origin:top center;width:100%;margin-inline:auto;display:grid;gap:20px}
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.metric{min-height:112px;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:15px;position:relative;overflow:hidden}
+.metric .label{color:#b6c5dd;font-size:11px;text-transform:uppercase;letter-spacing:.04em;line-height:1.2}
+.metric .value{margin-top:10px;font-size:29px;line-height:1;font-weight:1000;letter-spacing:-.06em}
+.metric .hint{margin-top:9px;font-size:11px;line-height:1.25;color:#9fb0cd;font-weight:700}
+.metric .icon{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:18px;display:grid;place-items:center;background:rgba(255,255,255,.08);font-size:18px}
+.metric.green{background:rgba(6,78,59,.28);border-color:rgba(52,211,153,.35)}.metric.cyan{background:rgba(8,79,96,.25);border-color:rgba(34,211,238,.32)}.metric.amber{background:rgba(120,53,15,.25);border-color:rgba(251,191,36,.36)}.metric.red{background:rgba(88,28,49,.28);border-color:rgba(251,113,133,.38)}
+.controls{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:rgba(17,26,46,.78);border-radius:22px;padding:14px;box-shadow:0 18px 60px rgba(0,0,0,.28)}
+.search{min-width:230px;flex:1;max-width:290px;position:relative}.search input{padding-left:38px;color:#c7d7f3}.search:before{content:"⌕";position:absolute;left:14px;top:8px;color:#91a4c7;font-size:22px;z-index:1}
+.filters{display:flex;flex-wrap:wrap;gap:8px}
+button{border:1px solid var(--line);background:#071026;color:var(--text);border-radius:11px;padding:9px 13px;cursor:pointer;font:inherit;font-size:13px;font-weight:1000;transition:.15s ease;white-space:nowrap}
+button:hover{transform:translateY(-1px);border-color:#64748b}button.active{color:#06101f;background:var(--gold);border-color:#facc15;box-shadow:0 10px 22px rgba(251,191,36,.18)}
+.table-card{overflow:hidden;border:1px solid var(--line);background:var(--panel);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34)}
+.table-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px;border-bottom:1px solid var(--line);background:#071026}
+.table-head h2{margin:0;font-size:17px;font-weight:1000}.showing{margin-top:3px;color:var(--muted);font-size:11px;font-weight:700}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn-export{background:rgba(16,185,129,.16);border-color:rgba(52,211,153,.35);color:#d1fae5}.btn-import{background:rgba(37,99,235,.20);border-color:rgba(96,165,250,.42);color:#dbeafe}.btn-clear{background:rgba(225,29,72,.22);border-color:rgba(251,113,133,.42);color:#ffe4e6}
+.table-scroll{overflow:auto;max-height:62vh}table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;text-align:center;font-size:12px}thead th{position:sticky;top:0;z-index:2;padding:10px 8px;color:#a8b8d4;background:#121c30;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11px;font-weight:1000}th button{margin:0 auto;padding:0;border:0;background:transparent;color:inherit;font-size:11px;display:inline-flex;gap:4px;align-items:center;justify-content:center}th button.sorted{color:var(--gold)}td{padding:9px 8px;border-bottom:1px solid rgba(34,48,74,.84);white-space:nowrap;vertical-align:middle;color:#f8fafc}tbody tr:hover{background:rgba(30,41,59,.55)}
+.chassis{display:inline-flex;align-items:center;gap:7px;font-weight:1000;letter-spacing:-.02em}.kind,.pool{border-radius:7px;background:#1b2a43;color:#a9bddb;padding:3px 6px;font-size:10px;font-weight:1000}.pool{color:#fff}
+.chip{display:inline-flex;align-items:center;justify-content:center;min-height:24px;border-radius:999px;border:1px solid transparent;padding:4px 10px;font-size:11px;font-weight:1000;line-height:1}
+.yes{color:#a7f3d0;background:rgba(16,185,129,.18);border-color:rgba(52,211,153,.3)}.no{color:#dbeafe;background:rgba(71,85,105,.4);border-color:rgba(148,163,184,.20)}.today{color:#a7f3d0;background:rgba(16,185,129,.20);border-color:rgba(52,211,153,.32)}.yesterday{color:#bae6fd;background:rgba(14,165,233,.20);border-color:rgba(56,189,248,.36)}.twoTen{color:#fed7aa;background:rgba(234,88,12,.24);border-color:rgba(251,146,60,.37)}.tenPlus{color:#fecdd3;background:rgba(225,29,72,.26);border-color:rgba(251,113,133,.42)}
+.loc{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid rgba(148,163,184,.25);padding:5px 10px;font-size:11px;font-weight:1000}.dirt{color:#fecdd3;background:rgba(225,29,72,.20);border-color:rgba(251,113,133,.34)}.shop{color:#fed7aa;background:rgba(234,88,12,.21);border-color:rgba(251,146,60,.34)}.rail{color:#bfdbfe;background:rgba(37,99,235,.24);border-color:rgba(96,165,250,.34)}.bowl{color:#f5d0fe;background:rgba(168,85,247,.23);border-color:rgba(216,180,254,.32)}.normal{color:#dbeafe;background:rgba(71,85,105,.42)}
+.event-type{display:block;height:32px;width:115px;overflow:hidden;white-space:normal;word-break:break-word;line-height:16px;text-align:center;font-size:11px;font-weight:850;margin:0 auto}
+.review{display:flex;width:132px;height:32px;align-items:center;justify-content:center;margin:0 auto;border-radius:999px;border:1px solid transparent;padding:2px 8px;font-size:10px;line-height:10px;text-align:center;font-weight:1000;white-space:normal}.review.ok{color:#a7f3d0;background:rgba(16,185,129,.18);border-color:rgba(52,211,153,.32)}.review.warn{color:#fde68a;background:rgba(245,158,11,.20);border-color:rgba(251,191,36,.36)}.review.yesterday{color:#bfdbfe;background:rgba(37,99,235,.24);border-color:rgba(96,165,250,.42)}.review.minor{color:#fed7aa;background:rgba(234,88,12,.18);border-color:rgba(251,146,60,.34)}.review.delete{color:#fecdd3;background:rgba(225,29,72,.25);border-color:rgba(251,113,133,.42)}
+.empty{padding:42px 20px;text-align:center;color:var(--muted);font-weight:800}
+@media(max-width:950px){body{padding:12px}.hero,.table-head,.controls{flex-direction:column;align-items:stretch}.header-controls{justify-content:stretch}.yard-card,.size-card{min-width:0}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.search{max-width:none}.banner-grid{grid-template-columns:1fr}.banner-card{width:100%}}
 
-create table if not exists public.chassis_reconciliation_state (
-  state_key text primary key,
-  state_value jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
-);
+/* Keep header title on one line */
+.hero h1 {
+  white-space: nowrap !important;
+  font-size: clamp(34px, 4.2vw, 48px) !important;
+  line-height: 1 !important;
+}
+.hero > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.header-controls {
+  flex: 0 0 auto;
+}
+@media (max-width: 950px) {
+  .hero h1 {
+    white-space: normal !important;
+  }
+}
 
-alter table public.chassis_reconciliation_state enable row level security;
 
-grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.chassis_reconciliation_state to anon, authenticated;
 
-drop policy if exists "chassis_reconciliation_select" on public.chassis_reconciliation_state;
-drop policy if exists "chassis_reconciliation_insert" on public.chassis_reconciliation_state;
-drop policy if exists "chassis_reconciliation_update" on public.chassis_reconciliation_state;
-drop policy if exists "chassis_reconciliation_delete" on public.chassis_reconciliation_state;
 
-create policy "chassis_reconciliation_select"
-on public.chassis_reconciliation_state
-for select
-to anon, authenticated
-using (true);
+/* Safer two-click clear state */
+.btn-clear.clear-armed {
+  background: #fb7185 !important;
+  color: #450a0a !important;
+  border-color: #fecdd3 !important;
+  box-shadow: 0 0 0 3px rgba(251,113,133,.18), 0 10px 24px rgba(251,113,133,.18) !important;
+}
 
-create policy "chassis_reconciliation_insert"
-on public.chassis_reconciliation_state
-for insert
-to anon, authenticated
-with check (true);
 
-create policy "chassis_reconciliation_update"
-on public.chassis_reconciliation_state
-for update
-to anon, authenticated
-using (true)
-with check (true);
+.btn-archive{background:rgba(168,85,247,.20)!important;border-color:rgba(216,180,254,.42)!important;color:#f5d0fe!important}
+.btn-restore{background:rgba(245,158,11,.18)!important;border-color:rgba(251,191,36,.42)!important;color:#fef3c7!important}
+.archive-modal{position:fixed;inset:0;z-index:9999;display:none;place-items:center;padding:22px;background:rgba(2,6,23,.78);backdrop-filter:blur(10px)}
+.archive-modal.show{display:grid}
+.archive-page{width:min(980px,100%);max-height:min(790px,92vh);overflow:auto;border:1px solid rgba(168,85,247,.42);background:radial-gradient(circle at top left,rgba(168,85,247,.20),transparent 25rem),linear-gradient(135deg,rgba(15,23,42,.98),rgba(7,13,30,.98));border-radius:28px;box-shadow:0 28px 90px rgba(0,0,0,.55);padding:22px}
+.archive-page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;border-bottom:1px solid rgba(148,163,184,.18);padding-bottom:16px;margin-bottom:16px}
+.archive-kicker{display:inline-flex;color:#fde68a;border:1px solid rgba(251,191,36,.35);background:rgba(251,191,36,.10);border-radius:999px;padding:5px 12px;letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:1000}
+.archive-page h2{margin:14px 0 6px;font-size:clamp(26px,4vw,40px);letter-spacing:-.05em;line-height:1}
+.archive-page p{margin:0;color:#9fb0cd;font-size:13px;font-weight:800}
+.archive-close{border-color:rgba(148,163,184,.28);background:rgba(15,23,42,.82);color:#dbeafe}
+.archive-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.archive-summary-card{border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.66);border-radius:16px;padding:13px}
+.archive-summary-card span{display:block;color:#9fb0cd;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.archive-summary-card strong{display:block;color:#fff;font-size:20px;line-height:1}
+.archive-list-card,.archive-quick-view{border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.52);border-radius:18px;padding:14px;margin-top:14px}
+.archive-list-title{color:#bfdbfe;font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:1000;margin-bottom:10px}
+.archive-library-list{display:grid;gap:10px}
+.archive-library-empty{padding:18px;border:1px dashed rgba(148,163,184,.30);background:rgba(15,23,42,.48);border-radius:16px;color:#9fb0cd;font-size:13px;font-weight:850}
+.archive-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.68);border-radius:18px;padding:13px}
+.archive-row-title{color:#f8fafc;font-size:15px;font-weight:1000;letter-spacing:-.02em}
+.archive-row-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.archive-meta-pill{display:inline-flex;align-items:center;border:1px solid rgba(148,163,184,.20);background:rgba(30,41,59,.58);color:#c7d2fe;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:950}
+.archive-row-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
+.archive-view-btn{background:rgba(37,99,235,.20);border-color:rgba(96,165,250,.38);color:#dbeafe}
+.archive-restore-btn{background:rgba(245,158,11,.18);border-color:rgba(251,191,36,.42);color:#fef3c7}
+.archive-delete-btn{background:rgba(225,29,72,.18);border-color:rgba(251,113,133,.38);color:#ffe4e6}
+.archive-quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.archive-quick-card{border:1px solid rgba(148,163,184,.20);background:rgba(30,41,59,.50);border-radius:14px;padding:11px}
+.archive-quick-card span{display:block;color:#9fb0cd;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.archive-quick-card strong{display:block;color:#fff;font-size:21px;line-height:1}
+.archive-quick-table{overflow:auto;max-height:260px;border-radius:14px;border:1px solid rgba(148,163,184,.16)}
+.archive-toast{position:fixed;left:50%;bottom:22px;z-index:10000;display:flex;align-items:center;gap:12px;min-width:min(420px,calc(100vw - 32px));transform:translate(-50%,120%);opacity:0;pointer-events:none;border:1px solid rgba(52,211,153,.42);background:rgba(6,78,59,.96);color:#ecfdf5;border-radius:18px;padding:14px 16px;box-shadow:0 18px 55px rgba(0,0,0,.38);transition:.24s ease}
+.archive-toast.show{transform:translate(-50%,0);opacity:1}
+.archive-toast-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;background:rgba(16,185,129,.25);border:1px solid rgba(167,243,208,.35);font-size:18px;font-weight:1000}
+.archive-toast strong{display:block;font-size:14px;line-height:1.1;font-weight:1000}.archive-toast span{display:block;margin-top:3px;color:#bbf7d0;font-size:12px;font-weight:800}
+@media(max-width:800px){.archive-summary-grid,.archive-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-row{grid-template-columns:1fr}.archive-page-head{flex-direction:column}}
 
-create policy "chassis_reconciliation_delete"
-on public.chassis_reconciliation_state
-for delete
-to anon, authenticated
-using (true);
 
-create or replace function public.touch_chassis_reconciliation_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
 
-drop trigger if exists trg_chassis_reconciliation_updated_at on public.chassis_reconciliation_state;
 
-create trigger trg_chassis_reconciliation_updated_at
-before update on public.chassis_reconciliation_state
-for each row
-execute function public.touch_chassis_reconciliation_updated_at();
+/* Stable relocated View Controls */
+:root {
+  --app-fill: 90vw;
+  --table-text-size: 12px;
+  --control-text-size: 13px;
+  --metric-text-scale: 1;
+}
+.app {
+  width: min(var(--app-fill), calc(100vw - 24px)) !important;
+  max-width: none !important;
+}
+.view-controls-strip {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 280px) minmax(220px, 280px);
+  gap: 10px;
+  align-items: stretch;
+  border: 1px solid rgba(96,165,250,.26);
+  background: rgba(17,26,46,.72);
+  border-radius: 20px;
+  padding: 12px;
+  box-shadow: 0 14px 42px rgba(0,0,0,.20);
+}
+.view-controls-title {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 6px;
+}
+.view-controls-title span {
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 1000;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.view-controls-title small {
+  margin-top: 3px;
+  color: #8fa3c4;
+  font-size: 11px;
+  font-weight: 800;
+}
+.view-slider-card {
+  border: 1px solid rgba(96,165,250,.26);
+  background: rgba(7,13,30,.74);
+  border-radius: 15px;
+  padding: 10px 12px;
+}
+.view-slider-card label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.view-slider-card label strong {
+  color: #f8fafc;
+  font-size: 11px;
+}
+.view-slider-card input[type="range"] {
+  display: block;
+  width: 100%;
+  padding: 0;
+  accent-color: #60a5fa;
+  cursor: pointer;
+}
+table,
+thead th,
+th button,
+td,
+.event-type,
+.loc,
+.chip,
+.review,
+.pool,
+.kind {
+  font-size: var(--table-text-size) !important;
+}
+button,
+input,
+select {
+  font-size: var(--control-text-size) !important;
+}
+.metric .label,
+.metric .hint {
+  font-size: calc(11px * var(--metric-text-scale)) !important;
+}
+.metric .value {
+  font-size: calc(29px * var(--metric-text-scale)) !important;
+}
+body.slider-active *,
+body.slider-active button:hover {
+  transition: none !important;
+  transform: none !important;
+}
+@media(max-width:950px){
+  .view-controls-strip {
+    grid-template-columns: 1fr;
+  }
+  .app {
+    width: calc(100vw - 24px) !important;
+  }
+}
 
-insert into public.chassis_reconciliation_state (state_key, state_value)
-values
-  ('current_session', '{}'::jsonb),
-  ('archive_list', '[]'::jsonb),
-  ('archive_recycle_bin', '[]'::jsonb),
-  ('yard_check_calendar', '{}'::jsonb)
-on conflict (state_key) do nothing;
 
--- Optional realtime. Ignore if Supabase says it is already added.
-do $$
-begin
-  alter publication supabase_realtime add table public.chassis_reconciliation_state;
-exception
-  when duplicate_object then null;
-  when undefined_object then null;
-end $$;
+/* Bottom placement for View Controls */
+.view-controls-strip {
+  margin-top: 4px !important;
+}
 
--- Quick permission test:
-select state_key, updated_at
-from public.chassis_reconciliation_state
-order by state_key;
+
+/* Archive Page delete confirmation */
+.archive-delete-btn.armed {
+  background: #fb7185 !important;
+  border-color: #fecdd3 !important;
+  color: #450a0a !important;
+  box-shadow: 0 0 0 3px rgba(251,113,133,.16), 0 10px 24px rgba(251,113,133,.16) !important;
+}
+.archive-row-delete-armed {
+  border-color: rgba(251,113,133,.55) !important;
+  background: rgba(127,29,29,.26) !important;
+}
+
+
+/* Archive Recycle Bin */
+.recycle-card {
+  border-color: rgba(251,113,133,.24) !important;
+  background: rgba(69,10,10,.18) !important;
+}
+.recycle-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.recycle-title-row span {
+  color: #fecdd3;
+}
+.recycle-empty {
+  padding: 14px;
+  border: 1px dashed rgba(251,113,133,.28);
+  background: rgba(15,23,42,.38);
+  border-radius: 14px;
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 850;
+}
+.recycle-row {
+  border-color: rgba(251,113,133,.28) !important;
+  background: rgba(127,29,29,.18) !important;
+}
+.recycle-restore-btn {
+  background: rgba(16,185,129,.18);
+  border-color: rgba(52,211,153,.38);
+  color: #d1fae5;
+}
+.recycle-permanent-btn {
+  background: rgba(127,29,29,.35);
+  border-color: rgba(251,113,133,.48);
+  color: #ffe4e6;
+}
+.recycle-permanent-btn.armed,
+#emptyRecycleBtn.armed {
+  background: #fb7185 !important;
+  color: #450a0a !important;
+  border-color: #fecdd3 !important;
+  box-shadow: 0 0 0 3px rgba(251,113,133,.16), 0 10px 24px rgba(251,113,133,.16) !important;
+}
+
+
+/* Visible Recycle Bin block inside Archive Page */
+.recycle-card {
+  border-color: rgba(251,113,133,.35) !important;
+  background:
+    radial-gradient(circle at top left, rgba(251,113,133,.12), transparent 18rem),
+    rgba(69,10,10,.20) !important;
+}
+.recycle-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.recycle-title-row span {
+  color: #fecdd3;
+}
+.recycle-empty {
+  padding: 14px;
+  border: 1px dashed rgba(251,113,133,.32);
+  background: rgba(15,23,42,.44);
+  border-radius: 14px;
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 850;
+}
+.recycle-row {
+  border-color: rgba(251,113,133,.28) !important;
+  background: rgba(127,29,29,.18) !important;
+}
+.recycle-restore-btn {
+  background: rgba(16,185,129,.18);
+  border-color: rgba(52,211,153,.38);
+  color: #d1fae5;
+}
+.recycle-permanent-btn {
+  background: rgba(127,29,29,.35);
+  border-color: rgba(251,113,133,.48);
+  color: #ffe4e6;
+}
+.recycle-permanent-btn.armed,
+#emptyRecycleBtn.armed {
+  background: #fb7185 !important;
+  color: #450a0a !important;
+  border-color: #fecdd3 !important;
+}
+
+
+/* Collapsible Recycle Bin */
+.recycle-toggle-header {
+  width: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-bottom: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.recycle-toggle-header:hover {
+  transform: none;
+  filter: brightness(1.08);
+}
+.recycle-toggle-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+#recycleCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(251,113,133,.22);
+  border: 1px solid rgba(251,113,133,.42);
+  color: #ffe4e6;
+  font-size: 11px;
+  line-height: 1;
+}
+#recycleToggleText {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(127,29,29,.24);
+  border: 1px solid rgba(251,113,133,.32);
+  color: #fecdd3;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.recycle-body {
+  margin-top: 12px;
+}
+.recycle-body.collapsed {
+  display: none;
+}
+.recycle-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+
+/* Send Email Report button */
+.btn-email {
+  background: rgba(14,165,233,.18) !important;
+  border-color: rgba(56,189,248,.42) !important;
+  color: #e0f2fe !important;
+}
+.btn-email:hover {
+  filter: brightness(1.08);
+}
+
+
+/* Keep Clear and Restore together */
+#restoreBtn + #clearBtn {
+  margin-left: -2px;
+}
+
+
+/* Copy chassis button beside table title */
+.table-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.btn-copy-chassis {
+  background: rgba(14,165,233,.18) !important;
+  border-color: rgba(56,189,248,.42) !important;
+  color: #e0f2fe !important;
+  padding: 8px 11px !important;
+  font-size: 12px !important;
+}
+.btn-copy-chassis.copied {
+  background: rgba(16,185,129,.22) !important;
+  border-color: rgba(52,211,153,.45) !important;
+  color: #d1fae5 !important;
+}
+
+
+/* Copy Chassis confirmation popup */
+.copy-chassis-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 86px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: min(390px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  transform: translate(-50%, 120%);
+  opacity: 0;
+  pointer-events: none;
+  border: 1px solid rgba(56,189,248,.46);
+  background:
+    radial-gradient(circle at top left, rgba(56,189,248,.20), transparent 18rem),
+    rgba(12, 74, 110, .96);
+  color: #f0f9ff;
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 55px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.12);
+  transition: transform .24s ease, opacity .24s ease;
+}
+.copy-chassis-toast.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+.copy-toast-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(14,165,233,.28);
+  border: 1px solid rgba(186,230,253,.40);
+  color: #e0f2fe;
+  font-size: 18px;
+  font-weight: 1000;
+}
+.copy-chassis-toast strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.1;
+  font-weight: 1000;
+}
+.copy-chassis-toast span {
+  display: block;
+  margin-top: 3px;
+  color: #bae6fd;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+
+/* Yard Check Calendar */
+.btn-calendar {
+  background: rgba(99,102,241,.20) !important;
+  border-color: rgba(129,140,248,.42) !important;
+  color: #e0e7ff !important;
+}
+.calendar-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  display: none;
+  place-items: center;
+  padding: 22px;
+  background: rgba(2,6,23,.80);
+  backdrop-filter: blur(10px);
+}
+.calendar-modal.show {
+  display: grid;
+}
+.calendar-page {
+  width: min(980px, 100%);
+  max-height: min(820px, 92vh);
+  overflow: auto;
+  border: 1px solid rgba(129,140,248,.42);
+  background:
+    radial-gradient(circle at top left, rgba(99,102,241,.20), transparent 25rem),
+    radial-gradient(circle at top right, rgba(34,211,238,.13), transparent 20rem),
+    linear-gradient(135deg, rgba(15,23,42,.98), rgba(7,13,30,.98));
+  border-radius: 28px;
+  box-shadow: 0 28px 90px rgba(0,0,0,.55);
+  padding: 22px;
+}
+.calendar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  border-bottom: 1px solid rgba(148,163,184,.18);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+.calendar-kicker {
+  display: inline-flex;
+  color: #c7d2fe;
+  border: 1px solid rgba(129,140,248,.38);
+  background: rgba(99,102,241,.12);
+  border-radius: 999px;
+  padding: 5px 12px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.calendar-page h2 {
+  margin: 14px 0 6px;
+  font-size: clamp(26px,4vw,40px);
+  letter-spacing: -.05em;
+  line-height: 1;
+}
+.calendar-page p {
+  margin: 0;
+  color: #9fb0cd;
+  font-size: 13px;
+  font-weight: 800;
+}
+.calendar-close {
+  border-color: rgba(148,163,184,.28);
+  background: rgba(15,23,42,.82);
+  color: #dbeafe;
+}
+.calendar-toolbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.calendar-month-label {
+  text-align: center;
+  color: #f8fafc;
+  font-size: 20px;
+  font-weight: 1000;
+  letter-spacing: -.03em;
+}
+.calendar-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.calendar-legend span {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.legend-check {
+  color: #d1fae5;
+  background: rgba(16,185,129,.16);
+  border: 1px solid rgba(52,211,153,.35);
+}
+.legend-x {
+  color: #ffe4e6;
+  background: rgba(225,29,72,.18);
+  border: 1px solid rgba(251,113,133,.38);
+}
+.legend-blank {
+  color: #dbeafe;
+  background: rgba(71,85,105,.32);
+  border: 1px solid rgba(148,163,184,.22);
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.calendar-weekday {
+  color: #9fb0cd;
+  text-align: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 1000;
+  padding: 6px 0;
+}
+.calendar-day {
+  min-height: 96px;
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(15,23,42,.62);
+  border-radius: 16px;
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+.calendar-day.empty {
+  opacity: .22;
+}
+.calendar-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.calendar-status {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(30,41,59,.48);
+  color: #94a3b8;
+  font-size: 22px;
+  font-weight: 1000;
+}
+.calendar-day.checked {
+  border-color: rgba(52,211,153,.42);
+  background: rgba(6,78,59,.28);
+}
+.calendar-day.checked .calendar-status {
+  color: #d1fae5;
+  background: rgba(16,185,129,.24);
+  border-color: rgba(52,211,153,.40);
+}
+.calendar-day.missed {
+  border-color: rgba(251,113,133,.44);
+  background: rgba(127,29,29,.24);
+}
+.calendar-day.missed .calendar-status {
+  color: #ffe4e6;
+  background: rgba(225,29,72,.22);
+  border-color: rgba(251,113,133,.42);
+}
+.calendar-day-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.calendar-day-controls button {
+  min-width: 0;
+  padding: 6px 0;
+  border-radius: 10px;
+  font-size: 12px !important;
+}
+.calendar-check-btn.active {
+  background: rgba(16,185,129,.35) !important;
+  border-color: rgba(52,211,153,.55) !important;
+  color: #d1fae5 !important;
+}
+.calendar-x-btn.active {
+  background: rgba(225,29,72,.35) !important;
+  border-color: rgba(251,113,133,.58) !important;
+  color: #ffe4e6 !important;
+}
+@media(max-width:800px){
+  .calendar-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .calendar-grid {
+    gap: 5px;
+  }
+  .calendar-day {
+    min-height: 86px;
+    padding: 7px;
+  }
+  .calendar-day-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Top Calendar button */
+.calendar-top-btn {
+  min-width: 150px;
+  min-height: 86px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  border: 1px solid rgba(129,140,248,.48) !important;
+  background:
+    radial-gradient(circle at top left, rgba(129,140,248,.22), transparent 12rem),
+    rgba(30, 27, 75, .82) !important;
+  color: #e0e7ff !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 28px rgba(30,27,75,.22);
+}
+.calendar-top-btn span {
+  font-size: 24px;
+  line-height: 1;
+}
+.calendar-top-btn strong {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 1000;
+}
+.calendar-top-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+
+/* Archive rename controls */
+.archive-rename-btn {
+  background: rgba(14,165,233,.18);
+  border-color: rgba(56,189,248,.38);
+  color: #e0f2fe;
+}
+.archive-rename-input {
+  width: min(420px, 100%);
+  border: 1px solid rgba(96,165,250,.36);
+  background: rgba(7,13,30,.88);
+  color: #f8fafc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.archive-save-name-btn {
+  background: rgba(16,185,129,.18);
+  border-color: rgba(52,211,153,.38);
+  color: #d1fae5;
+}
+.archive-cancel-name-btn {
+  background: rgba(71,85,105,.26);
+  border-color: rgba(148,163,184,.28);
+  color: #dbeafe;
+}
+.archive-row-title-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+
+/* Supabase cloud status */
+.cloud-status{display:inline-flex;align-items:center;justify-content:center;min-height:36px;border-radius:999px;padding:0 12px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.62);color:#cbd5e1;font-size:11px;font-weight:1000;white-space:nowrap}
+.cloud-status.ok{color:#d1fae5;background:rgba(16,185,129,.16);border-color:rgba(52,211,153,.36)}
+.cloud-status.warn{color:#fde68a;background:rgba(245,158,11,.16);border-color:rgba(251,191,36,.36)}
+.cloud-status.err{color:#ffe4e6;background:rgba(225,29,72,.18);border-color:rgba(251,113,133,.38)}
+
+
+/* Manual cloud sync button */
+.btn-sync-cloud{background:rgba(16,185,129,.16)!important;border-color:rgba(52,211,153,.36)!important;color:#d1fae5!important}
+
+
+/* Visible top cloud sync controls */
+.cloud-control-card {
+  min-width: 210px;
+  min-height: 86px;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  border: 1px solid rgba(52,211,153,.32);
+  background:
+    radial-gradient(circle at top left, rgba(52,211,153,.14), transparent 12rem),
+    rgba(6, 78, 59, .20);
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.cloud-control-title {
+  color: #d1fae5;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.top-cloud-status {
+  width: 100%;
+  min-height: 28px !important;
+  justify-content: flex-start !important;
+  padding: 0 10px !important;
+}
+.cloud-control-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.btn-sync-cloud,
+.btn-reload-cloud {
+  min-height: 30px;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+}
+.btn-sync-cloud {
+  background: rgba(16,185,129,.20) !important;
+  border-color: rgba(52,211,153,.42) !important;
+  color: #d1fae5 !important;
+}
+.btn-reload-cloud {
+  background: rgba(37,99,235,.20) !important;
+  border-color: rgba(96,165,250,.42) !important;
+  color: #dbeafe !important;
+}
+
+
+/* Updated review age windows */
+.twoDays{color:#dbeafe;background:rgba(71,85,105,.32);border-color:rgba(148,163,184,.22)}
+.minor{color:#fed7aa;background:rgba(234,88,12,.24);border-color:rgba(251,146,60,.37)}
+.moderate{color:#fde68a;background:rgba(245,158,11,.24);border-color:rgba(251,191,36,.40)}
+.review.moderate{color:#fde68a;background:rgba(245,158,11,.24);border-color:rgba(251,191,36,.42)}
+
+
+/* Review flag thresholds: 3-4 minor, 5-9 moderate, 10+ delete */
+.twoDays {
+  color:#dbeafe !important;
+  background:rgba(71,85,105,.32) !important;
+  border-color:rgba(148,163,184,.22) !important;
+}
+.minor {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.37) !important;
+}
+.moderate {
+  color:#fde68a !important;
+  background:rgba(245,158,11,.24) !important;
+  border-color:rgba(251,191,36,.40) !important;
+}
+.review.minor {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.42) !important;
+}
+.review.moderate {
+  color:#fde68a !important;
+  background:rgba(245,158,11,.24) !important;
+  border-color:rgba(251,191,36,.42) !important;
+}
+.review.delete {
+  color:#fecdd3 !important;
+  background:rgba(225,29,72,.25) !important;
+  border-color:rgba(251,113,133,.42) !important;
+}
+
+
+/* CE bright-orange flag */
+.ce-flag {
+  min-width: 44px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(251,146,60,.30) !important;
+  background: rgba(71,85,105,.28) !important;
+  color: #cbd5e1 !important;
+  font-size: 11px !important;
+  font-weight: 1000 !important;
+  padding: 0 10px !important;
+}
+.ce-flag.active {
+  background: #ff7a00 !important;
+  border-color: #fed7aa !important;
+  color: #451a03 !important;
+  box-shadow: 0 0 0 3px rgba(255,122,0,.18), 0 8px 20px rgba(255,122,0,.22) !important;
+}
+.ce-flag:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+
+/* CE drag-select highlighting */
+.ce-flag.selected {
+  outline: 3px solid rgba(255,255,255,.88) !important;
+  box-shadow:
+    0 0 0 4px rgba(255,122,0,.34),
+    0 8px 22px rgba(255,122,0,.24) !important;
+}
+th button[data-sort="ce"].ce-ready {
+  background: #ff7a00 !important;
+  color: #451a03 !important;
+  border-radius: 9px !important;
+  padding: 5px 8px !important;
+}
+
+
+/* Stable CE drag-select engagement */
+.ce-flag {
+  user-select: none !important;
+  touch-action: none !important;
+}
+body.ce-selecting,
+body.ce-selecting * {
+  user-select: none !important;
+}
+body.ce-selecting {
+  cursor: crosshair;
+}
+.ce-flag.selected {
+  outline: 3px solid rgba(255,255,255,.9) !important;
+  box-shadow:
+    0 0 0 4px rgba(255,122,0,.34),
+    0 8px 22px rgba(255,122,0,.24) !important;
+}
+th button[data-sort="ce"].ce-ready {
+  background: #ff7a00 !important;
+  color: #451a03 !important;
+  border-radius: 9px !important;
+  padding: 5px 8px !important;
+  box-shadow: 0 0 0 3px rgba(255,122,0,.18) !important;
+}
+
+
+/* Full-cell CE column drag selection */
+.ce-cell {
+  min-width: 62px;
+  cursor: crosshair;
+  user-select: none !important;
+  touch-action: none !important;
+  border-left: 1px solid rgba(251,146,60,.18);
+  border-right: 1px solid rgba(251,146,60,.18);
+}
+.ce-cell.selected {
+  background: rgba(255,122,0,.30) !important;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.55);
+}
+.ce-cell.selected .ce-flag {
+  outline: 3px solid rgba(255,255,255,.88) !important;
+  box-shadow:
+    0 0 0 4px rgba(255,122,0,.34),
+    0 8px 22px rgba(255,122,0,.24) !important;
+}
+.ce-flag {
+  user-select: none !important;
+  touch-action: none !important;
+  pointer-events: none;
+}
+body.ce-selecting,
+body.ce-selecting * {
+  user-select: none !important;
+}
+body.ce-selecting {
+  cursor: crosshair;
+}
+th button[data-sort="ce"].ce-ready {
+  background: #ff7a00 !important;
+  color: #451a03 !important;
+  border-radius: 9px !important;
+  padding: 5px 8px !important;
+  box-shadow: 0 0 0 3px rgba(255,122,0,.18) !important;
+}
+
+
+/* CE remove/unapply mode */
+th button[data-sort="ce"].ce-remove-ready {
+  background: #fb7185 !important;
+  color: #450a0a !important;
+  border-radius: 9px !important;
+  padding: 5px 8px !important;
+  box-shadow: 0 0 0 3px rgba(251,113,133,.18) !important;
+}
+
+
+/* Combined Days Old / Event Age + Chas HC */
+.event-age-combo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.event-age-combo strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(15,23,42,.62);
+  border: 1px solid rgba(148,163,184,.22);
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.hc-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(99,102,241,.16);
+  border: 1px solid rgba(129,140,248,.32);
+  color: #e0e7ff;
+  font-size: 11px;
+  font-weight: 1000;
+}
+
+
+/* Copy button inside Chassis column header */
+.chassis-header-cell {
+  min-width: 135px;
+}
+.chassis-header-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+}
+.header-copy-btn {
+  min-height: 24px !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+
+/* Tighter missing-event breakdown cards */
+.breakdown-grid,
+.banner-grid,
+.missing-breakdown-grid,
+.review-breakdown-grid {
+  gap: 10px !important;
+}
+.breakdown-card,
+.banner-card,
+.missing-breakdown-card,
+.review-breakdown-card {
+  min-height: 74px !important;
+  padding: 12px 14px !important;
+}
+.breakdown-card .value,
+.banner-card .value,
+.missing-breakdown-card .value,
+.review-breakdown-card .value {
+  font-size: 30px !important;
+  line-height: 1 !important;
+}
+.breakdown-card small,
+.banner-card small,
+.missing-breakdown-card small,
+.review-breakdown-card small {
+  margin-top: 4px !important;
+}
+
+
+/* Purple banner compact layout */
+.missing-banner .breakdown-card,
+.missing-event-banner .breakdown-card,
+#missingBreakdown .breakdown-card {
+  max-width: 260px !important;
+}
+
+
+/* Final compact missing-event breakdown */
+#banner.banner {
+  padding: 12px !important;
+}
+#bannerGrid.banner-grid {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+}
+#bannerGrid .banner-card {
+  width: auto !important;
+  min-width: 185px !important;
+  max-width: 230px !important;
+  min-height: 64px !important;
+  padding: 9px 11px !important;
+  column-gap: 10px !important;
+  row-gap: 3px !important;
+  flex: 0 0 auto !important;
+}
+#bannerGrid .banner-value {
+  font-size: 28px !important;
+}
+#bannerGrid .banner-label {
+  max-width: 120px !important;
+  font-size: 9px !important;
+}
+#bannerGrid .banner-hint {
+  font-size: 10px !important;
+}
+
+
+/* Archive chassis search */
+.archive-search-card {
+  border: 1px solid rgba(96,165,250,.26);
+  background: rgba(15,23,42,.58);
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.archive-search-title {
+  color: #bfdbfe;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 1000;
+  margin-bottom: 10px;
+}
+.archive-search-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+#archiveChassisSearch {
+  width: 100%;
+  border: 1px solid rgba(96,165,250,.32);
+  background: rgba(7,13,30,.86);
+  color: #f8fafc;
+  border-radius: 14px;
+  padding: 11px 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+#archiveSearchClear {
+  background: rgba(71,85,105,.26);
+  border-color: rgba(148,163,184,.28);
+  color: #dbeafe;
+  min-height: 40px;
+}
+.archive-search-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.archive-search-empty {
+  border: 1px dashed rgba(148,163,184,.26);
+  background: rgba(15,23,42,.36);
+  border-radius: 14px;
+  padding: 12px;
+  color: #9fb0cd;
+  font-size: 12px;
+  font-weight: 850;
+}
+.archive-find-card {
+  border: 1px solid rgba(96,165,250,.24);
+  background: rgba(30,41,59,.44);
+  border-radius: 16px;
+  padding: 12px;
+}
+.archive-find-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.archive-find-title {
+  color: #f8fafc;
+  font-weight: 1000;
+  font-size: 14px;
+}
+.archive-find-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.archive-find-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(15,23,42,.58);
+  color: #c7d2fe;
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 950;
+}
+.archive-find-table {
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.14);
+}
+.archive-find-table table {
+  width: 100%;
+  min-width: 880px;
+}
+.archive-find-table th,
+.archive-find-table td {
+  padding: 7px 8px;
+  font-size: 11px;
+  text-align: center;
+}
+.archive-find-table mark {
+  background: #facc15;
+  color: #451a03;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+
+/* Archive confirmation modal */
+.archive-confirm-page {
+  width: min(640px, 100%);
+  max-height: min(720px, 92vh);
+  overflow: auto;
+  border: 1px solid rgba(216,180,254,.42);
+  background:
+    radial-gradient(circle at top left, rgba(168,85,247,.22), transparent 22rem),
+    linear-gradient(135deg, rgba(15,23,42,.98), rgba(7,13,30,.98));
+  border-radius: 28px;
+  box-shadow: 0 28px 90px rgba(0,0,0,.55);
+  padding: 22px;
+}
+.archive-confirm-body {
+  display: grid;
+  gap: 12px;
+}
+.archive-confirm-label {
+  color: #bfdbfe;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 1000;
+}
+.archive-confirm-input {
+  width: 100%;
+  border: 1px solid rgba(168,85,247,.38);
+  background: rgba(7,13,30,.88);
+  color: #f8fafc;
+  border-radius: 15px;
+  padding: 12px 13px;
+  font-size: 15px;
+  font-weight: 900;
+}
+.archive-calendar-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(52,211,153,.26);
+  background: rgba(6,78,59,.16);
+  color: #d1fae5;
+  border-radius: 15px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.archive-calendar-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #10b981;
+}
+.archive-confirm-summary {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+}
+.archive-confirm-summary div {
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(15,23,42,.58);
+  border-radius: 14px;
+  padding: 11px;
+}
+.archive-confirm-summary span {
+  display: block;
+  color: #9fb0cd;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 5px;
+}
+.archive-confirm-summary strong {
+  display: block;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+.archive-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+
+/* Archive search quick actions */
+.archive-search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.archive-search-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+
+/* Reliable Missing Event Today Breakdown hide/show */
+#bannerGrid.banner-hidden {
+  display: none !important;
+}
+#banner.banner-collapsed {
+  padding-bottom: 12px !important;
+}
+#banner.banner-collapsed .banner-head {
+  margin-bottom: 0 !important;
+}
+#bannerToggle {
+  cursor: pointer;
+}
+
+
+/* Calendar archive/report integration */
+.calendar-yard-drops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  min-height: 18px;
+}
+.calendar-yard-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid rgba(251,191,36,.32);
+  background: rgba(251,191,36,.14);
+  color: #fde68a;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 1000;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calendar-report-count {
+  color: #dbeafe;
+  font-size: 9px;
+  font-weight: 1000;
+  text-align: center;
+}
+.calendar-day.has-reports {
+  border-color: rgba(251,191,36,.42);
+  box-shadow: inset 0 0 0 1px rgba(251,191,36,.15);
+}
+.calendar-day.has-reports .calendar-date {
+  cursor: pointer;
+}
+.calendar-open-day {
+  width: 100%;
+  min-height: 24px;
+  padding: 4px 6px !important;
+  font-size: 10px !important;
+  border-radius: 9px !important;
+  background: rgba(37,99,235,.20) !important;
+  border-color: rgba(96,165,250,.38) !important;
+  color: #dbeafe !important;
+}
+.calendar-reports-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(96,165,250,.28);
+  background: rgba(15,23,42,.58);
+  border-radius: 18px;
+  padding: 14px;
+}
+.calendar-reports-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid rgba(148,163,184,.16);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.calendar-reports-kicker {
+  color: #bfdbfe;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 1000;
+}
+.calendar-reports-head h3 {
+  margin: 4px 0 0;
+  color: #f8fafc;
+  font-size: 20px;
+  line-height: 1;
+}
+.calendar-reports-list {
+  display: grid;
+  gap: 10px;
+}
+.calendar-report-card {
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(30,41,59,.46);
+  border-radius: 15px;
+  padding: 12px;
+}
+.calendar-report-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.calendar-report-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 1000;
+}
+.calendar-report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.calendar-report-meta span {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(15,23,42,.54);
+  color: #c7d2fe;
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 950;
+}
+.calendar-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+
+/* Calendar report inline preview */
+.calendar-report-preview {
+  margin-top: 12px;
+  border: 1px solid rgba(96,165,250,.28);
+  background: rgba(15,23,42,.66);
+  border-radius: 16px;
+  padding: 12px;
+}
+.calendar-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid rgba(148,163,184,.16);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.calendar-preview-head h3 {
+  margin: 4px 0 0;
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 1;
+}
+.calendar-preview-table {
+  overflow: auto;
+  max-height: 320px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.14);
+}
+.calendar-preview-table table {
+  width: 100%;
+  min-width: 920px;
+}
+.calendar-preview-table th,
+.calendar-preview-table td {
+  padding: 7px 8px;
+  font-size: 11px;
+  text-align: center;
+}
+.calendar-preview-summary {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.calendar-preview-summary div {
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(30,41,59,.44);
+  border-radius: 12px;
+  padding: 9px;
+}
+.calendar-preview-summary span {
+  display: block;
+  color: #9fb0cd;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 4px;
+  font-weight: 900;
+}
+.calendar-preview-summary strong {
+  display: block;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+}
+@media(max-width:800px){
+  .calendar-preview-summary {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
+
+
+/* Keep Chassis header + Copy button next to each other */
+.chassis-header-cell {
+  min-width: 165px !important;
+  width: 165px !important;
+  white-space: nowrap !important;
+}
+.chassis-header-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+  white-space: nowrap !important;
+}
+.chassis-header-wrap button[data-sort="chassis"] {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  padding-right: 2px !important;
+}
+.header-copy-btn {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 44px !important;
+  height: 24px !important;
+  padding: 3px 9px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+
+
+/* Low Warning category before Moderate Warning */
+.low {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.37) !important;
+}
+.review.low {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.42) !important;
+}
+
+
+/* Low Warning: 2-4 days before Moderate Warning */
+.low {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.37) !important;
+}
+.review.low {
+  color:#fed7aa !important;
+  background:rgba(234,88,12,.24) !important;
+  border-color:rgba(251,146,60,.42) !important;
+}
+
+
+/* Tighter Chassis + Copy header alignment */
+.chassis-header-cell {
+  min-width: 145px !important;
+  width: 145px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  white-space: nowrap !important;
+}
+.chassis-header-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 3px !important;
+  width: auto !important;
+  white-space: nowrap !important;
+}
+.chassis-header-wrap button[data-sort="chassis"] {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  padding: 0 2px 0 0 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+.header-copy-btn {
+  flex: 0 0 auto !important;
+  min-width: 36px !important;
+  height: 22px !important;
+  padding: 2px 7px !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+
+/* Header order swap: Cloud Sync before Yard Checked */
+.header-controls .cloud-control-card {
+  order: 1;
+}
+.header-controls .yard-card {
+  order: 2;
+}
+.header-controls .calendar-top-btn {
+  order: 3;
+}
+
+</style>
+<!-- REVIEW FLAGS: 3-4 days = Low Warning | 5-9 days = Moderate Warning | 10+ days = Flagged for Delete -->
+<!-- REVIEW FLAGS ACTIVE: 1 day = Event Recorded Yesterday | 2-4 days = Low Warning | 5-9 days = Moderate Warning | 10+ days = Flagged for Delete -->
+</head>
+<body>
+<main class="app">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">SETTEGAST TERMINAL</div>
+      <h1>Chassis Reconciliation Report</h1>
+    </div>
+    <div class="header-controls">
+<div class="cloud-control-card">
+        <div class="cloud-control-title">Cloud Sync</div>
+        <span id="cloudStatus" class="cloud-status top-cloud-status">Cloud: connecting</span>
+        <div class="cloud-control-actions">
+          <button id="forceSaveBtn" class="btn-sync-cloud" type="button">Force Save</button>
+          <button id="reloadCloudBtn" class="btn-reload-cloud" type="button">Reload Cloud</button>
+        </div>
+      </div>
+<button id="calendarTopBtn" class="calendar-top-btn" type="button">
+        <span>📅</span>
+        <strong>Calendar</strong>
+      </button>
+<div class="yard-card">
+        <label id="yardLabel" for="yardSelect">Yard checked 05/26/2026</label>
+        <select id="yardSelect"></select>
+      </div>
+</div>
+  </section>
+
+  <section class="banner" id="banner">
+    <div class="banner-head">
+      <div class="banner-title">Missing Event Today Breakdown</div>
+      <button id="bannerToggle" class="banner-toggle" type="button">Hide</button>
+    </div>
+    <div id="bannerGrid" class="banner-grid"></div>
+  </section>
+
+  <div id="scaledArea" class="scaled">
+    <section class="metrics">
+      <div class="metric"><div class="icon">🛻</div><div class="label">On Hand</div><div id="mOnHand" class="value">0</div><div class="hint">Reported on hand</div></div>
+      <div class="metric cyan"><div class="icon">🗓️</div><div class="label">Event Today</div><div id="mToday" class="value">0/0</div><div class="hint">Event recorded today vs<br>reported on hand</div></div>
+      <div class="metric green"><div class="icon">🛡️</div><div class="label">Yard Checked</div><div id="mYard" class="value">0</div><div class="hint">YCCO / TCCO</div></div>
+      <div class="metric amber"><div class="icon">🕘</div><div class="label">Missing Event Today</div><div id="mMissing" class="value">0</div><div class="hint">No event recorded today</div></div>
+      <div class="metric red"><div class="icon">⚠️</div><div class="label">10+ Days</div><div id="mDelete" class="value">0</div><div class="hint">Flagged for delete</div></div>
+    </section>
+
+    <section class="controls">
+      <div class="search"><input id="search" placeholder="Search chassis, location"></div>
+      <div id="filters" class="filters"></div>
+    </section>
+<section class="table-card">
+      <div class="table-head">
+        <div class="table-title-row">
+          <div>
+            <h2>Reconciliation Table</h2>
+            <div id="showing" class="showing">Showing 0 of 0 chassis</div>
+          </div>
+</div>
+        <div class="actions">
+          <button id="emailReportBtn" class="btn-email">✉ Send Email Report</button>
+<button id="archiveBtn" class="btn-archive">▣ Archive</button>
+          <button id="archivePageBtn" class="btn-archive">▣ Archive Page</button>
+          <button id="exportBtn" class="btn-export">⇩ Export</button>
+          <button id="importBtn" class="btn-import">↥ Import Files</button>
+          <button id="restoreBtn" class="btn-restore">↺ Restore</button>
+          <button id="clearBtn" class="btn-clear">🗑 Clear</button>
+          <input id="fileInput" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th><button data-sort="id"># ↕</button></th>
+            <th class="chassis-header-cell">
+              <div class="chassis-header-wrap">
+                <button data-sort="chassis">Chassis ↕</button>
+                <button id="copyChassisBtn" class="btn-copy-chassis header-copy-btn" type="button">Copy</button>
+              </div>
+            </th>
+            <th><button data-sort="yardChecked">Yard Checked ↕</button></th>
+            <th><button data-sort="daysOld">Days Old / Event Age ↕</button></th>
+            <th><button data-sort="location">Location ↕</button></th>
+            <th><button data-sort="eventDate">Event Date ↕</button></th>
+            <th><button data-sort="hc">Chas HC ↕</button></th>
+            <th><button data-sort="event">Event Type ↕</button></th>
+            <th><button data-sort="reviewFlag">Review Flag ↕</button></th>
+            <th><button data-sort="pool">Pool ↕</button></th>
+            <th><button data-sort="ce">CE ↕</button></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div id="empty" class="empty" style="display:none">No chassis to display.</div>
+      </div>
+    </section>
+  </div>
+
+<section id="archiveModal" class="archive-modal" aria-hidden="true">
+  <div class="archive-page">
+    <div class="archive-page-head">
+      <div>
+        <div class="archive-kicker">Archive Page</div>
+        <h2>Saved Chassis Archives</h2>
+        <p>Each archive is a separate saved session. Quick view or restore any archive back into the current page.</p>
+      </div>
+      <button id="closeArchiveModal" class="archive-close" type="button">Close</button>
+    </div>
+    <div class="archive-summary-grid">
+      <div class="archive-summary-card"><span>Total Archives</span><strong id="archiveTotalCount">0</strong></div>
+      <div class="archive-summary-card"><span>Last Saved</span><strong id="archiveLastSaved">None</strong></div>
+      <div class="archive-summary-card"><span>Current On Hand</span><strong id="archiveOnHand">0</strong></div>
+      <div class="archive-summary-card"><span>Current Missing</span><strong id="archiveMissing">0</strong></div>
+    </div>
+    
+    <div class="archive-search-card">
+      <div class="archive-search-title">Search Archived Chassis</div>
+      <div class="archive-search-row">
+        <input id="archiveChassisSearch" type="text" placeholder="Search chassis across saved archives..." autocomplete="off">
+        <button id="archiveSearchClear" type="button">Clear</button>
+      </div>
+      <div id="archiveSearchResults" class="archive-search-results"></div>
+    </div>
+
+    <div class="archive-list-card">
+      <div class="archive-list-title">Archive Library</div>
+      <div id="archiveLibraryList" class="archive-library-list"></div>
+    </div>
+
+    <div class="archive-list-card recycle-card">
+      <button id="recycleToggleHeader" class="archive-list-title recycle-title-row recycle-toggle-header" type="button">
+        <span>Recycle Bin <strong id="recycleCountBadge">0</strong></span>
+        <em id="recycleToggleText">Show</em>
+      </button>
+      <div id="archiveRecycleBody" class="recycle-body">
+        <div class="recycle-actions">
+          <button id="emptyRecycleBtn" class="archive-delete-btn" type="button">Empty Recycle Bin</button>
+        </div>
+        <div id="archiveRecycleList" class="archive-library-list"></div>
+      </div>
+    </div>
+
+    <div id="archiveQuickView" class="archive-quick-view" style="display:none">
+      <div class="archive-list-title">Quick View</div>
+      <div id="archiveQuickViewBody"></div>
+    </div>
+  </div>
+</section>
+
+<div id="copyChassisToast" class="copy-chassis-toast" role="status" aria-live="polite">
+  <div class="copy-toast-icon">✓</div>
+  <div>
+    <strong>Chassis's copied</strong>
+    <span>Filtered chassis drop list copied to clipboard.</span>
+  </div>
+</div>
+
+<div id="archiveToast" class="archive-toast" role="status" aria-live="polite">
+  <div class="archive-toast-icon">✓</div>
+  <div><strong>Archive complete</strong><span>Archive saved.</span></div>
+</div>
+
+<section class="view-controls-strip">
+      <div class="view-controls-title">
+        <span>Bottom View Controls</span>
+        <small>Adjust page width and text size</small>
+      </div>
+      <div class="view-slider-card">
+        <label for="pageWidthSlider"><span>Page Fill</span><strong id="pageWidthValue">90%</strong></label>
+        <input id="pageWidthSlider" type="range" min="75" max="100" step="1" value="90">
+      </div>
+      <div class="view-slider-card">
+        <label for="textSizeSlider"><span>Text Size</span><strong id="textSizeValue">100%</strong></label>
+        <input id="textSizeSlider" type="range" min="90" max="125" step="5" value="100">
+      </div>
+    </section>
+
+<section id="yardCalendarModal" class="calendar-modal" aria-hidden="true">
+  <div class="calendar-page">
+    <div class="calendar-head">
+      <div>
+        <div class="calendar-kicker">Yard Check Calendar</div>
+        <h2>Daily Yard Check Tracker</h2>
+        <p>Select ✓ or ✕ for each day to show whether a yard check was performed.</p>
+      </div>
+      <button id="closeCalendarModal" class="calendar-close" type="button">Close</button>
+    </div>
+
+    <div class="calendar-toolbar">
+      <button id="prevCalendarMonth" type="button">← Previous</button>
+      <div id="calendarMonthLabel" class="calendar-month-label">Month YYYY</div>
+      <button id="nextCalendarMonth" type="button">Next →</button>
+    </div>
+
+    <div class="calendar-legend">
+      <span class="legend-check">✓ Yard check performed</span>
+      <span class="legend-x">✕ No yard check</span>
+      <span class="legend-blank">Blank = not set</span>
+    </div>
+
+    <div id="yardCalendarGrid" class="calendar-grid"></div>
+    <div id="calendarReportsPanel" class="calendar-reports-panel" style="display:none">
+      <div class="calendar-reports-head">
+        <div>
+          <div class="calendar-reports-kicker">Reports for Day</div>
+          <h3 id="calendarReportsTitle">Selected Day</h3>
+        </div>
+        <button id="calendarReportsClose" type="button">Close</button>
+      </div>
+      <div id="calendarReportsList" class="calendar-reports-list"></div>
+      <div id="calendarReportPreview" class="calendar-report-preview" style="display:none">
+        <div class="calendar-preview-head">
+          <div>
+            <div class="calendar-reports-kicker">Preview</div>
+            <h3 id="calendarPreviewTitle">Archive Preview</h3>
+          </div>
+          <button id="calendarPreviewClose" type="button">Close Preview</button>
+        </div>
+        <div id="calendarPreviewBody"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="archiveConfirmModal" class="archive-modal" aria-hidden="true">
+  <div class="archive-confirm-page">
+    <div class="archive-page-head">
+      <div>
+        <div class="archive-kicker">Confirm Archive</div>
+        <h2>Archive Current Page?</h2>
+        <p>Name this archive before saving. You can also mark today as yard checked on the calendar.</p>
+      </div>
+      <button id="archiveConfirmClose" class="archive-close" type="button">Close</button>
+    </div>
+
+    <div class="archive-confirm-body">
+      <label class="archive-confirm-label" for="archiveConfirmName">Archive Name</label>
+      <input id="archiveConfirmName" class="archive-confirm-input" type="text" autocomplete="off">
+
+      <label class="archive-calendar-check">
+        <input id="archiveCheckToday" type="checkbox">
+        <span>Mark current day ✓ on Yard Check Calendar</span>
+      </label>
+
+      <div class="archive-confirm-summary">
+        <div><span>Rows</span><strong id="archiveConfirmRows">0</strong></div>
+        <div><span>Missing Event Today</span><strong id="archiveConfirmMissing">0</strong></div>
+        <div><span>Delete Flags</span><strong id="archiveConfirmDelete">0</strong></div>
+      </div>
+
+      <div class="archive-confirm-actions">
+        <button id="archiveConfirmCancel" class="archive-cancel-name-btn" type="button">Cancel</button>
+        <button id="archiveConfirmSave" class="archive-save-name-btn" type="button">Confirm Archive</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script>
+const REPORT_TODAY = new Date("2026-05-26T00:00:00");
+const YARD_OPTIONS = ["TGRP 40/45","DCLI 40/45","TGRP & DCLP 20","FLEXI 40/20","SCLU 53/SNBZ 40","UP 53"];
+const INITIAL_ROWS = [[1, "DCNZ 408123", "DIRT - DIRT", "DCLP", "05/26/2026 14:52:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [2, "MSCZ 250233", "DIRT - DIRT", "DCLP", "05/25/2026 10:38:03", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [3, "DCNZ 606582", "DIRT - DIRT", "DCLP", "05/26/2026 14:18:03", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [4, "DECZ 405057", "DIRT - DIRT", "DCLP", "05/26/2026 14:26:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [5, "DCLZ 710906", "D - D - 31", "DCLP", "05/26/2026 07:15:29", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [6, "APMZ 418007", "L - L - 47", "DCLP", "05/26/2026 10:25:13", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [7, "DCLZ 404907", "06801 - 801", "DCLP", "05/25/2026 14:08:49", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [8, "MAEC 685232", "R - R - 16", "DCLP", "05/26/2026 15:36:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [9, "APMZ 700430", "P - P - 12", "DCLP", "05/26/2026 15:38:54", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [10, "DECZ 403537", "O - O - 19", "DCLP", "05/26/2026 10:27:59", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [11, "DECZ 405061", "I - I - 17", "DCLP", "05/26/2026 08:56:57", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [12, "MSCZ 140062", "06801 - 801", "DCLP", "05/25/2026 13:47:51", "PKUP(Parking Update)", "Q40", "Current(Park - UP Storage)"], [13, "DCNZ 415587", "I - I - 41", "DCLP", "05/26/2026 09:01:30", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [14, "APMZ 406229", "DIRT - DIRT", "DCLP", "05/26/2026 14:39:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [15, "APMZ 412267", "M - M - 157", "DCLP", "05/26/2026 05:33:52", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [16, "POCZ 2001", "06802 - 802", "DCLP", "05/13/2026 06:44:05", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [17, "MSCZ 140374", "N - N - 79", "DCLP", "05/26/2026 15:42:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [18, "APMZ 417637", "N - N - 36", "DCLP", "05/26/2026 15:52:09", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [19, "DCLZ 700661", "06802 - 802", "DCLP", "05/05/2026 10:44:55", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [20, "APMZ 405743", "M - M - 101", "DCLP", "05/26/2026 05:47:46", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [21, "APMZ 400723", "M - M - 7", "DCLP", "05/01/2026 07:22:04", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [22, "NEDZ 409299", "O - O - 43", "DCLP", "05/26/2026 10:30:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [23, "APMZ 410315", "DIRT - DIRT", "DCLP", "05/26/2026 14:54:24", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [24, "PONZ 457834", "I - I - 42", "DCLP", "05/26/2026 09:01:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [25, "PONZ 456960", "DIRT - DIRT", "DCLP", "05/26/2026 14:14:13", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [26, "DCLZ 405582", "DIRT - DIRT", "DCLP", "05/26/2026 14:42:44", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [27, "DCLZ 404028", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [28, "DCLZ 413504", "I - I - 7", "DCLP", "05/26/2026 08:53:39", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [29, "MAEC 710520", "L - L - 15", "DCLP", "05/26/2026 09:56:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [30, "APMZ 405404", "M - M - 124", "DCLP", "05/26/2026 05:43:23", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [31, "POCZ 400837", "D - D - 29", "DCLP", "05/26/2026 07:15:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [32, "DCLZ 420214", "N - N - 19", "DCLP", "05/26/2026 15:54:56", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [33, "MAEC 666017", "06801 - 801", "DCLP", "05/26/2026 09:31:54", "MOVE(Move)", "Q40", "Current(Park - UP Storage)"], [34, "DCSZ 711698", "N - N - 75", "DCLP", "05/26/2026 15:43:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [35, "DCNZ 507068", "I - I - 3", "DCLP", "05/26/2026 08:53:17", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [36, "MAEC 734047", "SHOP - SHOP", "DCLP", "05/25/2026 13:42:12", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [37, "IPPZ 400539", "06801 - 801", "DCLP", "05/24/2026 23:44:01", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [38, "MAEC 450170", "S - S - 31", "DCLP", "05/26/2026 15:33:15", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [39, "MAEC 623989", "M - M - 100", "DCLP", "05/26/2026 05:47:51", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [40, "MSCZ 423300", "DIRT - DIRT", "DCLP", "05/26/2026 14:49:27", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [41, "APMZ 406431", "DIRT - DIRT", "DCLP", "05/26/2026 14:10:41", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [42, "DCLZ 700401", "N - N - 10", "DCLP", "05/26/2026 15:55:40", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [43, "MAEC 731800", "I - I - 24", "DCLP", "05/21/2026 07:56:15", "INUP(Inventory Update)", "Q40", "Current(Park - UP Storage)"], [44, "DCNZ 405302", "DIRT - DIRT", "DCLP", "05/26/2026 14:15:58", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [45, "DCLZ 406511", "DIRT - DIRT", "DCLP", "05/26/2026 14:16:31", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [46, "MSCZ 423689", "DIRT - DIRT", "DCLP", "05/26/2026 14:35:01", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [47, "APMZ 411438", "BOWL - BOWL", "DCLP", "05/18/2026 14:02:53", "MTUP(Match Update)", "Q40", "Current(Park - UP Storage)"], [48, "MSCZ 451085", "06808 - 808", "DCLP", "05/08/2026 20:13:28", "BARE(Breaking a Container/Chassis pair)", "Q40", "Current(Park - UP Storage)"], [49, "DCNZ 498301", "DIRT - DIRT", "DCLP", "05/26/2026 14:21:10", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [50, "DECZ 403469", "K - K - 10", "DCLP", "05/26/2026 09:29:26", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [51, "APMZ 426111", "M - M - 99", "DCLP", "05/26/2026 05:47:55", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"], [52, "APMZ 701853", "I - I - 28", "DCLP", "05/26/2026 09:00:00", "YCCO(Yard Check)", "Q40", "Current(Park - UP Storage)"]].map(([id,chassis,location,pool,eventDate,event,kind,status])=>({id,chassis,location,pool,eventDate,event,kind,status,hc:"",ce:false}));
+let tableRows=[...INITIAL_ROWS], query="", filter="all", sortConfig={key:"id",direction:"asc"}, showBanner=true, clearArmed=false, clearTimer=null, importedFileArchives=[], archiveDeleteArmedId=null, archiveDeleteTimer=null, recycleDeleteArmedId=null, recycleDeleteTimer=null, emptyRecycleArmed=false, emptyRecycleTimer=null, recycleExpanded=false, archiveRenameId=null, ceSelectedIds=new Set(), ceDragActive=false, ceDragStartId=null;
+const filters=[["all","On Hand"],["yardChecked","Yard Checked"],["today","Event Today"],["missingToday","Missing Event Today"],["tenPlus","Flagged for Delete"],["notChecked","Not Yard Checked"]];
+const $=id=>document.getElementById(id);
+
+const SUPABASE_URL="https://epthcamzzwegsdggrjgh.supabase.co";
+const SUPABASE_KEY="sb_publishable_f5HYn7EM12Z7V2psO_njmQ_w89WOtm1";
+const CLOUD_KEYS={current:"current_session",archives:"archive_list",recycle:"archive_recycle_bin",calendar:"yard_check_calendar"};
+let cloudReady=false, cloudLoading=false, cloudSaveTimer=null, cloudLastSavedAt=null;
+
+function setCloudStatus(text,mode="warn"){
+  const el=$("cloudStatus"); if(!el)return;
+  el.textContent=text; el.classList.remove("ok","warn","err"); el.classList.add(mode);
+}
+function cloudHeaders(extra={}){
+  return {
+    "apikey":SUPABASE_KEY,
+    "Authorization":"Bearer "+SUPABASE_KEY,
+    "Content-Type":"application/json",
+    "Prefer":"return=representation",
+    ...extra
+  };
+}
+async function cloudUpsert(key,value){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/chassis_reconciliation_state?on_conflict=state_key`,{
+    method:"POST",
+    headers:cloudHeaders({"Prefer":"resolution=merge-duplicates,return=representation"}),
+    body:JSON.stringify({state_key:key,state_value:value,updated_at:new Date().toISOString()})
+  });
+  if(!res.ok){
+    const text=await res.text().catch(()=>"");
+    throw new Error(`Supabase upsert failed ${res.status}: ${text}`);
+  }
+  return true;
+}
+async function cloudGet(key){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/chassis_reconciliation_state?state_key=eq.${encodeURIComponent(key)}&select=state_value`,{
+    method:"GET",
+    headers:cloudHeaders()
+  });
+  if(!res.ok){
+    const text=await res.text().catch(()=>"");
+    throw new Error(`Supabase read failed ${res.status}: ${text}`);
+  }
+  const rows=await res.json();
+  return rows && rows[0] ? rows[0].state_value : null;
+}
+async function testCloudConnection(){
+  try{
+    setCloudStatus("Cloud: testing","warn");
+    await cloudGet(CLOUD_KEYS.current);
+    setCloudStatus("Cloud: connected","ok");
+    cloudReady=true;
+    return true;
+  }catch(err){
+    console.error("Cloud test failed",err);
+    setCloudStatus("Cloud: SQL/URL issue","err");
+    return false;
+  }
+}
+function makeCurrentSessionSnapshot(){
+  return {
+    savedAt:new Date().toISOString(),
+    reportDate:REPORT_TODAY.toISOString(),
+    yardChecked:$("yardSelect")?.value||"",
+    tableRows,
+    query,
+    filter,
+    sortConfig,
+    showBanner,
+    importedFileArchives
+  };
+}
+function applyCurrentSessionSnapshot(snap){
+  if(!snap||!Array.isArray(snap.tableRows)||snap.tableRows.length===0)return false;
+  tableRows=snap.tableRows;
+  query=snap.query||"";
+  filter=snap.filter||"all";
+  sortConfig=snap.sortConfig||{key:"id",direction:"asc"};
+  showBanner=snap.showBanner!==false;
+  importedFileArchives=Array.isArray(snap.importedFileArchives)?snap.importedFileArchives:[];
+  if($("search"))$("search").value=query;
+  if($("yardSelect")&&snap.yardChecked)$("yardSelect").value=snap.yardChecked;
+  return true;
+}
+function queueCloudSave(){
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=setTimeout(saveCurrentSessionToCloud,350);
+}
+async function saveCurrentSessionToCloud(){
+  if(cloudLoading)return;
+  try{
+    await cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot());
+    cloudReady=true;
+    cloudLastSavedAt=new Date().toISOString();
+    setCloudStatus("Cloud: saved","ok");
+  }catch(err){
+    console.error("Cloud current-session save failed",err);
+    setCloudStatus("Cloud: save failed","err");
+  }
+}
+async function saveAllCloudState(){
+  if(cloudLoading)return;
+  try{
+    setCloudStatus("Cloud: saving","warn");
+    await Promise.all([
+      cloudUpsert(CLOUD_KEYS.current,makeCurrentSessionSnapshot()),
+      cloudUpsert(CLOUD_KEYS.archives,getArchiveList()),
+      cloudUpsert(CLOUD_KEYS.recycle,getRecycleBin()),
+      cloudUpsert(CLOUD_KEYS.calendar,getYardCalendarState())
+    ]);
+    cloudReady=true;
+    cloudLastSavedAt=new Date().toISOString();
+    setCloudStatus("Cloud: force saved","ok");
+    if(typeof showArchiveToast==="function")showArchiveToast("Cloud force save complete.");
+  }catch(err){
+    console.error("Cloud full save failed",err);
+    setCloudStatus("Cloud: force failed","err");
+    alert("Cloud save failed. Run the latest SQL, then try Force Save again.\n\n"+(err&&err.message?err.message:err));
+  }
+}
+async function loadCloudState(){
+  try{
+    cloudLoading=true;
+    setCloudStatus("Cloud: loading","warn");
+    const [current,archives,recycle,calendar]=await Promise.all([
+      cloudGet(CLOUD_KEYS.current),
+      cloudGet(CLOUD_KEYS.archives),
+      cloudGet(CLOUD_KEYS.recycle),
+      cloudGet(CLOUD_KEYS.calendar)
+    ]);
+
+    if(Array.isArray(archives))localStorage.setItem("chassisReconciliationArchiveList",JSON.stringify(archives));
+    if(Array.isArray(recycle))localStorage.setItem("chassisReconciliationArchiveRecycleBin",JSON.stringify(recycle));
+    if(calendar&&typeof calendar==="object")localStorage.setItem("setteYardCheckCalendar",JSON.stringify(calendar));
+
+    const applied=applyCurrentSessionSnapshot(current);
+    cloudReady=true;
+    cloudLoading=false;
+    setCloudStatus("Cloud: synced","ok");
+    render();
+
+    // First device safety: if the cloud current_session is empty, push this page state.
+    if(!applied && tableRows.length) queueCloudSave();
+  }catch(err){
+    cloudReady=false;
+    cloudLoading=false;
+    console.error("Cloud load failed",err);
+    setCloudStatus("Cloud: check SQL","err");
+  }
+}
+async function reloadCloudState(){
+  await loadCloudState();
+  if(typeof showArchiveToast==="function")showArchiveToast("Cloud data reloaded.");
+}
+function parseEventDate(v){const [dp,tp="00:00:00"]=String(v||"").split(" ");const [m,d,y]=dp.split("/").map(Number);const [hh,mm,ss]=tp.split(":").map(Number);return new Date(y||1900,(m||1)-1,d||1,hh||0,mm||0,ss||0)}
+function formatDateShort(v){const [dp,tp=""]=String(v||"").split(" ");const [m,d]=dp.split("/");const [hh,mm]=tp.split(":");return `${m||"--"}/${d||"--"}${hh&&mm?` ${hh}:${mm}`:""}`}
+function daysOld(r){const ev=parseEventDate(r.eventDate);const mid=new Date(ev.getFullYear(),ev.getMonth(),ev.getDate());return Math.floor((REPORT_TODAY-mid)/86400000)}
+function ageBucket(r){
+  const d=daysOld(r);
+  if(d===0)return{key:"today",label:"Today"};
+  if(d===1)return{key:"yesterday",label:"Yesterday"};
+  if(d>=2&&d<=4)return{key:"low",label:"2–4 Days"};
+  if(d>=5&&d<=9)return{key:"moderate",label:"5–9 Days"};
+  return{key:"tenPlus",label:"10+ Days"};
+}
+function isYardChecked(r){const e=String(r.event||"").toLowerCase();return e.includes("ycco")||e.includes("tcco")||e.includes("yard check")}
+function issueTag(r){
+  const d=daysOld(r);
+  const has=!!(r.event&&r.eventDate);
+
+  if(has && d>=10)return{label:"Flagged for Delete",cls:"delete"};
+  if(has && d>=5 && d<=9)return{label:"Moderate Warning",cls:"moderate"};
+  if(has && d>=2 && d<=4)return{label:"Low Warning",cls:"low"};
+  if(has && d===1)return{label:"Event Recorded<br>Yesterday",cls:"yesterday"};
+
+  if(!isYardChecked(r)&&d===0&&has)return{label:"Yard Check ❌<br>Event Today ✅",cls:"warn"};
+  if(!isYardChecked(r)&&!has)return{label:"Not Yard Checked",cls:"warn"};
+
+  return{label:"OK",cls:"ok"};
+}
+function locClass(loc){if(loc.includes("DIRT"))return"dirt";if(loc.includes("SHOP"))return"shop";if(loc.includes("068"))return"rail";if(loc.includes("BOWL"))return"bowl";return"normal"}
+function enrich(){return tableRows.map(r=>{const bucket=ageBucket(r);return{...r,hc:r.hc||"",ce:!!r.ce,daysOld:daysOld(r),bucket,yardChecked:isYardChecked(r),issue:issueTag(r)}})}
+function applyFilters(rows){return rows.filter(r=>{const text=Object.values(r).join(" ").toLowerCase();const q=text.includes(query.toLowerCase());const f=filter==="all"||(filter==="yardChecked"&&r.yardChecked)||(filter==="today"&&r.bucket.key==="today")||(filter==="missingToday"&&r.bucket.key!=="today")||(filter==="tenPlus"&&r.bucket.key==="tenPlus")||(filter==="notChecked"&&!r.yardChecked);return q&&f})}
+function sortRows(rows){const val=(r,k)=>k==="yardChecked"?(r.yardChecked?1:0):k==="eventAge"?r.daysOld:k==="eventDate"?parseEventDate(r.eventDate).getTime():k==="reviewFlag"?r.issue.label.replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,""):k==="ce"?(r.ce?1:0):r[k]??"";return [...rows].sort((a,b)=>{const av=val(a,sortConfig.key),bv=val(b,sortConfig.key);if(typeof av==="number"&&typeof bv==="number")return sortConfig.direction==="asc"?av-bv:bv-av;const res=String(av).localeCompare(String(bv),undefined,{numeric:true,sensitivity:"base"});return sortConfig.direction==="asc"?res:-res})}
+function currentRows(){return sortRows(applyFilters(enrich()))}
+function reviewWindow(label){
+  const c=String(label).replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,"");
+  if(c.includes("Yesterday"))return"1 day old";
+  if(c.includes("Low"))return"2–4 days old";
+  if(c.includes("Moderate"))return"5–9 days old";
+  if(c.includes("Delete"))return"10+ days old";
+  if(c.includes("Yard Check"))return"event today";
+  if(c.includes("Not Yard"))return"outside today";
+  return"current";
+}
+function renderBanner(e){
+  const banner=$("banner");
+  const grid=$("bannerGrid");
+  const toggle=$("bannerToggle");
+  const missing=e.filter(r=>r.bucket.key!=="today");
+  const counts=missing.reduce((a,r)=>{
+    const lab=r.issue.label.replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,"");
+    if(lab==="OK"||lab==="Current")return a;
+    a[lab]=(a[lab]||0)+1;
+    return a;
+  },{});
+
+  const preferred=["Event Recorded / Yesterday","Low Warning","Moderate Warning","Flagged for Delete","Not Yard Checked"];
+  const labels=[...new Set([...preferred,...Object.keys(counts)])].filter(l=>counts[l]&&l!=="OK"&&l!=="Current");
+
+  if(toggle)toggle.textContent=showBanner?"Hide":"Show";
+  if(banner)banner.classList.toggle("banner-collapsed",!showBanner);
+  if(grid)grid.classList.toggle("banner-hidden",!showBanner);
+
+  if(!grid)return;
+  grid.innerHTML=labels.length
+    ? labels.map(l=>`<div class="banner-card"><div class="banner-label">${l}</div><div class="banner-value">${counts[l]}</div><div class="banner-hint">${reviewWindow(l)}</div></div>`).join("")
+    : `<div class="banner-card"><div class="banner-label">No Missing Events</div><div class="banner-value">0</div><div class="banner-hint">all current</div></div>`;
+}
+function renderMetrics(e){const total=e.length,today=e.filter(r=>r.bucket.key==="today").length;$("mOnHand").textContent=total;$("mYard").textContent=e.filter(r=>r.yardChecked).length;$("mToday").textContent=`${today}/${total}`;$("mMissing").textContent=e.filter(r=>r.bucket.key!=="today").length;$("mDelete").textContent=e.filter(r=>r.bucket.key==="tenPlus").length}
+function renderFilters(){$("filters").innerHTML=filters.map(([k,l])=>`<button class="${filter===k?"active":""}" data-filter="${k}">${l}</button>`).join("");document.querySelectorAll("#filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;if(filter==="today")sortConfig={key:"eventDate",direction:"desc"};if(filter==="missingToday")sortConfig={key:"eventDate",direction:"asc"};render()})}
+function renderSort(){
+  document.querySelectorAll("th button[data-sort]").forEach(b=>{
+    const k=b.dataset.sort;
+    if(k==="ce"&&ceSelectedIds.size>0){
+      b.textContent=`${selectedCeAction()==="remove"?"CE Remove":"CE Apply"} (${ceSelectedIds.size})`;
+      b.classList.add("ce-ready");
+      b.classList.toggle("ce-remove-ready",selectedCeAction()==="remove");
+      b.classList.remove("sorted");
+      return;
+    }
+    const base=k==="ce"?"CE":b.textContent.replace(/[↑↓↕]/g,"").replace(/CE (Apply|Remove) \(\d+\)/,"CE").trim();
+    const arr=sortConfig.key===k?(sortConfig.direction==="asc"?"↑":"↓"):"↕";
+    b.textContent=`${base} ${arr}`;
+    b.classList.toggle("sorted",sortConfig.key===k);
+    if(k==="ce"){b.classList.remove("ce-ready");b.classList.remove("ce-remove-ready");}
+  });
+}
+function renderTable(rows,total){
+  $("showing").textContent=`Showing ${rows.length} of ${total} chassis`;
+  $("empty").style.display=rows.length?"none":"block";
+  $("tbody").innerHTML=rows.map(r=>`<tr><td>${r.id}</td><td><span class="chassis">${r.chassis}<span class="kind">${r.kind}</span></span></td><td><span class="chip ${r.yardChecked?"yes":"no"}">${r.yardChecked?"⊙ Yes":"No"}</span></td><td><span class="event-age-combo"><strong>${r.daysOld}d</strong><span class="chip ${r.bucket.key}">${r.bucket.label}</span></span></td><td><span class="loc ${locClass(r.location)}">⌾ ${r.location}</span></td><td>◷ ${formatDateShort(r.eventDate)}</td><td><span class="hc-chip">${r.hc||"—"}</span></td><td><span class="event-type">${r.event}</span></td><td><span class="review ${r.issue.cls}">${r.issue.label}</span></td><td><span class="pool">${r.pool}</span></td><td class="ce-cell ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-cell="${r.id}"><button type="button" class="ce-flag ${r.ce?'active':''} ${ceSelectedIds.has(String(r.id))?'selected':''}" data-ce-toggle="${r.id}">${r.ce?'CE':'—'}</button></td></tr>`).join("");
+
+  document.querySelectorAll("[data-ce-cell]").forEach(cell=>{
+    cell.onpointerdown=(event)=>startCeDrag(cell.dataset.ceCell,event);
+    cell.onpointerenter=(event)=>extendCeDrag(cell.dataset.ceCell,event);
+    cell.onpointermove=(event)=>extendCeDrag(cell.dataset.ceCell,event);
+  });
+
+  document.querySelectorAll("[data-ce-toggle]").forEach(btn=>{
+    btn.onclick=(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      startCeDrag(btn.dataset.ceToggle,event);
+    };
+  });
+
+  document.onpointermove=handleCePointerMove;
+  document.onpointerup=stopCeDrag;
+  document.onpointercancel=stopCeDrag;
+  renderCeSelectionVisuals();
+}
+function getVisibleCeIds(){
+  return currentRows().map(r=>String(r.id));
+}
+function selectCeRange(fromId,toId){
+  const ids=getVisibleCeIds();
+  const a=ids.indexOf(String(fromId));
+  const b=ids.indexOf(String(toId));
+  if(a===-1||b===-1)return;
+  const start=Math.min(a,b), end=Math.max(a,b);
+  for(let i=start;i<=end;i++) ceSelectedIds.add(ids[i]);
+  renderCeSelectionVisuals();
+}
+function clearCeSelection(){
+  ceSelectedIds.clear();
+  renderCeSelectionVisuals();
+}
+function renderCeSelectionVisuals(){
+  document.querySelectorAll("[data-ce-cell]").forEach(cell=>{
+    cell.classList.toggle("selected",ceSelectedIds.has(String(cell.dataset.ceCell)));
+  });
+  document.querySelectorAll("[data-ce-toggle]").forEach(btn=>{
+    btn.classList.toggle("selected",ceSelectedIds.has(String(btn.dataset.ceToggle)));
+  });
+  const ceHeader=document.querySelector('th button[data-sort="ce"]');
+  if(ceHeader){
+    ceHeader.classList.toggle("ce-ready",ceSelectedIds.size>0);ceHeader.classList.toggle("ce-remove-ready",ceSelectedIds.size>0&&selectedCeAction()==="remove");
+    ceHeader.textContent=ceSelectedIds.size>0?`${selectedCeAction()==="remove"?"CE Remove":"CE Apply"} (${ceSelectedIds.size})`:`CE ↕`;
+  }
+}
+function selectedCeRows(){
+  return tableRows.filter(r=>ceSelectedIds.has(String(r.id)));
+}
+function selectedCeAction(){
+  const rows=selectedCeRows();
+  if(!rows.length)return "apply";
+  return rows.every(r=>!!r.ce) ? "remove" : "apply";
+}
+function applySelectedCeFlags(){
+  if(!ceSelectedIds.size)return false;
+  const action=selectedCeAction();
+  tableRows=tableRows.map(r=>{
+    if(!ceSelectedIds.has(String(r.id)))return r;
+    return {...r,ce:action==="apply"};
+  });
+  const count=ceSelectedIds.size;
+  ceSelectedIds.clear();
+  ceDragActive=false;
+  ceDragStartId=null;
+  render();
+  queueCloudSave();
+  if(typeof showArchiveToast==="function"){
+    showArchiveToast(action==="apply" ? `${count} CE values applied.` : `${count} CE values removed.`);
+  }
+  return true;
+}
+function toggleCeFlag(id){
+  const key=String(id);
+  tableRows=tableRows.map(r=>String(r.id)===key?{...r,ce:!r.ce}:r);
+  render();
+  queueCloudSave();
+}
+function startCeDrag(id,event){
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  ceDragActive=true;
+  ceDragStartId=String(id);
+  ceSelectedIds.add(String(id));
+  document.body.classList.add("ce-selecting");
+  renderCeSelectionVisuals();
+}
+function extendCeDrag(id,event){
+  if(!ceDragActive)return;
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  selectCeRange(ceDragStartId,id);
+}
+function stopCeDrag(){
+  ceDragActive=false;
+  ceDragStartId=null;
+  document.body.classList.remove("ce-selecting");
+}
+function handleCePointerMove(event){
+  if(!ceDragActive)return;
+  const el=document.elementFromPoint(event.clientX,event.clientY);
+  const cell=el?.closest?.("[data-ce-cell]");
+  if(cell)extendCeDrag(cell.dataset.ceCell,event);
+}
+
+function render(){const e=enrich(),rows=sortRows(applyFilters(e));renderMetrics(e);renderBanner(e);renderFilters();renderSort();renderTable(rows,e.length)}
+function normHeader(v){return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+function pick(row,map,cands,fallback=-1){
+  const h=cands.map(normHeader).find(n=>map[n]!==undefined);
+  return h?row[map[h]]??"—":fallback>=0?row[fallback]??"—":"—";
+}
+function normalizeRows(data,start){if(data.length<2)return[];const headers=data[0].map(h=>normHeader(h));const map=headers.reduce((a,h,i)=>{a[h]=i;return a},{});return data.slice(1).map((row,i)=>{const chassis=pick(row,map,["chassis","chassis #","chassis number","chassis id"],1);const location=pick(row,map,["location","loc","current location","parking location"],2);const pool=pick(row,map,["chas pool","chassis pool","pool"],3);const eventDate=pick(row,map,["event date","event datetime","date"],4);const event=pick(row,map,["event","event type","last event"],5);const kind=pick(row,map,["chas car kind","chas/car kind","chassis car kind","car kind","chas kind","kind","chassis kind","type"],-1);const hc=pick(row,map,["chas hc","hc","chassis hc","hazard class","height code"],-1);const status=pick(row,map,["status","current status"],7);const ce=pick(row,map,["ce","c/e","customer exception","ce flag"],-1);return{id:start+i+1,chassis:String(chassis||"—"),location:String(location||"—"),pool:String(pool||"—"),eventDate:String(eventDate||"01/01/1900 00:00:00"),event:String(event||"—"),kind:String(kind&&kind!==eventDate?kind:"—"),status:String(status||"—")}}).filter(r=>r.chassis!=="—")}
+async function importFiles(files){const all=[];importedFileArchives=[];for(const file of [...files]){let dataUrl='';try{dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}catch{}importedFileArchives.push({name:file.name,size:file.size,type:file.type,lastModified:file.lastModified,dataUrl});const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:false});const sh=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(sh,{header:1,defval:""}).filter(r=>r.some(Boolean));all.push(...normalizeRows(data,all.length))}tableRows=all.map((r,i)=>({...r,id:i+1}));query="";filter="all";sortConfig={key:"id",direction:"asc"};$("search").value="";render();queueCloudSave()}
+function csvEscape(value){
+  const s=String(value ?? "");
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+function downloadBlob(blob, filename){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+function downloadImportReadyCsv(rows){
+  const headers=["Chassis","Location","Chas Pool","Event Date","Event","Chas Car Kind","Chas HC","Status","CE","Yard Checked","Event Age","Days Old","Review Flag"];
+  const csv=[headers.join(","),...rows.map(row=>headers.map(h=>csvEscape(row[h])).join(","))].join("\n");
+  downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`chassis-reconciliation-import-ready-${new Date().toISOString().slice(0,10)}.csv`);
+}
+function exportReport(){
+  try{
+    const rows=makeReportWorkbookRows();
+    if(!rows.length){
+      alert("No rows available to export.");
+      return;
+    }
+
+    if(typeof XLSX==="undefined"){
+      downloadImportReadyCsv(rows);
+      if(typeof showArchiveToast==="function") showArchiveToast("Excel library unavailable. Exported import-ready CSV instead.");
+      return;
+    }
+
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Reconciliation");
+    XLSX.writeFile(wb,`chassis-reconciliation-import-ready-${new Date().toISOString().slice(0,10)}.xlsx`);
+    if(typeof showArchiveToast==="function") showArchiveToast("Import-ready Excel export downloaded.");
+  }catch(err){
+    console.error("Export failed:",err);
+    try{
+      downloadImportReadyCsv(makeReportWorkbookRows());
+      if(typeof showArchiveToast==="function") showArchiveToast("Excel export failed. Exported import-ready CSV instead.");
+    }catch(csvErr){
+      console.error("CSV fallback failed:",csvErr);
+      alert("Export failed: "+(err && err.message ? err.message : err));
+    }
+  }
+}
+
+function clearReport(){
+  tableRows=[];
+  query="";
+  filter="all";
+  sortConfig={key:"id",direction:"asc"};
+  const search=$("search");
+  const file=$("fileInput");
+  const clear=$("clearBtn");
+  if(search) search.value="";
+  if(file) file.value="";
+  clearArmed=false;
+  if(clearTimer) clearTimeout(clearTimer);
+  if(clear){
+    clear.textContent="🗑 Clear";
+    clear.classList.remove("clear-armed");
+  }
+  render();queueCloudSave();
+}
+function handleClearClick(){
+  const clear=$("clearBtn");
+  if(!clearArmed){
+    clearArmed=true;
+    if(clear){
+      clear.textContent="Confirm Clear";
+      clear.classList.add("clear-armed");
+    }
+    if(clearTimer) clearTimeout(clearTimer);
+    clearTimer=setTimeout(()=>{
+      clearArmed=false;
+      if(clear){
+        clear.textContent="🗑 Clear";
+        clear.classList.remove("clear-armed");
+      }
+    },4000);
+    return;
+  }
+  clearReport();
+}
+
+
+function showArchiveToast(message){
+  const toast=$("archiveToast"); if(!toast)return;
+  const text=toast.querySelector("span"); if(text)text.textContent=message||"Archive saved.";
+  toast.classList.add("show");
+  clearTimeout(window.__archiveToastTimer);
+  window.__archiveToastTimer=setTimeout(()=>toast.classList.remove("show"),3200);
+}
+function getArchiveList(){try{return JSON.parse(localStorage.getItem("chassisReconciliationArchiveList")||"[]")||[]}catch{return[]}}
+function saveArchiveList(list){localStorage.setItem("chassisReconciliationArchiveList",JSON.stringify(list));cloudUpsert(CLOUD_KEYS.archives,list).then(()=>setCloudStatus("Cloud: saved","ok")).catch(err=>{console.error(err);setCloudStatus("Cloud: save failed","err")})}
+function makeArchiveId(){return "archive_"+Date.now()+"_"+Math.random().toString(16).slice(2)}
+function makeArchiveName(){const d=new Date();return `Chassis Archive ${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`}
+function makeSnapshot(){
+  const e=enrich();
+  return {id:makeArchiveId(),name:makeArchiveName(),savedAt:new Date().toISOString(),reportDate:REPORT_TODAY.toISOString(),yardChecked:$("yardSelect")?.value||"",tableRows,query,filter,sortConfig,showBanner,importedFileArchives,counts:{onHand:e.length,yardChecked:e.filter(r=>r.yardChecked).length,eventToday:e.filter(r=>r.bucket.key==="today").length,missingToday:e.filter(r=>r.bucket.key!=="today").length,flaggedDelete:e.filter(r=>r.bucket.key==="tenPlus").length}};
+}
+function saveSnapshot(customName){
+  const snap=makeSnapshot();
+  snap.yardChecked=snap.yardChecked||$("yardSelect")?.value||"";
+  if(customName&&String(customName).trim())snap.name=String(customName).trim();
+  const list=getArchiveList();
+  list.unshift(snap);
+  saveArchiveList(list);
+  localStorage.setItem("chassisReconciliationLastArchive",JSON.stringify(snap));
+  return snap;
+}
+function makeReportWorkbookRows(){
+  return currentRows().map(r=>({
+    "Chassis": r.chassis,
+    "Location": r.location,
+    "Chas Pool": r.pool,
+    "Event Date": r.eventDate,
+    "Event": r.event,
+    "Chas Car Kind": r.kind,
+    "Chas HC": r.hc || "",
+    "Status": r.status || "",
+    "CE": r.ce ? "CE" : "",
+    "Yard Checked": r.yardChecked ? "Yes" : "No",
+    "Event Age": r.bucket.label,
+    "Days Old": r.daysOld,
+    "Review Flag": r.issue.label.replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,"")
+  }));
+}
+
+function todayCalendarKey(){
+  const d=new Date();
+  return dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+}
+function reportCalendarKey(){
+  return dateKey(REPORT_TODAY.getFullYear(),REPORT_TODAY.getMonth(),REPORT_TODAY.getDate());
+}
+function currentReportDateKey(){
+  return todayCalendarKey();
+}
+function markCurrentDayCheckedFromArchive(){
+  const state=getYardCalendarState();
+  const key=todayCalendarKey();
+  state[key]="check";
+
+  // Also mark the report date if it differs from the actual current date.
+  const reportKey=reportCalendarKey();
+  state[reportKey]="check";
+
+  saveYardCalendarState(state);
+
+  // Force cloud write for calendar immediately instead of waiting on other archive saves.
+  try{
+    cloudUpsert(CLOUD_KEYS.calendar,state)
+      .then(()=>setCloudStatus("Cloud: calendar saved","ok"))
+      .catch(err=>{console.error("Calendar cloud save failed",err);setCloudStatus("Cloud: calendar save failed","err")});
+  }catch(err){
+    console.error("Calendar save failed",err);
+  }
+
+  renderYardCalendar();
+}
+function openArchiveConfirmModal(){
+  const modal=$("archiveConfirmModal");
+  if(!modal)return archivePage();
+
+  const e=enrich();
+  const name=makeArchiveName();
+  const input=$("archiveConfirmName");
+  const check=$("archiveCheckToday");
+  if(input)input.value=name;
+  if(check)check.checked=false;
+  const rows=$("archiveConfirmRows");
+  const missing=$("archiveConfirmMissing");
+  const del=$("archiveConfirmDelete");
+  if(rows)rows.textContent=e.length;
+  if(missing)missing.textContent=e.filter(r=>r.bucket.key!=="today").length;
+  if(del)del.textContent=e.filter(r=>r.bucket.key==="tenPlus").length;
+
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+  setTimeout(()=>input?.focus(),40);
+}
+function closeArchiveConfirmModal(){
+  const modal=$("archiveConfirmModal");
+  if(!modal)return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+}
+async function confirmArchiveSave(){
+  const input=$("archiveConfirmName");
+  const check=$("archiveCheckToday");
+  const shouldMarkCalendar=!!check?.checked;
+  const name=(input?.value||"").trim()||makeArchiveName();
+  const btn=$("archiveConfirmSave");
+
+  if(btn){btn.textContent="Archiving...";btn.disabled=true}
+
+  if(shouldMarkCalendar){
+    markCurrentDayCheckedFromArchive();
+  }
+
+  await archivePage({name});
+
+  if(shouldMarkCalendar){
+    markCurrentDayCheckedFromArchive();
+    if(typeof showArchiveToast==="function")showArchiveToast("Archive saved and today marked checked on calendar.");
+  }
+
+  if(btn){btn.textContent="Confirm Archive";btn.disabled=false}
+  closeArchiveConfirmModal();
+}
+async function archivePage(options={}){
+  const snap=saveSnapshot(options.name);
+  try{
+    if(typeof XLSX!=="undefined" && typeof JSZip!=="undefined"){
+      const folderDate=new Date().toISOString().slice(0,10);
+      const safeDate=folderDate.replaceAll("-","");
+      const ws=XLSX.utils.json_to_sheet(makeReportWorkbookRows());
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Reconciliation");
+      const wbArray=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+      const zip=new JSZip(); const folder=zip.folder(`chassis-reconciliation-${folderDate}`);
+      folder.file("manifest.json",JSON.stringify(snap,null,2));
+      folder.file("page_snapshot.html",document.documentElement.outerHTML);
+      folder.file(`reconciliation-import-ready-${folderDate}.xlsx`,wbArray);
+      const originals=folder.folder("imported-excel-files");
+      if(importedFileArchives.length){importedFileArchives.forEach(f=>originals.file(f.name,String(f.dataUrl||"").split(",")[1]||"",{base64:true}))}
+      else originals.file("README.txt","No imported source files were captured in this session.");
+      const blob=await zip.generateAsync({type:"blob"});
+      const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`chassis-reconciliation-archive-${safeDate}.zip`; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+      showArchiveToast("Archive saved as a new session and download started.");saveAllCloudState();
+    } else {
+      showArchiveToast("Archive saved as a new session.");saveAllCloudState();
+    }
+  }catch(err){console.error(err);showArchiveToast("Archive saved. Download could not start.")}
+}
+function restoreSnapshot(snap){if(!snap)return;tableRows=Array.isArray(snap.tableRows)?snap.tableRows:[];query=snap.query||"";filter=snap.filter||"all";sortConfig=snap.sortConfig||{key:"id",direction:"asc"};showBanner=snap.showBanner!==false;importedFileArchives=Array.isArray(snap.importedFileArchives)?snap.importedFileArchives:[];if($("search"))$("search").value=query;if($("yardSelect")&&snap.yardChecked)$("yardSelect").value=snap.yardChecked;render();queueCloudSave()}
+function restoreLastArchive(){const snap=getArchiveList()[0];if(!snap){alert("No saved archive snapshot found in this browser yet.");return}restoreSnapshot(snap)}
+function openArchiveModal(){renderArchiveModal();$("archiveModal").classList.add("show");$("archiveModal").setAttribute("aria-hidden","false")}
+function closeArchiveModal(){$("archiveModal").classList.remove("show");$("archiveModal").setAttribute("aria-hidden","true")}
+function quickViewArchive(id){
+  const snap=getArchiveList().find(a=>a.id===id), box=$("archiveQuickView"), body=$("archiveQuickViewBody"); if(!snap||!box||!body)return;
+  const c=snap.counts||{}, rows=(snap.tableRows||[]).slice(0,25);
+  body.innerHTML=`<div class="archive-quick-grid"><div class="archive-quick-card"><span>On Hand</span><strong>${c.onHand??(snap.tableRows||[]).length}</strong></div><div class="archive-quick-card"><span>Event Today</span><strong>${c.eventToday??"—"}</strong></div><div class="archive-quick-card"><span>Missing</span><strong>${c.missingToday??"—"}</strong></div><div class="archive-quick-card"><span>Delete Flag</span><strong>${c.flaggedDelete??"—"}</strong></div></div><div class="archive-quick-table"><table><thead><tr><th>Chassis</th><th>Kind</th><th>Location</th><th>Event Date</th><th>Event</th><th>Pool</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.chassis||""}</td><td>${r.kind||""}</td><td>${r.location||""}</td><td>${formatDateShort(r.eventDate||"")}</td><td>${r.event||""}</td><td>${r.pool||""}</td></tr>`).join("")}</tbody></table></div>`;
+  box.style.display="block";
+}
+
+function quickViewRecycledArchive(id){
+  const snap=getRecycleBin().find(a=>a.id===id);
+  const box=$("archiveQuickView");
+  const body=$("archiveQuickViewBody");
+  if(!snap||!box||!body)return;
+  const counts=snap.counts||{}, rows=(snap.tableRows||[]).slice(0,25);
+  body.innerHTML=`
+    <div class="archive-quick-grid">
+      <div class="archive-quick-card"><span>On Hand</span><strong>${counts.onHand ?? (snap.tableRows||[]).length}</strong></div>
+      <div class="archive-quick-card"><span>Event Today</span><strong>${counts.eventToday ?? "—"}</strong></div>
+      <div class="archive-quick-card"><span>Missing</span><strong>${counts.missingToday ?? "—"}</strong></div>
+      <div class="archive-quick-card"><span>Deleted</span><strong>${snap.deletedAt ? new Date(snap.deletedAt).toLocaleDateString() : "—"}</strong></div>
+    </div>
+    <div class="archive-quick-table">
+      <table>
+        <thead><tr><th>Chassis</th><th>Kind</th><th>Location</th><th>Event Date</th><th>Event</th><th>Pool</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${r.chassis||""}</td><td>${r.kind||""}</td><td>${r.location||""}</td><td>${formatDateShort(r.eventDate||"")}</td><td>${r.event||""}</td><td>${r.pool||""}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+  `;
+  box.style.display="block";
+}
+
+function restoreArchiveById(id){const snap=getArchiveList().find(a=>a.id===id);if(!snap)return;restoreSnapshot(snap);closeArchiveModal();showArchiveToast("Archive restored into the current session.")}
+
+function getRecycleBin(){
+  const raw=localStorage.getItem("chassisReconciliationArchiveRecycleBin");
+  if(!raw)return [];
+  try{
+    const list=JSON.parse(raw);
+    return Array.isArray(list)?list:[];
+  }catch{
+    return [];
+  }
+}
+function saveRecycleBin(list){
+  localStorage.setItem("chassisReconciliationArchiveRecycleBin",JSON.stringify(list));
+  cloudUpsert(CLOUD_KEYS.recycle,list).then(()=>setCloudStatus("Cloud: saved","ok")).catch(err=>{console.error(err);setCloudStatus("Cloud: save failed","err")});
+}
+function moveArchiveToRecycleBin(id){
+  const list=getArchiveList();
+  const archive=list.find(a=>a.id===id);
+  if(!archive)return false;
+
+  const nextArchives=list.filter(a=>a.id!==id);
+  saveArchiveList(nextArchives);
+
+  const recycle=getRecycleBin();
+  recycle.unshift({...archive, deletedAt:new Date().toISOString()});
+  saveRecycleBin(recycle);
+
+  const lastRaw=localStorage.getItem("chassisReconciliationLastArchive");
+  if(lastRaw){
+    try{
+      const last=JSON.parse(lastRaw);
+      if(last && last.id===id){
+        if(nextArchives.length) localStorage.setItem("chassisReconciliationLastArchive",JSON.stringify(nextArchives[0]));
+        else localStorage.removeItem("chassisReconciliationLastArchive");
+      }
+    }catch{}
+  }
+  return true;
+}
+function restoreArchiveFromRecycleBin(id){
+  const recycle=getRecycleBin();
+  const archive=recycle.find(a=>a.id===id);
+  if(!archive)return;
+
+  const clean={...archive};
+  delete clean.deletedAt;
+
+  const archives=getArchiveList();
+  archives.unshift(clean);
+  saveArchiveList(archives);
+  saveRecycleBin(recycle.filter(a=>a.id!==id));
+
+  recycleExpanded=true;showArchiveToast("Archive restored from Recycle Bin.");
+  renderArchiveModal();
+}
+function permanentlyDeleteRecycledArchive(id){
+  const recycle=getRecycleBin();
+  const exists=recycle.some(a=>a.id===id);
+  if(!exists){
+    renderArchiveModal();
+    return;
+  }
+
+  if(recycleDeleteArmedId!==id){
+    recycleDeleteArmedId=id;
+    clearTimeout(recycleDeleteTimer);
+    recycleDeleteTimer=setTimeout(()=>{
+      recycleDeleteArmedId=null;
+      renderArchiveModal();
+    },4500);
+    renderArchiveModal();
+    return;
+  }
+
+  clearTimeout(recycleDeleteTimer);
+  recycleDeleteArmedId=null;
+  saveRecycleBin(recycle.filter(a=>a.id!==id));
+  recycleExpanded=true;showArchiveToast("Archive permanently deleted.");
+  renderArchiveModal();
+}
+function emptyRecycleBin(){
+  const recycle=getRecycleBin();
+  if(!recycle.length)return;
+
+  if(!emptyRecycleArmed){
+    emptyRecycleArmed=true;
+    clearTimeout(emptyRecycleTimer);
+    emptyRecycleTimer=setTimeout(()=>{
+      emptyRecycleArmed=false;
+      renderArchiveModal();
+    },4500);
+    renderArchiveModal();
+    return;
+  }
+
+  clearTimeout(emptyRecycleTimer);
+  emptyRecycleArmed=false;
+  saveRecycleBin([]);
+  recycleExpanded=true;showArchiveToast("Recycle Bin emptied.");
+  renderArchiveModal();
+}
+
+function deleteArchiveById(id){
+  const list=getArchiveList();
+  const exists=list.some(a=>a.id===id);
+  if(!exists){
+    renderArchiveModal();
+    return;
+  }
+
+  if(archiveDeleteArmedId!==id){
+    archiveDeleteArmedId=id;
+    clearTimeout(archiveDeleteTimer);
+    archiveDeleteTimer=setTimeout(()=>{
+      archiveDeleteArmedId=null;
+      renderArchiveModal();
+    },4500);
+    renderArchiveModal();
+    return;
+  }
+
+  clearTimeout(archiveDeleteTimer);
+  archiveDeleteArmedId=null;
+
+  if(moveArchiveToRecycleBin(id)){
+    const qv=$("archiveQuickView");
+    if(qv)qv.style.display="none";
+    recycleExpanded=true;showArchiveToast("Archive moved to Recycle Bin.");
+  }
+
+  renderArchiveModal();
+}
+
+function renameArchiveById(id,newName){
+  const clean=String(newName||"").trim();
+  if(!clean){
+    alert("Archive name cannot be blank.");
+    return;
+  }
+  const list=getArchiveList();
+  const idx=list.findIndex(a=>a.id===id);
+  if(idx===-1)return;
+  list[idx].name=clean;
+  list[idx].renamedAt=new Date().toISOString();
+  saveArchiveList(list);
+
+  const lastRaw=localStorage.getItem("chassisReconciliationLastArchive");
+  if(lastRaw){
+    try{
+      const last=JSON.parse(lastRaw);
+      if(last && last.id===id){
+        last.name=clean;
+        last.renamedAt=list[idx].renamedAt;
+        localStorage.setItem("chassisReconciliationLastArchive",JSON.stringify(last));
+      }
+    }catch{}
+  }
+
+  archiveRenameId=null;
+  showArchiveToast("Archive renamed.");
+  renderArchiveModal();
+}
+function startArchiveRename(id){
+  archiveRenameId=id;
+  archiveDeleteArmedId=null;
+  renderArchiveModal();
+}
+function cancelArchiveRename(){
+  archiveRenameId=null;
+  renderArchiveModal();
+}
+
+
+
+let archiveSearchQuery="";
+
+function escapeHtml(value){
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[ch]));
+}
+function highlightArchiveMatch(value, query){
+  const safe=escapeHtml(value);
+  const q=String(query||"").trim();
+  if(!q)return safe;
+  const esc=q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  return safe.replace(new RegExp(esc,"ig"), m=>`<mark>${m}</mark>`);
+}
+function archiveRowMatches(row, query){
+  const q=String(query||"").trim().toLowerCase();
+  if(!q)return false;
+  return [
+    row.chassis,row.kind,row.hc,row.location,row.eventDate,row.event,row.pool,row.status,row.ce?"CE":""
+  ].some(v=>String(v??"").toLowerCase().includes(q));
+}
+function searchAllArchives(query){
+  const q=String(query||"").trim();
+  if(!q)return [];
+  const sources=[
+    ...getArchiveList().map(a=>({...a,_source:"Archive"})),
+    ...getRecycleBin().map(a=>({...a,_source:"Recycle Bin"}))
+  ];
+  const results=[];
+  sources.forEach(archive=>{
+    const matches=(archive.tableRows||[]).filter(row=>archiveRowMatches(row,q));
+    if(matches.length){
+      results.push({archive,matches});
+    }
+  });
+  return results;
+}
+function renderArchiveSearchResults(){
+  const box=$("archiveSearchResults");
+  const input=$("archiveChassisSearch");
+  if(!box)return;
+  const query=input?input.value.trim():archiveSearchQuery;
+  archiveSearchQuery=query;
+
+  if(!query){
+    box.innerHTML=`<div class="archive-search-empty">Type a chassis number to search every saved archive and recycle-bin file.</div>`;
+    return;
+  }
+
+  const results=searchAllArchives(query);
+  if(!results.length){
+    box.innerHTML=`<div class="archive-search-empty">No archive matches found for “${escapeHtml(query)}”.</div>`;
+    return;
+  }
+
+  box.innerHTML=results.map(({archive,matches})=>{
+    const example=matches[0]||{};
+    const count=matches.length;
+    const c=archive.counts||{};
+    return `<div class="archive-find-card">
+      <div class="archive-find-head">
+        <div>
+          <div class="archive-find-title">${escapeHtml(archive.name||"Chassis Archive")}</div>
+          <div class="archive-find-meta">
+            <span class="archive-find-pill">${escapeHtml(archive._source||"Archive")}</span>
+            <span class="archive-find-pill">${archive.savedAt?new Date(archive.savedAt).toLocaleString():"No saved date"}</span>
+            <span class="archive-find-pill">${count} match${count===1?"":"es"}</span>
+            <span class="archive-find-pill">On Hand: ${c.onHand ?? (archive.tableRows||[]).length}</span>
+          </div>
+        </div>
+        <div class="archive-search-actions">
+          <button class="archive-view-btn" type="button" data-search-quick="${archive.id}">Quick View Archive</button>
+          <button class="archive-restore-btn" type="button" data-search-restore="${archive.id}">Restore</button>
+        </div>
+      </div>
+      <div class="archive-find-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Example Chassis</th>
+              <th>Kind</th>
+              <th>HC</th>
+              <th>Location</th>
+              <th>Event Date</th>
+              <th>Event</th>
+              <th>Pool</th>
+              <th>CE</th>
+              <th>All Matches</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${highlightArchiveMatch(example.chassis||"",query)}</td>
+              <td>${highlightArchiveMatch(example.kind||"",query)}</td>
+              <td>${highlightArchiveMatch(example.hc||"",query)}</td>
+              <td>${highlightArchiveMatch(example.location||"",query)}</td>
+              <td>${highlightArchiveMatch(formatDateShort(example.eventDate||""),query)}</td>
+              <td>${highlightArchiveMatch(example.event||"",query)}</td>
+              <td>${highlightArchiveMatch(example.pool||"",query)}</td>
+              <td>${example.ce?"CE":"—"}</td>
+              <td>${matches.slice(0,10).map(r=>highlightArchiveMatch(r.chassis||"",query)).join(", ")}${matches.length>10?" …":""}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll("[data-search-quick]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.dataset.searchQuick;
+      const inArchive=getArchiveList().some(a=>a.id===id);
+      if(inArchive)quickViewArchive(id);
+      else quickViewRecycledArchive(id);
+    };
+  });
+  box.querySelectorAll("[data-search-restore]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.dataset.searchRestore;
+      const inArchive=getArchiveList().some(a=>a.id===id);
+      if(inArchive)restoreArchiveById(id);
+      else restoreArchiveFromRecycleBin(id);
+    };
+  });
+}
+function setupArchiveSearch(){
+  const input=$("archiveChassisSearch");
+  const clear=$("archiveSearchClear");
+  if(input){
+    if(archiveSearchQuery && input.value!==archiveSearchQuery)input.value=archiveSearchQuery;
+    input.oninput=renderArchiveSearchResults;
+  }
+  if(clear){
+    clear.onclick=()=>{
+      if(input)input.value="";
+      archiveSearchQuery="";
+      renderArchiveSearchResults();
+    };
+  }
+  renderArchiveSearchResults();
+}
+
+function renderArchiveModal(){
+  const list=getArchiveList(), recycle=getRecycleBin(), e=enrich(), lib=$("archiveLibraryList"), recycleLib=$("archiveRecycleList");
+  const recycleBadge=$("recycleCountBadge"), recycleBody=$("archiveRecycleBody"), recycleToggleText=$("recycleToggleText"), recycleToggleHeader=$("recycleToggleHeader");
+  if(recycleBadge)recycleBadge.textContent=recycle.length;
+  if(recycleBody)recycleBody.classList.toggle("collapsed",!recycleExpanded);
+  if(recycleToggleText)recycleToggleText.textContent=recycleExpanded?"Hide":"Show";
+  if(recycleToggleHeader)recycleToggleHeader.onclick=()=>{recycleExpanded=!recycleExpanded;renderArchiveModal()};
+  $("archiveTotalCount").textContent=list.length;
+  $("archiveLastSaved").textContent=list[0]?.savedAt?new Date(list[0].savedAt).toLocaleString():"None";
+  $("archiveOnHand").textContent=e.length;
+  $("archiveMissing").textContent=e.filter(r=>r.bucket.key!=="today").length;
+  $("archiveQuickView").style.display="none";
+
+  if(!list.length){
+    lib.innerHTML=`<div class="archive-library-empty">No archives saved yet. Click Archive to save the current page as a new session.</div>`;
+  }else{
+    lib.innerHTML=list.map(s=>{
+      const c=s.counts||{};
+      const armed=archiveDeleteArmedId===s.id;
+      const renaming=archiveRenameId===s.id;
+      const titleHtml=renaming
+        ? `<div class="archive-row-title-edit"><input class="archive-rename-input" data-rename-input="${s.id}" value="${String(s.name||"Chassis Archive").replace(/"/g,"&quot;")}"><button class="archive-save-name-btn" type="button" data-rename-save="${s.id}">Save</button><button class="archive-cancel-name-btn" type="button" data-rename-cancel="${s.id}">Cancel</button></div>`
+        : `<div class="archive-row-title">${s.name||"Chassis Archive"}</div>`;
+      return `<div class="archive-row ${armed?"archive-row-delete-armed":""}">
+        <div>
+          ${titleHtml}
+          <div class="archive-row-meta">
+            <span class="archive-meta-pill">${new Date(s.savedAt).toLocaleString()}</span>
+            <span class="archive-meta-pill">On Hand: ${c.onHand??(s.tableRows||[]).length}</span>
+            <span class="archive-meta-pill">Missing: ${c.missingToday??"—"}</span>
+            <span class="archive-meta-pill">Files: ${(s.importedFileArchives||[]).length}</span>
+          </div>
+        </div>
+        <div class="archive-row-actions">
+          <button class="archive-view-btn" type="button" data-view="${s.id}">Quick View</button>
+          <button class="archive-rename-btn" type="button" data-rename="${s.id}">Rename</button>
+          <button class="archive-restore-btn" type="button" data-restore="${s.id}">Restore</button>
+          <button class="archive-delete-btn ${armed?"armed":""}" type="button" data-delete="${s.id}">${armed?"Move to Recycle Bin":"Delete"}</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    lib.onclick=(event)=>{
+      const viewBtn=event.target.closest("[data-view]");
+      const renameBtn=event.target.closest("[data-rename]");
+      const saveBtn=event.target.closest("[data-rename-save]");
+      const cancelBtn=event.target.closest("[data-rename-cancel]");
+      const restoreBtn=event.target.closest("[data-restore]");
+      const deleteBtn=event.target.closest("[data-delete]");
+      if(viewBtn){quickViewArchive(viewBtn.dataset.view);return}
+      if(renameBtn){startArchiveRename(renameBtn.dataset.rename);return}
+      if(saveBtn){
+        const input=lib.querySelector(`[data-rename-input="${saveBtn.dataset.renameSave}"]`);
+        renameArchiveById(saveBtn.dataset.renameSave,input?input.value:"");
+        return;
+      }
+      if(cancelBtn){cancelArchiveRename();return}
+      if(restoreBtn){restoreArchiveById(restoreBtn.dataset.restore);return}
+      if(deleteBtn){deleteArchiveById(deleteBtn.dataset.delete);return}
+    };
+    lib.querySelectorAll("[data-rename-input]").forEach(input=>{
+      input.onkeydown=(event)=>{
+        if(event.key==="Enter")renameArchiveById(input.dataset.renameInput,input.value);
+        if(event.key==="Escape")cancelArchiveRename();
+      };
+      setTimeout(()=>input.focus(),0);
+    });
+  }
+
+  const emptyBtn=$("emptyRecycleBtn");
+  if(emptyBtn){
+    emptyBtn.textContent=emptyRecycleArmed?"Confirm Empty":"Empty Recycle Bin";
+    emptyBtn.classList.toggle("armed",emptyRecycleArmed);
+    emptyBtn.onclick=emptyRecycleBin;
+  }
+
+  setupArchiveSearch();
+  if(!recycleLib)return;
+  if(!recycle.length){
+    recycleLib.innerHTML=`<div class="recycle-empty">Recycle Bin is empty. Deleted archives will appear here before they are permanently removed.</div>`;
+    return;
+  }
+
+  recycleLib.innerHTML=recycle.map(s=>{
+    const c=s.counts||{};
+    const armed=recycleDeleteArmedId===s.id;
+    return `<div class="archive-row recycle-row">
+      <div>
+        <div class="archive-row-title">${s.name||"Chassis Archive"}</div>
+        <div class="archive-row-meta">
+          <span class="archive-meta-pill">Deleted: ${s.deletedAt?new Date(s.deletedAt).toLocaleString():"—"}</span>
+          <span class="archive-meta-pill">On Hand: ${c.onHand??(s.tableRows||[]).length}</span>
+          <span class="archive-meta-pill">Missing: ${c.missingToday??"—"}</span>
+          <span class="archive-meta-pill">Files: ${(s.importedFileArchives||[]).length}</span>
+        </div>
+      </div>
+      <div class="archive-row-actions">
+        <button class="archive-view-btn" type="button" data-recycle-view="${s.id}">Quick View</button>
+        <button class="recycle-restore-btn" type="button" data-recycle-restore="${s.id}">Restore</button>
+        <button class="recycle-permanent-btn ${armed?"armed":""}" type="button" data-recycle-delete="${s.id}">${armed?"Confirm Delete":"Delete Forever"}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  setupArchiveSearch();
+
+  recycleLib.onclick=(event)=>{
+    const viewBtn=event.target.closest("[data-recycle-view]");
+    const restoreBtn=event.target.closest("[data-recycle-restore]");
+    const deleteBtn=event.target.closest("[data-recycle-delete]");
+    if(viewBtn){quickViewRecycledArchive(viewBtn.dataset.recycleView);return}
+    if(restoreBtn){restoreArchiveFromRecycleBin(restoreBtn.dataset.recycleRestore);return}
+    if(deleteBtn){permanentlyDeleteRecycledArchive(deleteBtn.dataset.recycleDelete);return}
+  };
+}
+
+function setupDisplaySliders(){
+  const widthSlider=$("pageWidthSlider");
+  const widthValue=$("pageWidthValue");
+  const textSlider=$("textSizeSlider");
+  const textValue=$("textSizeValue");
+
+  const markActive=()=>{
+    document.body.classList.add("slider-active");
+    clearTimeout(window.__sliderTimer);
+    window.__sliderTimer=setTimeout(()=>document.body.classList.remove("slider-active"),160);
+  };
+
+  const applyWidth=()=>{
+    if(!widthSlider||!widthValue)return;
+    const pct=Number(widthSlider.value)||90;
+    document.documentElement.style.setProperty("--app-fill", pct+"vw");
+    widthValue.textContent=pct+"%";
+    markActive();
+  };
+
+  const applyText=()=>{
+    if(!textSlider||!textValue)return;
+    const pct=Number(textSlider.value)||100;
+    const scale=pct/100;
+    document.documentElement.style.setProperty("--table-text-size", Math.round(12*scale)+"px");
+    document.documentElement.style.setProperty("--control-text-size", Math.round(13*scale)+"px");
+    document.documentElement.style.setProperty("--metric-text-scale", String(scale));
+    textValue.textContent=pct+"%";
+    markActive();
+  };
+
+  if(widthSlider){
+    widthSlider.addEventListener("input", applyWidth);
+    widthSlider.addEventListener("change", applyWidth);
+  }
+  if(textSlider){
+    textSlider.addEventListener("input", applyText);
+    textSlider.addEventListener("change", applyText);
+  }
+
+  applyWidth();
+  applyText();
+}
+
+
+function buildEmailReportText(){
+  const e=enrich();
+  const total=e.length;
+  const yard=e.filter(r=>r.yardChecked).length;
+  const today=e.filter(r=>r.bucket.key==="today").length;
+  const missing=e.filter(r=>r.bucket.key!=="today");
+  const deleteFlag=e.filter(r=>r.bucket.key==="tenPlus").length;
+
+  const flagCounts=missing.reduce((acc,r)=>{
+    const label=String(r.issue.label||"Unknown").replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,"");
+    acc[label]=(acc[label]||0)+1;
+    return acc;
+  },{});
+
+  const flagLines=Object.entries(flagCounts)
+    .map(([label,count])=>`- ${label}: ${count}`)
+    .join("\n") || "- None";
+
+  const topMissing=missing
+    .slice()
+    .sort((a,b)=>parseEventDate(a.eventDate)-parseEventDate(b.eventDate))
+    .slice(0,15)
+    .map(r=>`- ${r.chassis} | ${r.kind} | ${r.location} | ${formatDateShort(r.eventDate)} | ${String(r.issue.label).replace(/<br\s*\/?>/g," / ").replace(/<[^>]+>/g,"")}`)
+    .join("\n") || "- None";
+
+  return `Chassis Reconciliation Report
+SETTEGAST TERMINAL
+Report Date: ${String(REPORT_TODAY.getMonth()+1).padStart(2,"0")}/${String(REPORT_TODAY.getDate()).padStart(2,"0")}/${REPORT_TODAY.getFullYear()}
+
+Summary
+- On Hand: ${total}
+- Yard Checked: ${yard}
+- Event Recorded Today: ${today}/${total}
+- Missing Event Today: ${missing.length}
+- Flagged for Delete: ${deleteFlag}
+
+Missing Event Today by Review Flag
+${flagLines}
+
+Oldest / Priority Missing Events
+${topMissing}
+
+Generated from the Chassis Reconciliation app.`;
+}
+
+function sendEmailReport(){
+  const subject=`Chassis Reconciliation Report - ${String(REPORT_TODAY.getMonth()+1).padStart(2,"0")}/${String(REPORT_TODAY.getDate()).padStart(2,"0")}/${REPORT_TODAY.getFullYear()}`;
+  const body=buildEmailReportText();
+
+  const mailto=`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  if(mailto.length>1900){
+    const blob=new Blob([body],{type:"text/plain;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`chassis-email-report-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},500);
+    if(typeof showArchiveToast==="function") showArchiveToast("Email report was too long. Downloaded text report instead.");
+    return;
+  }
+
+  window.location.href=mailto;
+}
+
+
+function showCopyChassisToast(count){
+  const toast=$("copyChassisToast");
+  if(!toast)return;
+  const detail=toast.querySelector("span");
+  if(detail)detail.textContent=`${count} chassis copied as a drop list.`;
+  toast.classList.add("show");
+  clearTimeout(window.__copyChassisToastTimer);
+  window.__copyChassisToastTimer=setTimeout(()=>toast.classList.remove("show"),2600);
+}
+
+async function copyFilteredChassisList(){
+  const rows=currentRows();
+  const list=rows.map(r=>r.chassis).filter(Boolean).join("\n");
+  const btn=$("copyChassisBtn");
+
+  if(!list){
+    alert("No chassis available to copy.");
+    return;
+  }
+
+  let copied=false;
+
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(list);
+      copied=true;
+    }
+  }catch(err){
+    copied=false;
+  }
+
+  if(!copied){
+    const ta=document.createElement("textarea");
+    ta.value=list;
+    ta.setAttribute("readonly","");
+    ta.style.position="fixed";
+    ta.style.top="-1000px";
+    ta.style.left="-1000px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try{
+      copied=document.execCommand("copy");
+    }catch(err){
+      copied=false;
+    }
+    ta.remove();
+  }
+
+  if(btn){
+    const old=btn.textContent;
+    btn.textContent=`Copied ${rows.length}`;
+    btn.classList.add("copied");
+    setTimeout(()=>{btn.textContent=old;btn.classList.remove("copied")},1800);
+  }
+
+  showCopyChassisToast(rows.length);
+
+  if(!copied){
+    console.warn("Clipboard copy may have been blocked by the browser.");
+  }
+}
+
+
+let yardCalendarMonth = new Date(REPORT_TODAY.getFullYear(), REPORT_TODAY.getMonth(), 1);
+
+function getYardCalendarState(){
+  try{
+    return JSON.parse(localStorage.getItem("setteYardCheckCalendar")||"{}") || {};
+  }catch{
+    return {};
+  }
+}
+function saveYardCalendarState(state){
+  localStorage.setItem("setteYardCheckCalendar",JSON.stringify(state));
+  cloudUpsert(CLOUD_KEYS.calendar,state).then(()=>setCloudStatus("Cloud: saved","ok")).catch(err=>{console.error(err);setCloudStatus("Cloud: save failed","err")});
+}
+function dateKey(year,month,day){
+  return `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+}
+function setYardCheckStatus(key,status){
+  const state=getYardCalendarState();
+  if(status==="clear") delete state[key];
+  else state[key]=status;
+  saveYardCalendarState(state);
+  renderYardCalendar();
+}
+function openYardCalendar(){
+  const modal=$("yardCalendarModal");
+  if(!modal)return;
+  renderYardCalendar();
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+}
+function closeYardCalendar(){
+  const modal=$("yardCalendarModal");
+  if(!modal)return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+}
+
+function keyFromAnyDate(value){
+  if(!value)return "";
+  const d=new Date(value);
+  if(!Number.isNaN(d.getTime()))return dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+  const m=String(value).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){
+    const y=Number(m[3].length===2?"20"+m[3]:m[3]);
+    return dateKey(y,Number(m[1])-1,Number(m[2]));
+  }
+  return "";
+}
+function getArchiveDayKey(archive){
+  return keyFromAnyDate(archive.reportDate)||keyFromAnyDate(archive.savedAt);
+}
+function getCalendarReportsByDay(){
+  const map={};
+  const add=(archive,source)=>{
+    const key=getArchiveDayKey(archive);
+    if(!key)return;
+    if(!map[key])map[key]=[];
+    map[key].push({...archive,_source:source});
+  };
+  getArchiveList().forEach(a=>add(a,"Archive"));
+  getRecycleBin().forEach(a=>add(a,"Recycle Bin"));
+  return map;
+}
+function uniqueYardDropsForDay(key){
+  const reports=(getCalendarReportsByDay()[key]||[]);
+  const drops=[];
+  reports.forEach(r=>{
+    const raw=String(r.yardChecked||"").trim();
+    if(raw && !drops.some(x=>x.toLowerCase()===raw.toLowerCase()))drops.push(raw);
+  });
+  return drops;
+}
+
+function getCalendarArchiveById(id,source){
+  if(source==="Recycle Bin")return getRecycleBin().find(a=>a.id===id);
+  return getArchiveList().find(a=>a.id===id);
+}
+function previewCalendarArchive(id,source){
+  const snap=getCalendarArchiveById(id,source);
+  const panel=$("calendarReportPreview");
+  const title=$("calendarPreviewTitle");
+  const body=$("calendarPreviewBody");
+  if(!snap||!panel||!title||!body)return;
+
+  const rows=(snap.tableRows||[]).slice(0,40);
+  const c=snap.counts||{};
+  title.textContent=snap.name||"Chassis Archive";
+
+  body.innerHTML=`
+    <div class="calendar-preview-summary">
+      <div><span>Source</span><strong>${escapeHtml(source||"Archive")}</strong></div>
+      <div><span>On Hand</span><strong>${c.onHand ?? (snap.tableRows||[]).length}</strong></div>
+      <div><span>Missing</span><strong>${c.missingToday ?? "—"}</strong></div>
+      <div><span>Yard Drop</span><strong>${escapeHtml(snap.yardChecked||"—")}</strong></div>
+    </div>
+    <div class="calendar-preview-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Chassis</th>
+            <th>Kind</th>
+            <th>HC</th>
+            <th>Location</th>
+            <th>Event Date</th>
+            <th>Event</th>
+            <th>Pool</th>
+            <th>CE</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`<tr>
+            <td>${escapeHtml(r.chassis||"")}</td>
+            <td>${escapeHtml(r.kind||"")}</td>
+            <td>${escapeHtml(r.hc||"")}</td>
+            <td>${escapeHtml(r.location||"")}</td>
+            <td>${escapeHtml(formatDateShort(r.eventDate||""))}</td>
+            <td>${escapeHtml(r.event||"")}</td>
+            <td>${escapeHtml(r.pool||"")}</td>
+            <td>${r.ce?"CE":"—"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+  panel.style.display="block";
+  panel.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+function openCalendarReportsForDay(key){
+  const panel=$("calendarReportsPanel");
+  const title=$("calendarReportsTitle");
+  const list=$("calendarReportsList");
+  if(!panel||!title||!list)return;
+
+  const reports=(getCalendarReportsByDay()[key]||[]);
+  const pretty=(()=>{const [y,m,d]=key.split("-");return `${m}/${d}/${y}`})();
+  title.textContent=pretty;
+  panel.style.display="block";
+  const preview=$("calendarReportPreview"); if(preview)preview.style.display="none";
+
+  if(!reports.length){
+    list.innerHTML=`<div class="archive-search-empty">No archived reports found for ${pretty}.</div>`;
+    return;
+  }
+
+  list.innerHTML=reports.map(r=>{
+    const c=r.counts||{};
+    const drops=uniqueYardDropsForDay(key);
+    return `<div class="calendar-report-card">
+      <div class="calendar-report-top">
+        <div>
+          <div class="calendar-report-title">${escapeHtml(r.name||"Chassis Archive")}</div>
+          <div class="calendar-report-meta">
+            <span>${escapeHtml(r._source||"Archive")}</span>
+            <span>${r.savedAt?new Date(r.savedAt).toLocaleString():"No saved time"}</span>
+            <span>Yard: ${escapeHtml(r.yardChecked||"—")}</span>
+            <span>On Hand: ${c.onHand ?? (r.tableRows||[]).length}</span>
+            <span>Missing: ${c.missingToday ?? "—"}</span>
+            ${drops.length>1?`<span>Day Drops: ${drops.map(escapeHtml).join(" / ")}</span>`:""}
+          </div>
+        </div>
+        <div class="calendar-report-actions">
+          <button class="archive-view-btn" type="button" data-cal-preview="${r.id}" data-cal-source="${r._source}">Preview</button>
+          <button class="archive-restore-btn" type="button" data-cal-restore="${r.id}" data-cal-source="${r._source}">Restore</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll("[data-cal-preview]").forEach(btn=>{
+    btn.onclick=()=>{
+      previewCalendarArchive(btn.dataset.calPreview,btn.dataset.calSource);
+    };
+  });
+  list.querySelectorAll("[data-cal-restore]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.dataset.calRestore;
+      if(btn.dataset.calSource==="Recycle Bin")restoreArchiveFromRecycleBin(id);
+      else restoreArchiveById(id);
+    };
+  });
+}
+
+function renderYardCalendar(){
+  const grid=$("yardCalendarGrid");
+  const label=$("calendarMonthLabel");
+  if(!grid||!label)return;
+
+  const state=getYardCalendarState();
+  const reportsByDay=getCalendarReportsByDay();
+  const year=yardCalendarMonth.getFullYear();
+  const month=yardCalendarMonth.getMonth();
+  const monthName=yardCalendarMonth.toLocaleString(undefined,{month:"long",year:"numeric"});
+  label.textContent=monthName;
+
+  const firstDay=new Date(year,month,1).getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const weekdays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  let html=weekdays.map(d=>`<div class="calendar-weekday">${d}</div>`).join("");
+
+  for(let i=0;i<firstDay;i++){
+    html+=`<div class="calendar-day empty"></div>`;
+  }
+
+  for(let day=1;day<=daysInMonth;day++){
+    const key=dateKey(year,month,day);
+    const status=state[key]||"";
+    const reports=reportsByDay[key]||[];
+    const drops=uniqueYardDropsForDay(key);
+    const cls=[
+      status==="check"?"checked":"",
+      status==="x"?"missed":"",
+      reports.length?"has-reports":""
+    ].filter(Boolean).join(" ");
+    const symbol=status==="check"?"✓":status==="x"?"✕":"—";
+    html+=`
+      <div class="calendar-day ${cls}" data-date="${key}">
+        <div class="calendar-date" data-open-day="${key}">
+          <span>${day}</span>
+          ${reports.length?`<span class="calendar-report-count">${reports.length} report${reports.length===1?"":"s"}</span>`:""}
+        </div>
+        <div class="calendar-yard-drops">
+          ${drops.slice(0,3).map(d=>`<span class="calendar-yard-pill">${escapeHtml(d)}</span>`).join("")}
+          ${drops.length>3?`<span class="calendar-yard-pill">+${drops.length-3}</span>`:""}
+        </div>
+        <div class="calendar-status">${symbol}</div>
+        ${reports.length?`<button type="button" class="calendar-open-day" data-open-day="${key}">Open Reports</button>`:""}
+        <div class="calendar-day-controls">
+          <button type="button" class="calendar-check-btn ${status==="check"?"active":""}" data-cal-check="${key}">✓</button>
+          <button type="button" class="calendar-x-btn ${status==="x"?"active":""}" data-cal-x="${key}">✕</button>
+        </div>
+      </div>`;
+  }
+
+  grid.innerHTML=html;
+  grid.querySelectorAll("[data-cal-check]").forEach(btn=>{
+    btn.onclick=(event)=>{event.stopPropagation();setYardCheckStatus(btn.dataset.calCheck,state[btn.dataset.calCheck]==="check"?"clear":"check");};
+  });
+  grid.querySelectorAll("[data-cal-x]").forEach(btn=>{
+    btn.onclick=(event)=>{event.stopPropagation();setYardCheckStatus(btn.dataset.calX,state[btn.dataset.calX]==="x"?"clear":"x");};
+  });
+  grid.querySelectorAll("[data-open-day]").forEach(el=>{
+    el.onclick=(event)=>{event.stopPropagation();openCalendarReportsForDay(el.dataset.openDay);};
+  });
+}
+
+function init(){
+  $("yardSelect").innerHTML=YARD_OPTIONS.map(o=>`<option>${o}</option>`).join("");
+  $("yardLabel").textContent=`Yard checked ${String(REPORT_TODAY.getMonth()+1).padStart(2,"0")}/${String(REPORT_TODAY.getDate()).padStart(2,"0")}/${REPORT_TODAY.getFullYear()}`;setupDisplaySliders();
+  $("search").oninput=e=>{query=e.target.value;render();queueCloudSave()};
+  document.querySelectorAll("th button[data-sort]").forEach(b=>b.onclick=()=>{const k=b.dataset.sort;if(k==="ce"&&applySelectedCeFlags())return;sortConfig={key:k,direction:sortConfig.key===k&&sortConfig.direction==="asc"?"desc":"asc"};render();queueCloudSave()});
+  const bannerToggle=$("bannerToggle"); if(bannerToggle)bannerToggle.onclick=()=>{showBanner=!showBanner;render();queueCloudSave()};
+  $("importBtn").onclick=()=>$("fileInput").click();
+  $("fileInput").onchange=e=>{if(e.target.files?.length)importFiles(e.target.files);e.target.value=""};
+  $("clearBtn").onclick=typeof handleClearClick==="function"?handleClearClick:()=>{tableRows=[];query="";filter="all";$("search").value="";render();queueCloudSave()};
+  const forceSaveBtn=$("forceSaveBtn"); if(forceSaveBtn)forceSaveBtn.onclick=saveAllCloudState;
+  const reloadCloudBtn=$("reloadCloudBtn"); if(reloadCloudBtn)reloadCloudBtn.onclick=reloadCloudState;
+  const copyChassisBtn=$("copyChassisBtn"); if(copyChassisBtn)copyChassisBtn.onclick=copyFilteredChassisList;
+  const emailReportBtn=$("emailReportBtn"); if(emailReportBtn)emailReportBtn.onclick=sendEmailReport;
+  const calendarTopBtn=$("calendarTopBtn"); if(calendarTopBtn)calendarTopBtn.onclick=openYardCalendar;
+  $("exportBtn").onclick=async()=>{const b=$("exportBtn");if(b){b.textContent="Exporting...";b.disabled=true}await Promise.resolve(exportReport());if(b){b.textContent="⇩ Export";b.disabled=false}};
+  const archiveBtn=$("archiveBtn"); if(archiveBtn)archiveBtn.onclick=openArchiveConfirmModal;
+  const archivePageBtn=$("archivePageBtn"); if(archivePageBtn)archivePageBtn.onclick=openArchiveModal;
+  const archiveConfirmClose=$("archiveConfirmClose"); if(archiveConfirmClose)archiveConfirmClose.onclick=closeArchiveConfirmModal;
+  const archiveConfirmCancel=$("archiveConfirmCancel"); if(archiveConfirmCancel)archiveConfirmCancel.onclick=closeArchiveConfirmModal;
+  const archiveConfirmSave=$("archiveConfirmSave"); if(archiveConfirmSave)archiveConfirmSave.onclick=confirmArchiveSave;
+  const archiveConfirmModal=$("archiveConfirmModal"); if(archiveConfirmModal)archiveConfirmModal.addEventListener("click",e=>{if(e.target===archiveConfirmModal)closeArchiveConfirmModal()});
+  const archiveConfirmName=$("archiveConfirmName"); if(archiveConfirmName)archiveConfirmName.onkeydown=e=>{if(e.key==="Enter")confirmArchiveSave();if(e.key==="Escape")closeArchiveConfirmModal()};
+  const restoreBtn=$("restoreBtn"); if(restoreBtn)restoreBtn.onclick=restoreLastArchive;
+  const closeArchive=$("closeArchiveModal"); if(closeArchive)closeArchive.onclick=closeArchiveModal;
+  const archiveModal=$("archiveModal"); if(archiveModal)archiveModal.addEventListener("click",e=>{if(e.target===archiveModal)closeArchiveModal()});
+  const closeCal=$("closeCalendarModal"); if(closeCal)closeCal.onclick=closeYardCalendar;
+  const calModal=$("yardCalendarModal"); if(calModal)calModal.addEventListener("click",e=>{if(e.target===calModal)closeYardCalendar()});
+  const prevCal=$("prevCalendarMonth"); if(prevCal)prevCal.onclick=()=>{yardCalendarMonth=new Date(yardCalendarMonth.getFullYear(),yardCalendarMonth.getMonth()-1,1);renderYardCalendar()};
+  const nextCal=$("nextCalendarMonth"); if(nextCal)nextCal.onclick=()=>{yardCalendarMonth=new Date(yardCalendarMonth.getFullYear(),yardCalendarMonth.getMonth()+1,1);renderYardCalendar()};
+  const calendarReportsClose=$("calendarReportsClose"); if(calendarReportsClose)calendarReportsClose.onclick=()=>{$("calendarReportsPanel").style.display="none"};
+  const calendarPreviewClose=$("calendarPreviewClose"); if(calendarPreviewClose)calendarPreviewClose.onclick=()=>{$("calendarReportPreview").style.display="none"};
+  render();
+  loadCloudState();
+}
+
+window.addEventListener("beforeunload",()=>{try{saveAllCloudState()}catch{}});
+init();
+</script>
+</body>
+</html>
