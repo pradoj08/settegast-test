@@ -5012,9 +5012,17 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   var SUPABASE_URL = 'https://wjcicllxysvygkeqzqas.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_2BLd6GJxw5m6gnDL1Ok3nQ_Tf8Uef2-';
   var APP_STATE_TABLE = 'dwell_app_state';
-  var APP_STATE_KEY = 'dwell_forecaster_full_local_storage_v1';
+
+  // The Supabase SQL we just set up seeds/uses `global`.
+  // Older builds used `dwell_forecaster_full_local_storage_v1`, so this build can read both and writes both.
+  var PRIMARY_STATE_KEY = 'global';
+  var LEGACY_STATE_KEY = 'dwell_forecaster_full_local_storage_v1';
+  var STATE_KEYS = [PRIMARY_STATE_KEY, LEGACY_STATE_KEY];
+
   var LAST_SYNC_KEY = '__dwell_supabase_last_sync__';
+  var LAST_REMOTE_KEY = '__dwell_supabase_last_remote_updated__';
   var HYDRATED_SESSION_KEY = '__dwell_supabase_hydrated_this_session__';
+  var CLIENT_ID_KEY = '__dwell_supabase_client_id__';
 
   var originalSetItem = localStorage.setItem.bind(localStorage);
   var originalRemoveItem = localStorage.removeItem.bind(localStorage);
@@ -5024,11 +5032,27 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   var saveTimer = null;
   var saveInFlight = false;
   var pendingSave = false;
+  var applyingRemote = false;
+  var lastLocalEditAt = 0;
+  var lastError = null;
+
+  function getClientId(){
+    var id = localStorage.getItem(CLIENT_ID_KEY);
+    if(!id){
+      id = 'client_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      originalSetItem(CLIENT_ID_KEY, id);
+    }
+    return id;
+  }
+
+  var CLIENT_ID = getClientId();
 
   window.DWELL_SUPABASE_CONFIG = {
     url: SUPABASE_URL,
     table: APP_STATE_TABLE,
-    key: APP_STATE_KEY
+    key: PRIMARY_STATE_KEY,
+    legacyKey: LEGACY_STATE_KEY,
+    clientId: CLIENT_ID
   };
 
   function shouldSyncKey(key){
@@ -5053,12 +5077,15 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       localStorage.getItem('inbound-summary-app-v1') ||
       localStorage.getItem('inbound-summary-archive-bank-v1') ||
       localStorage.getItem('dwellAppState') ||
-      localStorage.getItem('dwell_forecaster_state')
+      localStorage.getItem('dwell_forecaster_state') ||
+      localStorage.getItem('dwellForecastRows') ||
+      localStorage.getItem('dwellTrainBank') ||
+      localStorage.getItem('dwellDepTimes')
     );
   }
 
   function waitForSupabaseGlobal(timeoutMs){
-    timeoutMs = timeoutMs || 4000;
+    timeoutMs = timeoutMs || 6000;
     var started = Date.now();
     return new Promise(function(resolve){
       (function check(){
@@ -5069,7 +5096,27 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     });
   }
 
+  function newestRow(rows){
+    if(!Array.isArray(rows) || !rows.length) return null;
+    rows.sort(function(a,b){
+      var at = Date.parse((a && a.updated_at) || (a && a.value && a.value.savedAt) || '') || 0;
+      var bt = Date.parse((b && b.updated_at) || (b && b.value && b.value.savedAt) || '') || 0;
+      return bt - at;
+    });
+    return rows[0] || null;
+  }
+
+  async function fetchNewestRemote(){
+    var result = await client
+      .from(APP_STATE_TABLE)
+      .select('key,value,updated_at')
+      .in('key', STATE_KEYS);
+    if(result && result.error) throw result.error;
+    return newestRow((result && result.data) || []);
+  }
+
   async function saveSnapshotNow(){
+    if(applyingRemote) return;
     if(!client || !syncReady){ pendingSave = true; return; }
     if(saveInFlight){ pendingSave = true; return; }
     saveInFlight = true;
@@ -5079,119 +5126,182 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       var payload = {
         localStorage: collectLocalStorageSnapshot(),
         savedAt: now,
+        savedBy: CLIENT_ID,
         app: 'dwell_forecaster_html'
       };
+      var rows = STATE_KEYS.map(function(k){
+        return { key: k, value: payload, updated_at: now };
+      });
       var result = await client
         .from(APP_STATE_TABLE)
-        .upsert({ key: APP_STATE_KEY, value: payload, updated_at: now }, { onConflict: 'key' });
+        .upsert(rows, { onConflict: 'key' });
       if(result && result.error) throw result.error;
       originalSetItem(LAST_SYNC_KEY, now);
-      window.dispatchEvent(new CustomEvent('dwell:supabase-save-ok', { detail: { savedAt: now } }));
+      originalSetItem(LAST_REMOTE_KEY, now);
+      lastError = null;
+      window.dispatchEvent(new CustomEvent('dwell:supabase-save-ok', { detail: { savedAt: now, key: PRIMARY_STATE_KEY } }));
     }catch(err){
+      lastError = err;
       console.warn('Supabase save failed. App will continue using localStorage.', err);
       window.dispatchEvent(new CustomEvent('dwell:supabase-save-error', { detail: err }));
     }finally{
       saveInFlight = false;
       if(pendingSave){
         pendingSave = false;
-        scheduleSave();
+        scheduleSave(900);
       }
     }
   }
 
-  function scheduleSave(){
+  function scheduleSave(delay){
+    if(applyingRemote) return;
     if(!syncReady){ pendingSave = true; return; }
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveSnapshotNow, 700);
+    saveTimer = setTimeout(saveSnapshotNow, typeof delay === 'number' ? delay : 700);
+  }
+
+  function applyRemoteSnapshot(row, reload){
+    if(!row || !row.value || !row.value.localStorage) return false;
+    applyingRemote = true;
+    try{
+      Object.keys(row.value.localStorage).forEach(function(key){
+        if(shouldSyncKey(key)) originalSetItem(key, row.value.localStorage[key]);
+      });
+      var remoteUpdated = row.updated_at || row.value.savedAt || new Date().toISOString();
+      originalSetItem(LAST_SYNC_KEY, remoteUpdated);
+      originalSetItem(LAST_REMOTE_KEY, remoteUpdated);
+      sessionStorage.setItem(HYDRATED_SESSION_KEY, '1');
+      window.dispatchEvent(new CustomEvent('dwell:supabase-hydrated', { detail: { updatedAt: remoteUpdated, key: row.key } }));
+      if(reload){ setTimeout(function(){ location.reload(); }, 80); }
+      return true;
+    }finally{
+      applyingRemote = false;
+    }
   }
 
   async function hydrateFromSupabase(){
     try{
-      var result = await client
-        .from(APP_STATE_TABLE)
-        .select('key,value,updated_at')
-        .eq('key', APP_STATE_KEY)
-        .maybeSingle();
-      if(result && result.error) throw result.error;
-      var data = result ? result.data : null;
-      if(!data || !data.value || !data.value.localStorage) return false;
+      var row = await fetchNewestRemote();
+      if(!row || !row.value || !row.value.localStorage) return false;
 
       var alreadyHydrated = sessionStorage.getItem(HYDRATED_SESSION_KEY) === '1';
       var localMarker = localStorage.getItem(LAST_SYNC_KEY);
-      var remoteUpdated = data.updated_at || data.value.savedAt || '';
+      var remoteUpdated = row.updated_at || row.value.savedAt || '';
       var remoteTime = remoteUpdated ? Date.parse(remoteUpdated) : 0;
       var localTime = localMarker ? Date.parse(localMarker) : 0;
       var localHasState = hasMeaningfulLocalState();
 
-      // New device / empty browser: pull remote state.
-      // Existing browser: pull only when the remote state is newer than the last successful local sync.
-      var shouldHydrate = !alreadyHydrated && (!localHasState || (localTime && remoteTime && remoteTime > localTime + 1000));
+      var shouldHydrate = !alreadyHydrated && (!localHasState || !localTime || (remoteTime && remoteTime > localTime + 1000));
       if(!shouldHydrate) return false;
-
-      Object.keys(data.value.localStorage).forEach(function(key){
-        if(shouldSyncKey(key)) originalSetItem(key, data.value.localStorage[key]);
-      });
-      if(remoteUpdated) originalSetItem(LAST_SYNC_KEY, new Date(remoteTime || Date.now()).toISOString());
-      sessionStorage.setItem(HYDRATED_SESSION_KEY, '1');
-      window.dispatchEvent(new CustomEvent('dwell:supabase-hydrated', { detail: { updatedAt: remoteUpdated } }));
-
-      // The app reads localStorage during initial script load. Reload once so all existing code boots from remote state.
-      setTimeout(function(){ location.reload(); }, 50);
-      return true;
+      return applyRemoteSnapshot(row, true);
     }catch(err){
+      lastError = err;
       console.warn('Supabase load failed. App will continue using localStorage.', err);
       window.dispatchEvent(new CustomEvent('dwell:supabase-load-error', { detail: err }));
       return false;
     }
   }
 
+  async function pullRemoteIfNewer(){
+    if(!client || !syncReady || applyingRemote || saveInFlight) return;
+    try{
+      var row = await fetchNewestRemote();
+      if(!row || !row.value || !row.value.localStorage) return;
+      if(row.value.savedBy === CLIENT_ID) return;
+      var remoteUpdated = row.updated_at || row.value.savedAt || '';
+      var remoteTime = Date.parse(remoteUpdated) || 0;
+      var localTime = Date.parse(localStorage.getItem(LAST_SYNC_KEY) || '') || 0;
+      var recentlyEdited = Date.now() - lastLocalEditAt < 2500;
+      if(remoteTime && remoteTime > localTime + 1000 && !recentlyEdited){
+        applyRemoteSnapshot(row, true);
+      }
+    }catch(err){
+      lastError = err;
+      console.warn('Supabase background pull failed.', err);
+    }
+  }
+
   localStorage.setItem = function(key, value){
     var result = originalSetItem(key, value);
-    if(syncReady && shouldSyncKey(key)) scheduleSave();
+    if(syncReady && shouldSyncKey(key) && !applyingRemote){
+      lastLocalEditAt = Date.now();
+      scheduleSave();
+    }
     return result;
   };
 
   localStorage.removeItem = function(key){
     var result = originalRemoveItem(key);
-    if(syncReady && shouldSyncKey(key)) scheduleSave();
+    if(syncReady && shouldSyncKey(key) && !applyingRemote){
+      lastLocalEditAt = Date.now();
+      scheduleSave();
+    }
     return result;
   };
 
   localStorage.clear = function(){
     var result = originalClear();
-    if(syncReady) scheduleSave();
+    if(syncReady && !applyingRemote){
+      lastLocalEditAt = Date.now();
+      scheduleSave();
+    }
     return result;
   };
 
-  window.dwellForceSupabaseSave = function(){ scheduleSave(); };
+  function bindUserActivitySave(){
+    ['change','input','click'].forEach(function(type){
+      document.addEventListener(type, function(){
+        if(!syncReady || applyingRemote) return;
+        lastLocalEditAt = Date.now();
+        // Let the app write localStorage first, then capture the finished state.
+        scheduleSave(type === 'input' ? 1200 : 900);
+      }, true);
+    });
+    window.addEventListener('beforeunload', function(){
+      if(syncReady && !applyingRemote) saveSnapshotNow();
+    });
+  }
+
+  window.dwellForceSupabaseSave = function(){ scheduleSave(0); };
+  window.dwellForceSupabasePull = function(){ pullRemoteIfNewer(); };
   window.dwellSupabaseStatus = function(){
     return {
       configured: !!client,
       ready: syncReady,
       table: APP_STATE_TABLE,
-      key: APP_STATE_KEY,
-      lastSync: localStorage.getItem(LAST_SYNC_KEY) || null
+      key: PRIMARY_STATE_KEY,
+      legacyKey: LEGACY_STATE_KEY,
+      clientId: CLIENT_ID,
+      lastSync: localStorage.getItem(LAST_SYNC_KEY) || null,
+      lastRemote: localStorage.getItem(LAST_REMOTE_KEY) || null,
+      lastError: lastError ? (lastError.message || String(lastError)) : null
     };
   };
 
   (async function initSupabaseSync(){
-    var available = await waitForSupabaseGlobal(4000);
+    var available = await waitForSupabaseGlobal(6000);
     if(!available){
+      lastError = new Error('Supabase client library did not load');
       console.warn('Supabase client library did not load. App will continue using localStorage.');
       return;
     }
-    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
     window.dwellSupabaseClient = client;
     var reloading = await hydrateFromSupabase();
     if(reloading) return;
     syncReady = true;
-    if(pendingSave) scheduleSave();
+    bindUserActivitySave();
+    if(pendingSave) scheduleSave(300);
 
-    // Save current browser state after startup so Supabase is populated even before the first manual edit.
-    setTimeout(scheduleSave, 1200);
+    // Startup save, then background pull so already-open devices catch updates from other devices.
+    setTimeout(function(){ scheduleSave(0); }, 1200);
+    setInterval(pullRemoteIfNewer, 8000);
   })();
 })();
 </script>
+
 
 
 <style id="archive-action-display-error-fix">
@@ -5684,6 +5794,849 @@ h1{
 })();
 </script>
 
+
+<style id="editable-right-units-pill-patch">
+/* Units now lives only in the right-side pill; the old left Units field is removed. */
+.table-footer.inbound-footer-controls .footer-units-field{
+  display:none!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units{
+  flex:0 0 auto!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input{
+  width:62px!important;
+  min-width:62px!important;
+  max-width:72px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0 10px!important;
+  border-radius:999px!important;
+  border:1px solid #bda373!important;
+  background:#fff8eb!important;
+  color:#111!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  text-align:center!important;
+  line-height:32px!important;
+  outline:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important;
+  appearance:textfield!important;
+  -webkit-appearance:none!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input:focus{
+  border-color:#d49a12!important;
+  box-shadow:0 0 0 2px rgba(212,154,18,.22), inset 0 1px 0 rgba(255,255,255,.75)!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input::-webkit-outer-spin-button,
+.table-footer.inbound-footer-controls .units-pill-input::-webkit-inner-spin-button{
+  -webkit-appearance:none!important;
+  margin:0!important;
+}
+</style>
+
+
+<style id="units-close-to-total-ft-smaller-input-patch">
+/* Keep the footer on one line, but park Units directly beside Total FT. */
+.table-footer.inbound-footer-controls{
+  justify-content:flex-start!important;
+  gap:8px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units{
+  margin-left:auto!important;
+  margin-right:2px!important;
+  gap:4px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-ft{
+  margin-left:0!important;
+  gap:5px!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input,
+.table-footer.inbound-footer-controls input.units-pill-input{
+  width:44px!important;
+  min-width:44px!important;
+  max-width:44px!important;
+  padding-left:5px!important;
+  padding-right:5px!important;
+  font-size:12px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units span{
+  margin-right:0!important;
+}
+.table-footer.inbound-footer-controls .footer-total-ft .total-pill{
+  min-width:58px!important;
+}
+@media (max-width: 900px){
+  .table-footer.inbound-footer-controls .footer-total-units{
+    margin-left:auto!important;
+  }
+}
+</style>
+
+
+
+<style id="same-day-inbound-row-grouping-patch">
+/* Group inbound cards by arrival day and lay trains from the same day on one horizontal row. */
+#trainStack{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:18px!important;
+  align-items:stretch!important;
+  width:100%!important;
+}
+.same-day-inbound-group{
+  width:100%!important;
+  min-width:0!important;
+}
+.same-day-inbound-group .day-separator{
+  margin:0 0 8px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+}
+.same-day-inbound-group .day-separator small{
+  font-size:10px!important;
+  font-weight:950!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+  color:#6f5a38!important;
+  white-space:nowrap!important;
+}
+.same-day-inbound-row{
+  display:grid!important;
+  grid-auto-flow:column!important;
+  grid-auto-columns:minmax(430px, 1fr)!important;
+  gap:14px!important;
+  align-items:start!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  padding-bottom:6px!important;
+  scroll-snap-type:x proximity!important;
+}
+.same-day-inbound-row::-webkit-scrollbar{height:7px!important;}
+.same-day-inbound-row::-webkit-scrollbar-thumb{background:rgba(120,84,28,.35)!important;border-radius:999px!important;}
+.same-day-inbound-row .train-card{
+  width:100%!important;
+  min-width:430px!important;
+  max-width:none!important;
+  scroll-snap-align:start!important;
+}
+.same-day-inbound-row .train-card .train-header{
+  grid-template-columns:minmax(120px,160px) minmax(120px,145px) minmax(8px,1fr) auto auto!important;
+  gap:8px!important;
+}
+.same-day-inbound-row .train-card .inbound-archive-row{
+  grid-template-columns:118px 30px!important;
+  gap:6px!important;
+}
+.same-day-inbound-row .train-card .inbound-card-actions .btn.small{
+  font-size:11px!important;
+  height:30px!important;
+}
+.same-day-inbound-row .train-card .inbound-card-actions .archive-delete-x{
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+}
+.same-day-inbound-row .train-card .inbound-action-total{
+  min-width:92px!important;
+  height:42px!important;
+}
+@media (max-width: 760px){
+  .same-day-inbound-row{
+    grid-auto-columns:minmax(360px, 92vw)!important;
+  }
+  .same-day-inbound-row .train-card{
+    min-width:360px!important;
+  }
+}
+</style>
+
+
+
+<style id="same-day-inbound-side-by-side-final-patch">
+/* Final same-day layout: trains with the same arrival day sit side-by-side in one row. */
+.same-day-inbound-row{
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  align-items:stretch!important;
+  justify-content:flex-start!important;
+  gap:14px!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  padding-bottom:8px!important;
+}
+.same-day-inbound-row .train-card{
+  flex:1 0 calc((100% - 14px) / 2)!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+}
+.same-day-inbound-row .train-card:only-child{
+  flex-basis:100%!important;
+}
+.same-day-inbound-row .train-card .table-wrap{
+  overflow-x:auto!important;
+  max-width:100%!important;
+}
+.same-day-inbound-row .train-card table{
+  min-width:560px!important;
+}
+@media (max-width: 760px){
+  .same-day-inbound-row .train-card{
+    flex-basis:86vw!important;
+  }
+  .same-day-inbound-row .train-card:only-child{
+    flex-basis:100%!important;
+  }
+}
+</style>
+
+
+
+<style id="same-day-side-by-side-hard-fix">
+/* HARD FIX: same-day inbounds must render as true side-by-side columns, not stacked full-width cards. */
+.same-day-inbound-group{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+.same-day-inbound-row{
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count, 1), minmax(0, 1fr))!important;
+  grid-auto-flow:column!important;
+  grid-auto-columns:minmax(0, 1fr)!important;
+  gap:12px!important;
+  align-items:start!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow:visible!important;
+  padding-bottom:0!important;
+}
+.same-day-inbound-row .train-card{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  flex:initial!important;
+}
+.same-day-inbound-row .train-card .train-header{
+  grid-template-columns:minmax(92px,1fr) minmax(104px,1fr) minmax(4px,.35fr) auto auto!important;
+  column-gap:7px!important;
+  row-gap:8px!important;
+  padding:10px!important;
+}
+.same-day-inbound-row .train-card .head-input{
+  min-width:0!important;
+  width:100%!important;
+  font-size:14px!important;
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+.same-day-inbound-row .train-card .inbound-archive-row{
+  grid-template-columns:104px 30px!important;
+  gap:6px!important;
+}
+.same-day-inbound-row .train-card .inbound-card-actions .btn.small{
+  height:30px!important;
+  min-height:30px!important;
+  padding:0 8px!important;
+  font-size:10px!important;
+  white-space:nowrap!important;
+}
+.same-day-inbound-row .train-card .inbound-action-total{
+  min-width:86px!important;
+  height:40px!important;
+}
+.same-day-inbound-row .train-card .inbound-action-total .k{font-size:7px!important;}
+.same-day-inbound-row .train-card .inbound-action-total .v{font-size:13px!important;}
+.same-day-inbound-row .train-card .table-wrap{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow-x:hidden!important;
+}
+.same-day-inbound-row .train-card table{
+  width:100%!important;
+  min-width:0!important;
+  table-layout:fixed!important;
+}
+.same-day-inbound-row .train-card th,
+.same-day-inbound-row .train-card td{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+.same-day-inbound-row .train-card th:nth-child(1),
+.same-day-inbound-row .train-card td:nth-child(1){width:23%!important;}
+.same-day-inbound-row .train-card th:nth-child(2),
+.same-day-inbound-row .train-card td:nth-child(2){width:20%!important;}
+.same-day-inbound-row .train-card th:nth-child(3),
+.same-day-inbound-row .train-card td:nth-child(3){width:20%!important;}
+.same-day-inbound-row .train-card th:nth-child(4),
+.same-day-inbound-row .train-card td:nth-child(4){width:23%!important;}
+.same-day-inbound-row .train-card th:nth-child(5),
+.same-day-inbound-row .train-card td:nth-child(5){width:14%!important;}
+.same-day-inbound-row .train-card .actions-cell{
+  white-space:nowrap!important;
+  padding-left:4px!important;
+  padding-right:4px!important;
+}
+.same-day-inbound-row .train-card .actions-cell .btn.icon.small{
+  width:28px!important;
+  min-width:28px!important;
+  height:28px!important;
+  padding:0!important;
+}
+.same-day-inbound-row .train-card .table-footer.inbound-footer-controls{
+  gap:6px!important;
+  padding:9px 10px!important;
+}
+.same-day-inbound-row .train-card .footer-add-row{
+  padding:0 9px!important;
+  min-width:94px!important;
+}
+.same-day-inbound-row .train-card .footer-field{
+  min-width:0!important;
+}
+.same-day-inbound-row .train-card .footer-shift-field{width:110px!important;}
+.same-day-inbound-row .train-card .footer-ups-field{width:44px!important;}
+.same-day-inbound-row .train-card .footer-total-units{margin-left:auto!important;}
+.same-day-inbound-row .train-card .footer-total-ft .total-pill{min-width:54px!important;}
+@media (max-width: 760px){
+  .same-day-inbound-row{
+    grid-template-columns:1fr!important;
+    grid-auto-flow:row!important;
+  }
+}
+</style>
+
+
+<style id="same-day-inline-force-final-override">
+/* Force same-day inbound cards into actual columns. This is intentionally last and narrow-scoped. */
+#trainStack .same-day-inbound-group{width:100%!important;max-width:100%!important;min-width:0!important;display:block!important;}
+#trainStack .same-day-inbound-row{display:grid!important;grid-template-columns:repeat(var(--same-day-count,1),minmax(0,1fr))!important;grid-auto-flow:row!important;grid-auto-columns:unset!important;gap:12px!important;align-items:start!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important;padding-bottom:0!important;}
+#trainStack .same-day-inbound-row>.train-card{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;overflow:hidden!important;}
+#trainStack .same-day-inbound-row>.train-card .train-header{display:grid!important;grid-template-columns:minmax(96px,1fr) minmax(96px,1fr) auto auto!important;gap:7px!important;align-items:end!important;justify-content:stretch!important;flex-wrap:nowrap!important;}
+#trainStack .same-day-inbound-row>.train-card .inbound-card-actions{grid-column:auto!important;min-width:0!important;}
+#trainStack .same-day-inbound-row>.train-card .inbound-archive-row{display:grid!important;grid-template-columns:minmax(92px,1fr) 30px!important;gap:6px!important;min-width:0!important;}
+#trainStack .same-day-inbound-row>.train-card .inbound-action-total{min-width:78px!important;width:78px!important;height:39px!important;}
+#trainStack .same-day-inbound-row>.train-card .head-input{width:100%!important;min-width:0!important;font-size:14px!important;}
+#trainStack .same-day-inbound-row>.train-card .table-wrap{width:100%!important;max-width:100%!important;overflow-x:hidden!important;}
+#trainStack .same-day-inbound-row>.train-card table{width:100%!important;min-width:0!important;table-layout:fixed!important;}
+#trainStack .same-day-inbound-row>.train-card th,#trainStack .same-day-inbound-row>.train-card td{padding-left:6px!important;padding-right:6px!important;}
+#trainStack .same-day-inbound-row>.train-card th:nth-child(1),#trainStack .same-day-inbound-row>.train-card td:nth-child(1){width:25%!important;}
+#trainStack .same-day-inbound-row>.train-card th:nth-child(2),#trainStack .same-day-inbound-row>.train-card td:nth-child(2){width:18%!important;}
+#trainStack .same-day-inbound-row>.train-card th:nth-child(3),#trainStack .same-day-inbound-row>.train-card td:nth-child(3){width:18%!important;}
+#trainStack .same-day-inbound-row>.train-card th:nth-child(4),#trainStack .same-day-inbound-row>.train-card td:nth-child(4){width:25%!important;}
+#trainStack .same-day-inbound-row>.train-card th:nth-child(5),#trainStack .same-day-inbound-row>.train-card td:nth-child(5){width:14%!important;}
+#trainStack .same-day-inbound-row>.train-card .actions-cell .btn.icon.small{width:26px!important;min-width:26px!important;height:26px!important;}
+#trainStack .same-day-inbound-row>.train-card .table-footer.inbound-footer-controls{gap:5px!important;padding:8px!important;overflow:hidden!important;}
+#trainStack .same-day-inbound-row>.train-card .footer-add-row{min-width:82px!important;padding:0 8px!important;}
+#trainStack .same-day-inbound-row>.train-card .footer-shift-field{width:98px!important;}
+#trainStack .same-day-inbound-row>.train-card .footer-ups-field{width:40px!important;}
+#trainStack .same-day-inbound-row>.train-card .footer-total-units{margin-left:auto!important;}
+@media (max-width:620px){#trainStack .same-day-inbound-row{grid-template-columns:1fr!important;}}
+</style>
+
+
+<style id="inbound-full-width-page-usage-final-patch">
+/* FULL-WIDTH FIX: the inbound page now uses the whole visible page width.
+   The grid is zoomed by the Size slider, so its layout width must be expanded
+   by the inverse of that zoom. Otherwise a 65% zoom only uses 65% of the page. */
+body .app{
+  width:100vw!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:16px 24px 44px!important;
+  overflow-x:hidden!important;
+}
+body .app>.topbar{
+  width:100%!important;
+  max-width:none!important;
+}
+body .app>.grid{
+  width:calc(100% / var(--table-scale, 1))!important;
+  max-width:none!important;
+  min-width:0!important;
+  justify-items:stretch!important;
+  align-items:start!important;
+}
+body .app .summary-stack{
+  width:var(--table-width)!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  align-items:stretch!important;
+}
+body .app #trainStack{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  align-items:stretch!important;
+}
+body .app #trainStack .same-day-inbound-group{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+}
+body .app #trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count,1), minmax(0, 1fr))!important;
+  gap:14px!important;
+  align-items:start!important;
+  justify-content:stretch!important;
+  overflow:visible!important;
+}
+body .app #trainStack .same-day-inbound-row>.train-card{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin:0!important;
+}
+body .app .rollup-card,
+body .app .archive-bank-panel{
+  width:100%!important;
+  max-width:none!important;
+}
+@media (max-width:720px){
+  body .app{padding-left:10px!important;padding-right:10px!important;}
+  body .app #trainStack .same-day-inbound-row{grid-template-columns:1fr!important;}
+}
+</style>
+
+<!-- DATA PAGE HEADER BOOT STABILIZER: apply saved zoom before first paint to stop refresh stutter -->
+<script id="data-page-header-boot-stabilizer">
+(function(){
+  try{
+    var raw=localStorage.getItem('dwellFontScaleV2') || localStorage.getItem('dwellFontScale') || '140';
+    var pct=parseInt(raw,10);
+    if(!isFinite(pct)) pct=140;
+    pct=Math.max(100,Math.min(150,pct));
+    document.documentElement.style.setProperty('--boot-content-zoom', String(pct/100));
+    document.documentElement.classList.add('dwell-boot-scale-ready');
+  }catch(e){
+    document.documentElement.style.setProperty('--boot-content-zoom','1.4');
+  }
+})();
+</script>
+<style id="data-page-header-refresh-stutter-fix">
+  /* Keep the Data page top controls stable during refresh/boot. */
+  #content-scale{
+    zoom:var(--boot-content-zoom,1.4);
+    transform:none!important;
+    transform-origin:top left!important;
+  }
+  #topbar{
+    height:56px!important;
+    min-height:56px!important;
+    max-height:56px!important;
+    flex-wrap:nowrap!important;
+    overflow:hidden!important;
+    contain:layout paint style;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+  #input-bar{
+    min-height:37px!important;
+    flex-wrap:nowrap!important;
+    overflow:hidden!important;
+    contain:layout paint style;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+  #tab-input.active #col-hdr{
+    contain:layout paint style;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+  #page-switcher,.topbar-actions,.dep-group,.size-ctrl,#input-bar .ibar-btn,#input-bar input{
+    flex-shrink:0!important;
+  }
+</style>
+
+
+
+<!-- FINAL PATCH: Data page refresh stutter + dropdown visibility repair v2 -->
+<style id="data-header-stutter-dropdown-repair-v2">
+  /* The earlier anti-stutter patch used paint containment/hidden overflow on
+     the command bars. That stopped some refresh jitter, but it also clipped
+     dropdown panels and made the menu options appear missing. Keep the fixed
+     heights, but allow dropdowns to paint outside the bars. */
+  #topbar,
+  #topbar .topbar-actions,
+  #input-bar,
+  .page-switch-wrap,
+  #view-toggle-menu,
+  #tool-toggle-menu{
+    overflow:visible!important;
+    contain:none!important;
+  }
+
+  #topbar{
+    height:56px!important;
+    min-height:56px!important;
+    max-height:56px!important;
+    flex-wrap:nowrap!important;
+    position:relative!important;
+    z-index:2147482000!important;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+
+  #input-bar{
+    height:37px!important;
+    min-height:37px!important;
+    max-height:37px!important;
+    flex-wrap:nowrap!important;
+    position:relative!important;
+    z-index:2147480000!important;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+
+  #content-scale{
+    zoom:var(--boot-content-zoom,1.4)!important;
+    transform:none!important;
+    transform-origin:top left!important;
+  }
+
+  #tab-input.active #col-hdr,
+  #col-hdr{
+    contain:none!important;
+    backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+
+  /* Native PAGE selector: force a normal browser select so options render. */
+  #page-switcher.page-switcher{
+    appearance:auto!important;
+    -webkit-appearance:menulist!important;
+    -moz-appearance:menulist!important;
+    position:relative!important;
+    z-index:2147482500!important;
+    pointer-events:auto!important;
+  }
+  #page-switcher.page-switcher option{
+    background:#0b1220!important;
+    color:#dbeafe!important;
+  }
+
+  /* Custom topbar dropdowns: fixed-position panels are immune to parent layout. */
+  #view-toggle-panel.view-toggle-fixed-panel,
+  #tool-toggle-panel.tool-toggle-fixed-panel{
+    position:fixed!important;
+    z-index:2147483600!important;
+    max-height:calc(100vh - 74px)!important;
+    overflow:auto!important;
+    pointer-events:auto!important;
+    opacity:1!important;
+    visibility:visible!important;
+  }
+
+  #view-toggle-menu.open #view-toggle-panel,
+  #view-toggle-panel.view-toggle-force-open,
+  #tool-toggle-menu.open #tool-toggle-panel,
+  #tool-toggle-panel.tool-toggle-force-open{
+    display:flex!important;
+    opacity:1!important;
+    visibility:visible!important;
+  }
+</style>
+<script id="data-header-stutter-dropdown-repair-v2-js">
+(function(){
+  'use strict';
+  function ready(fn){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true});
+    else fn();
+  }
+  ready(function(){
+    // Re-apply the saved zoom once, before any user interaction, without
+    // changing width/transform. This prevents the Data grid header from doing
+    // a second visible resize after refresh.
+    try{
+      var raw=localStorage.getItem('dwellFontScaleV2') || localStorage.getItem('dwellFontScale') || '140';
+      var pct=parseInt(raw,10);
+      if(!isFinite(pct)) pct=140;
+      pct=Math.max(100,Math.min(150,pct));
+      document.documentElement.style.setProperty('--boot-content-zoom', String(pct/100));
+      var content=document.getElementById('content-scale');
+      if(content){
+        content.style.zoom=String(pct/100);
+        content.style.transform='';
+        content.style.width='';
+      }
+      var slider=document.getElementById('font-slider');
+      var val=document.getElementById('font-val');
+      if(slider) slider.value=String(pct);
+      if(val) val.textContent=pct+'%';
+    }catch(e){}
+
+    function pinPanel(mainId, panelId, forceClass){
+      var main=document.getElementById(mainId);
+      var panel=document.getElementById(panelId);
+      if(!main||!panel) return;
+      panel.classList.add(forceClass);
+      var r=main.getBoundingClientRect();
+      var width=panel.offsetWidth || 214;
+      var left=Math.max(8, Math.min(Math.round(r.right-width), window.innerWidth-width-8));
+      panel.style.top=Math.max(8, Math.round(r.bottom+8))+'px';
+      panel.style.left=left+'px';
+      panel.style.right='auto';
+      panel.style.minWidth='214px';
+    }
+
+    function repinOpen(){
+      var viewMenu=document.getElementById('view-toggle-menu');
+      if(viewMenu && viewMenu.classList.contains('open')) pinPanel('view-toggle-main','view-toggle-panel','view-toggle-fixed-panel');
+      var toolMenu=document.getElementById('tool-toggle-menu');
+      if(toolMenu && toolMenu.classList.contains('open')) pinPanel('tool-toggle-main','tool-toggle-panel','tool-toggle-fixed-panel');
+    }
+
+    document.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(t && t.closest && t.closest('#view-toggle-main')) setTimeout(function(){ pinPanel('view-toggle-main','view-toggle-panel','view-toggle-fixed-panel'); },0);
+      if(t && t.closest && t.closest('#tool-toggle-main')) setTimeout(function(){ pinPanel('tool-toggle-main','tool-toggle-panel','tool-toggle-fixed-panel'); },0);
+    },true);
+    window.addEventListener('resize',repinOpen);
+    window.addEventListener('scroll',repinOpen,true);
+  });
+})();
+</script>
+
+
+
+<style id="center-inbound-tables-final-patch">
+/* Center the inbound table stack while keeping the width slider active.
+   The grid is zoomed, so centering must happen inside the expanded layout width. */
+body .app > .grid{
+  display:flex!important;
+  justify-content:center!important;
+  align-items:flex-start!important;
+  width:var(--inbound-full-layout-width, calc(100% / var(--table-scale, 1)))!important;
+  min-width:var(--inbound-full-layout-width, calc(100% / var(--table-scale, 1)))!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+body .app > .grid > .summary-stack{
+  flex:0 0 var(--table-width)!important;
+  width:var(--table-width)!important;
+  max-width:var(--table-width)!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+body .app > .grid > .summary-stack > .summary-stack#trainStack,
+body .app #trainStack{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+body .app #trainStack .same-day-inbound-group,
+body .app #trainStack .same-day-inbound-row,
+body .app #trainStack .train-card,
+body .app .rollup-card,
+body .app .archive-bank-panel{
+  width:100%!important;
+  max-width:100%!important;
+}
+</style>
+
+
+
+<style id="inbound-block-column-shrink-final-patch">
+/* Shrink Block Name column so Length and Edit have more usable room. */
+table[aria-label="Inbound summary table"]{
+  table-layout:fixed!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(1),
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  width:46%!important;
+  max-width:46%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(2),
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  width:28%!important;
+  max-width:28%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(3),
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  width:26%!important;
+  max-width:26%!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  padding-left:6px!important;
+  padding-right:6px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  padding-left:6px!important;
+  padding-right:8px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  padding-left:3px!important;
+  padding-right:3px!important;
+}
+.block-input{
+  min-width:0!important;
+  max-width:100%!important;
+  padding-left:7px!important;
+  padding-right:7px!important;
+}
+.ft-cell .number-input,
+.number-input{
+  min-width:0!important;
+  max-width:100%!important;
+  padding-left:6px!important;
+  padding-right:8px!important;
+}
+.actions-cell{
+  min-width:68px!important;
+}
+.actions-cell .btn.icon.small{
+  width:30px!important;
+  min-width:30px!important;
+  max-width:30px!important;
+}
+@media (max-width: 760px){
+  table[aria-label="Inbound summary table"] th:nth-child(1),
+  table[aria-label="Inbound summary table"] td:nth-child(1){width:44%!important;max-width:44%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(2),
+  table[aria-label="Inbound summary table"] td:nth-child(2){width:28%!important;max-width:28%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(3),
+  table[aria-label="Inbound summary table"] td:nth-child(3){width:28%!important;max-width:28%!important;}
+}
+</style>
+
+
+
+<style id="inbound-block-column-more-shrink-final-patch">
+/* More room for Length + Edit: keep Block Name compact and give right-side columns breathing room. */
+table[aria-label="Inbound summary table"]{
+  table-layout:fixed!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(1),
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  width:34%!important;
+  max-width:34%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(2),
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  width:32%!important;
+  max-width:32%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(3),
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  width:34%!important;
+  max-width:34%!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  padding-left:4px!important;
+  padding-right:4px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  padding-left:7px!important;
+  padding-right:10px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  padding-left:7px!important;
+  padding-right:7px!important;
+}
+table[aria-label="Inbound summary table"] .block-input{
+  width:100%!important;
+  min-width:0!important;
+  padding-left:6px!important;
+  padding-right:6px!important;
+  font-size:13px!important;
+}
+table[aria-label="Inbound summary table"] .number-input{
+  width:100%!important;
+  min-width:0!important;
+  padding-left:8px!important;
+  padding-right:10px!important;
+  font-size:14px!important;
+  text-align:right!important;
+}
+table[aria-label="Inbound summary table"] .actions-cell{
+  min-width:0!important;
+  display:flex!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+table[aria-label="Inbound summary table"] .actions-cell .btn.icon.small{
+  width:34px!important;
+  min-width:34px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:0 0 34px!important;
+}
+@media (max-width: 760px){
+  table[aria-label="Inbound summary table"] th:nth-child(1),
+  table[aria-label="Inbound summary table"] td:nth-child(1){width:40%!important;max-width:40%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(2),
+  table[aria-label="Inbound summary table"] td:nth-child(2){width:30%!important;max-width:30%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(3),
+  table[aria-label="Inbound summary table"] td:nth-child(3){width:30%!important;max-width:30%!important;}
+}
+</style>
+
+
+
+<!-- FINAL PATCH: no-flash data header boot layout -->
+<style id="no-flash-data-header-static-layout-css">
+  /* Static HTML now matches the final dropdown layout, so the header no longer flashes
+     through the loose Dep Times / Train Bank / Notes state during boot or dropdown clicks. */
+  #topbar,
+  #topbar .topbar-actions,
+  .page-switch-wrap,
+  #tool-toggle-menu,
+  #view-toggle-menu{
+    overflow:visible!important;
+    contain:none!important;
+  }
+  #topbar,
+  #topbar *,
+  #input-bar,
+  #input-bar *{
+    transition:none!important;
+    animation:none!important;
+  }
+  #tool-toggle-menu,
+  #view-toggle-menu{
+    flex:0 0 auto!important;
+  }
+  #tool-toggle-panel,
+  #view-toggle-panel,
+  #page-menu-panel{
+    will-change:auto!important;
+  }
+  #page-switcher.page-switcher{
+    position:absolute!important;
+    inset:0!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    width:1px!important;
+    height:1px!important;
+  }
+  #page-menu-shell{
+    display:block!important;
+  }
+</style>
+
 </head>
 <body>
 
@@ -5695,12 +6648,16 @@ h1{
   </div>
   <div class="page-switch-wrap" title="Switch pages">
     <span class="page-switch-label">PAGE</span>
-    <select id="page-switcher" class="page-switcher" aria-label="Switch page">
-      <option value="input">DATA</option>
-      <option value="inbound">INBOUND</option>
-      <option value="outbound">OUTBOUND</option>
-      <option value="analytics">ANALYTICS</option>
-    </select>
+    <input type="hidden" id="page-switcher" class="page-switcher" value="input" aria-hidden="true">
+    <div class="page-menu-shell" id="page-menu-shell">
+      <button type="button" class="page-menu-main" id="page-menu-main" aria-haspopup="true" aria-expanded="false"><span class="page-menu-current">DATA</span><span class="page-menu-caret">▾</span></button>
+      <div class="page-menu-panel" id="page-menu-panel" role="menu" aria-label="Switch page">
+        <button type="button" class="page-menu-option active" data-page-tab="input">DATA</button>
+        <button type="button" class="page-menu-option" data-page-tab="inbound">INBOUND</button>
+        <button type="button" class="page-menu-option" data-page-tab="outbound">OUTBOUND</button>
+        <button type="button" class="page-menu-option" data-page-tab="analytics">ANALYTICS</button>
+      </div>
+    </div>
   </div>
   <div class="spacer"></div>
   <div class="size-ctrl">
@@ -5709,8 +6666,14 @@ h1{
     <span class="size-val" id="font-val">140%</span>
   </div>
   <div class="topbar-actions">
-<button class="topbar-btn" id="btn-dep-settings" title="Edit departure times">⏱ Dep Times</button>
-  <button class="topbar-btn" id="btn-train-bank">Train Bank</button>
+  <div class="tool-toggle-menu" id="tool-toggle-menu">
+    <button class="topbar-btn tool-toggle-main" id="tool-toggle-main" type="button" aria-haspopup="true" aria-expanded="false">Tools ▾</button>
+    <div class="tool-toggle-panel" id="tool-toggle-panel" role="menu" aria-label="Tool toggles">
+      <button class="topbar-btn" id="btn-dep-settings" title="Edit departure times">⏱ Dep Times</button>
+      <button class="topbar-btn" id="btn-train-bank">Train Bank</button>
+      <button class="topbar-btn" id="btn-notes" title="Toggle daily notes">Notes</button>
+    </div>
+  </div>
   <div class="view-toggle-menu" id="view-toggle-menu">
     <button class="topbar-btn view-toggle-main" id="view-toggle-main" type="button" aria-haspopup="true" aria-expanded="false">View Toggles ▾</button>
     <div class="view-toggle-panel" id="view-toggle-panel" role="menu" aria-label="View toggles">
@@ -5720,8 +6683,6 @@ h1{
       <button class="topbar-btn" id="toggle-bowl-turnover">Hide Bowl Turnover</button>
     </div>
   </div>
-  <button class="topbar-btn" id="btn-notes" title="Toggle daily notes">Notes</button>
-
 </div>
 </div>
 
@@ -7483,6 +8444,469 @@ h1{
 }
 </style>
 
+
+
+<style id="units-close-to-total-ft-smaller-input-patch">
+/* Keep the footer on one line, but park Units directly beside Total FT. */
+.table-footer.inbound-footer-controls{
+  justify-content:flex-start!important;
+  gap:8px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units{
+  margin-left:auto!important;
+  margin-right:2px!important;
+  gap:4px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-ft{
+  margin-left:0!important;
+  gap:5px!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input,
+.table-footer.inbound-footer-controls input.units-pill-input{
+  width:44px!important;
+  min-width:44px!important;
+  max-width:44px!important;
+  padding-left:5px!important;
+  padding-right:5px!important;
+  font-size:12px!important;
+}
+.table-footer.inbound-footer-controls .footer-total-units span{
+  margin-right:0!important;
+}
+.table-footer.inbound-footer-controls .footer-total-ft .total-pill{
+  min-width:58px!important;
+}
+@media (max-width: 900px){
+  .table-footer.inbound-footer-controls .footer-total-units{
+    margin-left:auto!important;
+  }
+}
+</style>
+
+
+<style id="inbound-use-entire-page-width-hard-patch">
+/* Hard full-bleed fix: the inbound grid is zoomed down, so the layout
+   width has to be expanded by the inverse zoom. This makes the visible
+   cards consume the entire browser width instead of stopping in the middle. */
+html, body{
+  width:100vw!important;
+  max-width:100vw!important;
+  overflow-x:hidden!important;
+}
+.app{
+  width:100vw!important;
+  max-width:100vw!important;
+  margin:10px 0 48px!important;
+  padding:0 8px 4px!important;
+  overflow:hidden!important;
+}
+.topbar{
+  width:100%!important;
+  max-width:100%!important;
+}
+.grid{
+  width:var(--inbound-full-layout-width, 2200px)!important;
+  max-width:none!important;
+  min-width:var(--inbound-full-layout-width, 2200px)!important;
+  margin:0!important;
+  justify-items:stretch!important;
+  align-items:start!important;
+  transform-origin:top left!important;
+  zoom:calc(var(--table-scale) * var(--inbound-density))!important;
+}
+.grid > .summary-stack,
+.summary-stack,
+#trainStack,
+.rollup-card,
+.archive-bank-panel{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+#trainStack .same-day-inbound-group{
+  width:100%!important;
+  max-width:none!important;
+}
+#trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:none!important;
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count,1), minmax(0,1fr))!important;
+  gap:14px!important;
+  overflow:visible!important;
+  justify-content:stretch!important;
+}
+#trainStack .same-day-inbound-row > .train-card{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin:0!important;
+}
+</style>
+
+<style id="width-slider-visible-pixels-fix">
+/* Width slider fix: slider value now represents the visible table width, even when Size zoom is below 100%. */
+body .app .summary-stack{
+  width:var(--table-width)!important;
+  max-width:none!important;
+}
+body .app>.grid{
+  width:var(--inbound-full-layout-width, calc(100% / var(--table-scale, 1)))!important;
+  max-width:none!important;
+}
+</style>
+
+
+
+<style id="inbound-table-viewability-final-patch">
+/* Viewability pass: make the inbound cards/tables easier to read without changing data logic. */
+:root{
+  --view-card-gap:16px;
+  --view-row-h:34px;
+}
+body{
+  background:#e5dfd4!important;
+}
+.app{
+  padding-left:clamp(10px,1.1vw,18px)!important;
+  padding-right:clamp(10px,1.1vw,18px)!important;
+}
+.grid{
+  align-items:start!important;
+}
+.rollup-card,
+.train-card{
+  border:1px solid rgba(108,78,35,.26)!important;
+  border-radius:16px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,#f4ecdc 0%,#ead9bb 100%)!important;
+  box-shadow:0 12px 26px rgba(78,55,25,.16)!important;
+}
+.day-separator{
+  padding:0 4px!important;
+}
+.day-separator span{
+  font-size:14px!important;
+  letter-spacing:.08em!important;
+  color:#39270f!important;
+}
+.day-separator small{
+  background:#fff2d6!important;
+  border:1px solid rgba(151,103,29,.25)!important;
+  color:#6a430d!important;
+  padding:5px 9px!important;
+  border-radius:999px!important;
+}
+.same-day-inbound-row{
+  gap:var(--view-card-gap)!important;
+}
+.train-header{
+  padding:10px 12px!important;
+  background:linear-gradient(180deg,#dfcfad 0%,#d5be92 100%)!important;
+  border-bottom:1px solid rgba(120,82,26,.26)!important;
+  align-items:center!important;
+}
+.head-label{
+  font-size:8px!important;
+  line-height:1!important;
+  letter-spacing:.11em!important;
+  color:#62491f!important;
+  margin-bottom:4px!important;
+}
+.head-input{
+  height:34px!important;
+  border-radius:10px!important;
+  border:1px solid rgba(130,91,30,.36)!important;
+  background:#fff8eb!important;
+  color:#14100b!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  padding:0 10px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78)!important;
+}
+.inbound-action-total{
+  min-width:86px!important;
+  height:38px!important;
+  padding:5px 10px!important;
+  border-radius:12px!important;
+  background:#1d1408!important;
+  border:1px solid rgba(255,218,129,.35)!important;
+  box-shadow:0 4px 10px rgba(64,38,5,.18), inset 0 1px 0 rgba(255,255,255,.08)!important;
+}
+.inbound-action-total .k{
+  font-size:7px!important;
+  color:#f7d999!important;
+}
+.inbound-action-total .v{
+  font-size:17px!important;
+  color:#fff7d6!important;
+}
+.table-wrap{
+  width:100%!important;
+  max-width:100%!important;
+  overflow:auto!important;
+  background:#f8f0df!important;
+  border-top:1px solid rgba(120,82,26,.16)!important;
+}
+table[aria-label="Inbound summary table"]{
+  width:100%!important;
+  min-width:0!important;
+  table-layout:fixed!important;
+  border-collapse:separate!important;
+  border-spacing:0!important;
+  font-size:14px!important;
+}
+table[aria-label="Inbound summary table"] thead th{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  height:30px!important;
+  padding:7px 10px!important;
+  background:linear-gradient(180deg,#493113 0%,#2b1c0a 100%)!important;
+  color:#fff2c7!important;
+  font-size:10px!important;
+  font-weight:950!important;
+  letter-spacing:.11em!important;
+  text-transform:uppercase!important;
+  border-right:1px solid rgba(255,225,157,.14)!important;
+  border-bottom:1px solid rgba(64,38,5,.32)!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(1),
+table[aria-label="Inbound summary table"] td:nth-child(1){width:62%!important;}
+table[aria-label="Inbound summary table"] th:nth-child(2),
+table[aria-label="Inbound summary table"] td:nth-child(2){width:22%!important;}
+table[aria-label="Inbound summary table"] th:nth-child(3),
+table[aria-label="Inbound summary table"] td:nth-child(3){width:16%!important;}
+table[aria-label="Inbound summary table"] tbody tr:nth-child(odd) td{background:#fff7e8!important;}
+table[aria-label="Inbound summary table"] tbody tr:nth-child(even) td{background:#f1e4cb!important;}
+table[aria-label="Inbound summary table"] tbody tr:hover td{background:#ffecc3!important;}
+table[aria-label="Inbound summary table"] td{
+  height:var(--view-row-h)!important;
+  padding:4px 8px!important;
+  border-right:1px solid rgba(130,91,30,.14)!important;
+  border-bottom:1px solid rgba(130,91,30,.14)!important;
+  vertical-align:middle!important;
+}
+.cell-input{
+  width:100%!important;
+  min-width:0!important;
+  height:28px!important;
+  padding:0 8px!important;
+  border-radius:8px!important;
+  border:1px solid transparent!important;
+  background:rgba(255,255,255,.50)!important;
+  color:#111!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  line-height:28px!important;
+}
+.cell-input:focus{
+  background:#fff!important;
+  border-color:#b97a16!important;
+  box-shadow:0 0 0 2px rgba(185,122,22,.18)!important;
+}
+.block-input{
+  text-align:left!important;
+  letter-spacing:.02em!important;
+}
+.number-input{
+  text-align:right!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:16px!important;
+  color:#111!important;
+}
+.actions-cell{
+  padding-left:4px!important;
+  padding-right:4px!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+}
+.actions-cell .btn.icon.small{
+  width:28px!important;
+  min-width:28px!important;
+  height:28px!important;
+  min-height:28px!important;
+  border-radius:9px!important;
+  margin:0 1px!important;
+  font-size:14px!important;
+  display:inline-grid!important;
+  place-items:center!important;
+}
+.table-footer.inbound-footer-controls{
+  padding:8px 10px!important;
+  min-height:48px!important;
+  flex-wrap:nowrap!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  background:linear-gradient(180deg,#dac59d 0%,#ccb07d 100%)!important;
+  border-top:1px solid rgba(117,75,20,.28)!important;
+}
+.table-footer.inbound-footer-controls .footer-add-row{
+  height:32px!important;
+  min-height:32px!important;
+  padding:0 12px!important;
+  font-size:13px!important;
+  border-radius:11px!important;
+  white-space:nowrap!important;
+}
+.table-footer.inbound-footer-controls .footer-label{
+  font-size:6px!important;
+  margin-left:2px!important;
+}
+.table-footer.inbound-footer-controls .footer-input{
+  height:30px!important;
+  min-height:30px!important;
+  line-height:30px!important;
+  font-size:15px!important;
+  border-radius:7px!important;
+}
+.table-footer.inbound-footer-controls .footer-shift-field{width:132px!important;min-width:132px!important;}
+.table-footer.inbound-footer-controls .footer-ups-field{width:54px!important;min-width:54px!important;}
+.table-footer.inbound-footer-controls .footer-total{
+  white-space:nowrap!important;
+  font-size:11px!important;
+  gap:5px!important;
+}
+.table-footer.inbound-footer-controls .units-pill-input{
+  width:40px!important;
+  min-width:40px!important;
+  max-width:40px!important;
+  height:28px!important;
+  min-height:28px!important;
+  line-height:28px!important;
+  font-size:12px!important;
+}
+.table-footer.inbound-footer-controls .total-pill{
+  min-width:54px!important;
+  height:28px!important;
+  padding:0 8px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:999px!important;
+  font-size:13px!important;
+}
+.inbound-bottom-actions{
+  display:flex!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+  padding:8px 10px 10px!important;
+  background:linear-gradient(180deg,#eadbc0 0%,#dec89e 100%)!important;
+  border-top:1px solid rgba(117,75,20,.20)!important;
+}
+.inbound-card-actions .inbound-archive-row > .btn.gold{
+  height:32px!important;
+  min-height:32px!important;
+  min-width:126px!important;
+  max-width:146px!important;
+  padding:0 12px!important;
+  font-size:12px!important;
+  border-radius:11px!important;
+}
+.inbound-card-actions .inbound-archive-row > .archive-delete-x,
+.inbound-card-actions button.archive-delete-x.btn.small.danger{
+  width:32px!important;
+  min-width:32px!important;
+  max-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  max-height:32px!important;
+  border-radius:11px!important;
+  font-size:18px!important;
+}
+.rollup-wrap{
+  overflow-x:auto!important;
+}
+.rollup-table{
+  font-size:13px!important;
+}
+.rollup-table th{
+  height:30px!important;
+  padding:7px 9px!important;
+}
+.rollup-table td{
+  padding:7px 9px!important;
+}
+@media (min-width: 1180px){
+  .same-day-inbound-row[style*="repeat(2"] .train-card .cell-input{font-size:14px!important;}
+}
+@media (max-width: 760px){
+  .train-header{grid-template-columns:1fr!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(1),
+  table[aria-label="Inbound summary table"] td:nth-child(1){width:58%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(2),
+  table[aria-label="Inbound summary table"] td:nth-child(2){width:24%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(3),
+  table[aria-label="Inbound summary table"] td:nth-child(3){width:18%!important;}
+}
+</style>
+
+
+<style id="inbound-block-column-shrink-final-patch">
+/* Shrink Block Name column so Length and Edit have more usable room. */
+table[aria-label="Inbound summary table"]{
+  table-layout:fixed!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(1),
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  width:46%!important;
+  max-width:46%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(2),
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  width:28%!important;
+  max-width:28%!important;
+}
+table[aria-label="Inbound summary table"] th:nth-child(3),
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  width:26%!important;
+  max-width:26%!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(1){
+  padding-left:6px!important;
+  padding-right:6px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(2){
+  padding-left:6px!important;
+  padding-right:8px!important;
+}
+table[aria-label="Inbound summary table"] td:nth-child(3){
+  padding-left:3px!important;
+  padding-right:3px!important;
+}
+.block-input{
+  min-width:0!important;
+  max-width:100%!important;
+  padding-left:7px!important;
+  padding-right:7px!important;
+}
+.ft-cell .number-input,
+.number-input{
+  min-width:0!important;
+  max-width:100%!important;
+  padding-left:6px!important;
+  padding-right:8px!important;
+}
+.actions-cell{
+  min-width:68px!important;
+}
+.actions-cell .btn.icon.small{
+  width:30px!important;
+  min-width:30px!important;
+  max-width:30px!important;
+}
+@media (max-width: 760px){
+  table[aria-label="Inbound summary table"] th:nth-child(1),
+  table[aria-label="Inbound summary table"] td:nth-child(1){width:44%!important;max-width:44%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(2),
+  table[aria-label="Inbound summary table"] td:nth-child(2){width:28%!important;max-width:28%!important;}
+  table[aria-label="Inbound summary table"] th:nth-child(3),
+  table[aria-label="Inbound summary table"] td:nth-child(3){width:28%!important;max-width:28%!important;}
+}
+</style>
+
 </head>
 <body>
   <main class="app">
@@ -7498,7 +8922,7 @@ h1{
         </div>
         <div class="size-control width-control" title="Change inbound table width">
           <span>Width</span>
-          <input id="widthSlider" type="range" min="820" max="1800" step="20" value="1050" />
+          <input id="widthSlider" type="range" min="820" max="2600" step="20" value="1800" />
           <span class="width-value" id="widthValue">1180px</span>
         </div>
         <button class="btn gold" id="archiveBankBtn" title="Open the archived inbound bank page">Archive Page</button>
@@ -7601,31 +9025,59 @@ h1{
     let pendingArchiveState = null;
 
 
+    function getInboundVisualScale(){
+      const rootStyle = getComputedStyle(document.documentElement);
+      const scale = Math.min(1.35, Math.max(0.55, Number(rootStyle.getPropertyValue('--table-scale')) || 0.65));
+      const density = Math.min(1.25, Math.max(0.5, Number(rootStyle.getPropertyValue('--inbound-density')) || 0.72));
+      return Math.max(0.25, scale * density);
+    }
+
+    function getInboundVisibleMaxWidth(){
+      // Width slider values are VISIBLE pixels. Because the inbound grid is zoomed,
+      // CSS widths inside the grid must be expanded by the inverse of the visual zoom.
+      const appPadding = window.innerWidth <= 720 ? 20 : 48;
+      return Math.max(620, Math.floor(window.innerWidth - appPadding));
+    }
+
+    function visibleToLayoutWidth(visibleWidth){
+      return Math.max(620, Math.floor(Number(visibleWidth || 0) / getInboundVisualScale()));
+    }
+
+    function syncInboundFullWidth(){
+      const visibleMax = getInboundVisibleMaxWidth();
+      const layoutWidth = visibleToLayoutWidth(visibleMax);
+      document.documentElement.style.setProperty('--inbound-full-layout-width', `${layoutWidth}px`);
+      return visibleMax;
+    }
+
     function getInboundTableMaxWidth(){
-      const app = document.querySelector('.app');
-      const grid = document.querySelector('.grid');
-      const available = Math.max(280, Math.floor(Math.min(grid?.clientWidth || Infinity, app?.clientWidth || Infinity, window.innerWidth || 1180) - 8));
-      const scale = Math.min(1.35, Math.max(0.75, Number(getComputedStyle(document.documentElement).getPropertyValue('--table-scale')) || 1));
-      return Math.max(320, Math.floor(available / scale));
+      return syncInboundFullWidth();
     }
 
     function applyTableSize(value){
       const safe = Math.min(1.15, Math.max(0.55, Number(value) || 0.65));
       document.documentElement.style.setProperty('--table-scale', String(safe));
+      syncInboundFullWidth();
       const slider = document.getElementById('sizeSlider');
       const label = document.getElementById('sizeValue');
       if(slider) slider.value = String(safe);
       if(label) label.textContent = `${Math.round(safe * 100)}%`;
       localStorage.setItem(SIZE_KEY, String(safe));
-      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '');
     }
 
     function applyTableWidth(value){
       const maxWidth = getInboundTableMaxWidth();
       const minWidth = Math.min(620, maxWidth);
-      const requested = Number(value) || Math.min(1050, maxWidth);
+      const raw = Number(value);
+      const requested = Number.isFinite(raw) && raw > 0 ? raw : maxWidth;
+      // safe is the width the user sees. --table-width is the internal layout width
+      // needed to produce that visible width after the Size/Density zoom is applied.
       const safe = Math.min(maxWidth, Math.max(minWidth, requested));
-      document.documentElement.style.setProperty('--table-width', `${safe}px`);
+      const layoutWidth = visibleToLayoutWidth(safe);
+      document.documentElement.style.setProperty('--table-width', `${layoutWidth}px`);
+      document.documentElement.style.setProperty('--table-visible-width', `${safe}px`);
+      syncInboundFullWidth();
       const slider = document.getElementById('widthSlider');
       const label = document.getElementById('widthValue');
       if(slider){
@@ -8457,7 +9909,11 @@ h1{
     function updateUnitDisplays(tIndex){
       const units = trainTotalUnits(trains[tIndex]) || '—';
       document.querySelectorAll(`[data-units-display][data-index="${tIndex}"]`).forEach(el => {
-        el.textContent = units;
+        if(el.tagName === 'INPUT'){
+          if(document.activeElement !== el) el.value = units === '—' ? '' : units;
+        } else {
+          el.textContent = units;
+        }
       });
     }
 
@@ -8475,15 +9931,29 @@ h1{
         return;
       }
 
-      let previousDay = null;
-      stack.innerHTML = trains.map((train, tIndex) => {
+      const dayGroups = [];
+      let activeDay = null;
+      let activeCards = [];
+      const flushDayGroup = () => {
+        if(activeDay === null) return;
+        const countLabel = `${activeCards.length} inbound${activeCards.length === 1 ? '' : 's'}`;
+        dayGroups.push(`
+          <section class="same-day-inbound-group" data-day="${escapeHtml(activeDay)}">
+            <div class="day-separator"><span>${escapeHtml(activeDay)}</span><small>${escapeHtml(countLabel)}</small></div>
+            <div class="same-day-inbound-row" style="--same-day-count:${activeCards.length};display:grid!important;grid-template-columns:repeat(${activeCards.length},minmax(0,1fr))!important;gap:12px!important;align-items:start!important;width:100%!important;max-width:100%!important;overflow:visible!important;">
+              ${activeCards.join('')}
+            </div>
+          </section>`);
+      };
+
+      trains.forEach((train, tIndex) => {
         const currentDay = dayKey(train);
-        const separator = currentDay !== previousDay
-          ? `<div class="day-separator"><span>${escapeHtml(currentDay)}</span></div>`
-          : '';
-        previousDay = currentDay;
-        return `${separator}
-        <article class="train-card" data-train-id="${train.id}">
+        if(currentDay !== activeDay){
+          flushDayGroup();
+          activeDay = currentDay;
+          activeCards = [];
+        }
+        activeCards.push(`<article class="train-card" style="width:100%!important;min-width:0!important;max-width:100%!important;" data-train-id="${train.id}">
           <div class="train-header">
             <div class="head-field train-name-field">
               <div class="head-label">Inbound Train</div>
@@ -8492,12 +9962,6 @@ h1{
             <div class="head-field train-date-field">
               <div class="head-label">Date / Time</div>
               <input class="head-input" value="${escapeHtml(train.dateTime)}" data-action="train-field" data-index="${tIndex}" data-field="dateTime" />
-            </div>
-            <div class="inbound-card-actions">
-              <div class="inbound-archive-row">
-                <button class="btn small gold" title="Add this inbound table to the archive bank" data-action="add-train-archive" data-index="${tIndex}">Add to Archive</button>
-                <button class="btn small danger archive-delete-x" title="Delete this inbound table" data-action="delete-train" data-index="${tIndex}">×</button>
-              </div>
             </div>
             <div class="inbound-action-total" title="Total footage for this inbound"><span class="k">Total FT</span><span class="v" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
             ${train.autoZpbhoPlus2 ? `<div class="auto-note"><span>AUTO ZPBHO +2: avg of last two morning ZPBHOs</span><span>${escapeHtml(train.autoNote || '')}</span></div>` : ''}
@@ -8508,8 +9972,6 @@ h1{
               <thead>
                 <tr>
                   <th>Block Name</th>
-                  <th>Loads</th>
-                  <th>Empties</th>
                   <th style="text-align:right;">Length</th>
                   <th style="text-align:right;">EDIT</th>
                 </tr>
@@ -8518,8 +9980,6 @@ h1{
                 ${train.rows.map((row, rIndex) => `
                   <tr>
                     <td><input class="cell-input block-input" value="${escapeHtml(row.block)}" data-action="row-field" data-tindex="${tIndex}" data-rindex="${rIndex}" data-field="block" /></td>
-                    <td><input class="cell-input number-input" value="${escapeHtml(row.loads)}" data-action="row-field" data-tindex="${tIndex}" data-rindex="${rIndex}" data-field="loads" /></td>
-                    <td><input class="cell-input number-input" value="${escapeHtml(row.mty)}" data-action="row-field" data-tindex="${tIndex}" data-rindex="${rIndex}" data-field="mty" /></td>
                     <td class="ft-cell"><input class="cell-input number-input" value="${escapeHtml(row.ft)}" data-action="row-field" data-tindex="${tIndex}" data-rindex="${rIndex}" data-field="ft" /></td>
                     <td class="actions-cell">
                       <button class="btn icon small" title="Edit row" data-action="focus-row" data-tindex="${tIndex}" data-rindex="${rIndex}">✎</button>
@@ -8540,15 +10000,19 @@ h1{
               <span class="footer-label">UPS</span>
               <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
             </div>
-            <div class="footer-field footer-units-field">
-              <span class="footer-label">Units</span>
-              <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.units || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" placeholder="#" />
-            </div>
-            <div class="footer-total footer-total-units"><span>Units</span><span class="total-pill units-pill" data-units-display data-index="${tIndex}">${escapeHtml(trainTotalUnits(train) || '—')}</span></div>
+            <div class="footer-total footer-total-units"><span>Units</span><input class="total-pill units-pill units-pill-input" inputmode="numeric" value="${escapeHtml(trainTotalUnits(train) || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" data-units-display placeholder="—" aria-label="Edit units" /></div>
             <div class="footer-total footer-total-ft"><span>Total FT</span><span class="total-pill" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
           </div>
-        </article>`;
-      }).join('');
+          <div class="inbound-bottom-actions inbound-card-actions">
+            <div class="inbound-archive-row">
+              <button class="btn small gold" title="Add this inbound table to the archive bank" data-action="add-train-archive" data-index="${tIndex}">Add to Archive</button>
+              <button class="btn small danger archive-delete-x" title="Delete this inbound table" data-action="delete-train" data-index="${tIndex}">×</button>
+            </div>
+          </div>
+        </article>`);
+      });
+      flushDayGroup();
+      stack.innerHTML = dayGroups.join('');
       updateArchiveStatusBadges();
     }
 
@@ -8694,7 +10158,7 @@ h1{
       applyTableWidth(e.target.value);
     });
     window.addEventListener('resize', () => {
-      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
+      applyTableWidth(localStorage.getItem(WIDTH_KEY) || '');
     });
 
 
@@ -8824,7 +10288,7 @@ h1{
     });
 
     applyTableSize(localStorage.getItem(SIZE_KEY) || '0.65');
-    applyTableWidth(localStorage.getItem(WIDTH_KEY) || '1050');
+    applyTableWidth(localStorage.getItem(WIDTH_KEY) || '');
     render();
   </script>
 
@@ -9897,6 +11361,396 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
 })();
 </script>
 
+
+<style id="archive-buttons-bottom-right-final-patch">
+/* Move Add to Archive/Delete out of the inbound header and pin them to the bottom-right outside the table. */
+#trainStack .train-card .train-header{
+  grid-template-columns:minmax(110px,1fr) minmax(110px,1fr) auto!important;
+}
+#trainStack .train-card .train-header .inbound-card-actions{display:none!important;}
+#trainStack .train-card .inbound-bottom-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  width:100%!important;
+  max-width:none!important;
+  padding:8px 10px 10px!important;
+  margin:0!important;
+  background:linear-gradient(180deg,#d4c19d 0%,#c9b286 100%)!important;
+  border-top:1px solid rgba(123,92,42,.24)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22)!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+}
+#trainStack .train-card .inbound-bottom-actions .btn.gold{
+  min-width:156px!important;
+  height:42px!important;
+  padding:0 18px!important;
+}
+#trainStack .train-card .inbound-bottom-actions .archive-delete-x{
+  width:42px!important;
+  min-width:42px!important;
+  max-width:42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  max-height:42px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  border-radius:12px!important;
+}
+#trainStack .same-day-inbound-row>.train-card .train-header{
+  grid-template-columns:minmax(96px,1fr) minmax(96px,1fr) auto!important;
+}
+#trainStack .same-day-inbound-row>.train-card .inbound-action-total{
+  grid-column:3!important;
+  justify-self:end!important;
+}
+@media (max-width:620px){
+  #trainStack .train-card .inbound-bottom-actions{justify-content:stretch!important;}
+  #trainStack .train-card .inbound-bottom-actions .inbound-archive-row{width:100%!important;max-width:none!important;}
+  #trainStack .train-card .inbound-bottom-actions .btn.gold{flex:1 1 auto!important;min-width:0!important;}
+}
+</style>
+
+
+
+<!-- FINAL RECOVERY PATCH: restore appearance, repair inbound width slider, stabilize data header without restyling -->
+<style id="recovery-width-slider-header-stabilizer-css">
+/* Do not repaint/retheme the header. Only stop layout flicker and allow dropdowns to escape. */
+#topbar,
+#input-bar{
+  overflow:visible!important;
+  contain:none!important;
+  transition:none!important;
+}
+#topbar *,
+#input-bar *{
+  transition:none!important;
+}
+#view-toggle-panel.view-toggle-fixed-panel,
+#tool-toggle-panel.tool-toggle-fixed-panel,
+#view-toggle-panel.view-toggle-force-open,
+#tool-toggle-panel.tool-toggle-force-open{
+  position:fixed!important;
+  z-index:2147483600!important;
+  max-height:calc(100vh - 74px)!important;
+  overflow:auto!important;
+  opacity:1!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+}
+/* Width/centering authority for the inbound iframe only. This keeps the existing appearance. */
+main.app > section.grid{
+  display:block!important;
+  width:var(--recovery-inbound-grid-layout-width, var(--inbound-full-layout-width, auto))!important;
+  min-width:var(--recovery-inbound-grid-layout-width, var(--inbound-full-layout-width, auto))!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  overflow:visible!important;
+  zoom:var(--recovery-inbound-scale, var(--inbound-visual-scale, 1))!important;
+}
+main.app > section.grid > .summary-stack{
+  width:var(--recovery-table-layout-width, var(--table-width, 1180px))!important;
+  max-width:var(--recovery-table-layout-width, var(--table-width, 1180px))!important;
+  min-width:0!important;
+  margin-left:var(--recovery-inbound-center-left, var(--inbound-center-offset-layout, 0px))!important;
+  margin-right:0!important;
+  align-items:stretch!important;
+}
+main.app > section.grid > .summary-stack > .rollup-card,
+main.app > section.grid > .summary-stack > #trainStack,
+main.app #trainStack .same-day-inbound-group,
+main.app #trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+main.app #trainStack .same-day-inbound-row{
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count,1), minmax(0,1fr))!important;
+  gap:14px!important;
+  overflow:visible!important;
+}
+main.app #trainStack .same-day-inbound-row > .train-card{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+}
+</style>
+<script id="recovery-width-slider-header-stabilizer-js">
+(function(){
+  'use strict';
+  var WIDTH_KEY='inbound-summary-table-width-v1';
+  var SIZE_KEY='inbound-summary-table-size-v1';
+  function num(v,f){
+    var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));
+    return Number.isFinite(n)?n:f;
+  }
+  function clamp(n,min,max){ return Math.min(max, Math.max(min,n)); }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name); }
+  function scale(){
+    var s=clamp(num(css('--table-scale'), num(localStorage.getItem(SIZE_KEY), .65)), .55, 1.35);
+    var d=clamp(num(css('--inbound-density'), .72), .45, 1.25);
+    return Math.max(.25, s*d);
+  }
+  function bounds(){
+    var vw=Math.max(320, window.innerWidth || document.documentElement.clientWidth || 0);
+    var max=Math.max(620, vw - 16);
+    return {vw:vw, min:Math.min(620,max), max:max};
+  }
+  function requested(source){
+    var b=bounds();
+    var slider=document.getElementById('widthSlider');
+    if(slider && source==='slider') return num(slider.value,b.max);
+    var stored=num(localStorage.getItem(WIDTH_KEY),0);
+    if(stored) return stored;
+    if(slider) return num(slider.value,b.max);
+    return b.max;
+  }
+  function applyInboundWidth(source){
+    var b=bounds();
+    var sc=scale();
+    var visible=clamp(requested(source), b.min, b.max);
+    var layout=Math.max(620, Math.round(visible/sc));
+    var grid=Math.max(layout, Math.ceil(b.vw/sc));
+    var left=Math.max(0, Math.round(((b.vw-visible)/2)/sc));
+    var root=document.documentElement;
+
+    root.style.setProperty('--recovery-inbound-scale', String(sc));
+    root.style.setProperty('--recovery-table-layout-width', layout+'px');
+    root.style.setProperty('--recovery-inbound-grid-layout-width', grid+'px');
+    root.style.setProperty('--recovery-inbound-center-left', left+'px');
+
+    /* Feed older patches the same values so they stop fighting the slider. */
+    root.style.setProperty('--inbound-visual-scale', String(sc));
+    root.style.setProperty('--table-visible-width', Math.round(visible)+'px');
+    root.style.setProperty('--table-width', layout+'px');
+    root.style.setProperty('--inbound-full-layout-width', grid+'px');
+    root.style.setProperty('--inbound-grid-layout-width', grid+'px');
+    root.style.setProperty('--inbound-center-offset-layout', left+'px');
+    root.style.setProperty('--inbound-center-layout-left', left+'px');
+
+    var slider=document.getElementById('widthSlider');
+    if(slider){
+      slider.min=String(Math.round(b.min));
+      slider.max=String(Math.round(b.max));
+      if(source!=='slider') slider.value=String(Math.round(visible));
+    }
+    var label=document.getElementById('widthValue');
+    if(label) label.textContent=Math.round(visible)+'px';
+    if(source==='slider' || source==='commit'){
+      try{ localStorage.setItem(WIDTH_KEY, String(Math.round(visible))); }catch(e){}
+    }
+  }
+  function schedule(source){
+    applyInboundWidth(source);
+    requestAnimationFrame(function(){applyInboundWidth(source);});
+    setTimeout(function(){applyInboundWidth(source);},0);
+    setTimeout(function(){applyInboundWidth(source);},80);
+    setTimeout(function(){applyInboundWidth(source);},260);
+    setTimeout(function(){applyInboundWidth(source);},650);
+  }
+  function stabilizeHeader(){
+    var top=document.getElementById('topbar');
+    var input=document.getElementById('input-bar');
+    if(top){ top.style.overflow='visible'; top.style.contain='none'; top.style.transition='none'; }
+    if(input){ input.style.overflow='visible'; input.style.contain='none'; input.style.transition='none'; }
+  }
+  function pinPanel(buttonId,panelId,cls){
+    var btn=document.getElementById(buttonId), panel=document.getElementById(panelId);
+    if(!btn||!panel) return;
+    panel.classList.add(cls);
+    var r=btn.getBoundingClientRect();
+    var w=panel.offsetWidth || 214;
+    panel.style.position='fixed';
+    panel.style.top=Math.round(r.bottom+8)+'px';
+    panel.style.left=Math.max(8, Math.min(Math.round(r.right-w), window.innerWidth-w-8))+'px';
+    panel.style.right='auto';
+    panel.style.zIndex='2147483600';
+  }
+  function repinOpenDropdowns(){
+    stabilizeHeader();
+    var vm=document.getElementById('view-toggle-menu');
+    if(vm && vm.classList.contains('open')) pinPanel('view-toggle-main','view-toggle-panel','view-toggle-fixed-panel');
+    var tm=document.getElementById('tool-toggle-menu');
+    if(tm && tm.classList.contains('open')) pinPanel('tool-toggle-main','tool-toggle-panel','tool-toggle-fixed-panel');
+  }
+
+  window.applyInboundWidthRecoveryFinal=applyInboundWidth;
+  window.applyInboundCenterRealFinal=applyInboundWidth;
+  window.centerInboundPageTrueFinal=applyInboundWidth;
+  window.applyTableWidth=function(value){
+    if(value!=null && value!==''){
+      try{ localStorage.setItem(WIDTH_KEY, String(Math.round(num(value,bounds().max)))); }catch(e){}
+    }
+    schedule('load');
+  };
+
+  document.addEventListener('input',function(e){
+    if(!e.target) return;
+    if(e.target.id==='widthSlider') schedule('slider');
+    if(e.target.id==='sizeSlider') schedule('size');
+  },true);
+  document.addEventListener('change',function(e){
+    if(!e.target) return;
+    if(e.target.id==='widthSlider') schedule('commit');
+    if(e.target.id==='sizeSlider') schedule('size');
+    if(e.target.id==='page-switcher') { repinOpenDropdowns(); setTimeout(repinOpenDropdowns,60); }
+  },true);
+  document.addEventListener('click',function(e){
+    if(e.target && e.target.closest && e.target.closest('#topbar')){
+      repinOpenDropdowns();
+      setTimeout(repinOpenDropdowns,0);
+      setTimeout(repinOpenDropdowns,120);
+    }
+  },true);
+  window.addEventListener('resize',function(){ schedule('resize'); repinOpenDropdowns(); });
+  document.addEventListener('DOMContentLoaded',function(){ schedule('load'); repinOpenDropdowns(); });
+  window.addEventListener('load',function(){ schedule('load'); repinOpenDropdowns(); });
+})();
+</script>
+
+
+
+<style id="inbound-remove-loads-empties-final">
+/* Final patch: hide/remove Loads and Empties from the active inbound page table layout. Data is preserved in state; only the visible inbound table is simplified. */
+table[aria-label="Inbound summary table"] th:nth-child(1),
+table[aria-label="Inbound summary table"] td:nth-child(1){width:72%!important;}
+table[aria-label="Inbound summary table"] th:nth-child(2),
+table[aria-label="Inbound summary table"] td:nth-child(2){width:18%!important;text-align:right!important;}
+table[aria-label="Inbound summary table"] th:nth-child(3),
+table[aria-label="Inbound summary table"] td:nth-child(3){width:10%!important;text-align:right!important;}
+table[aria-label="Inbound summary table"] .ft-cell input{text-align:right!important;}
+</style>
+
+
+<style id="inbound-bottom-actions-smaller-final-patch">
+/* Compact the bottom-right Add to Archive/Delete strip. Keeps the controls outside the table, but removes the oversized footer band. */
+#trainStack .train-card .inbound-bottom-actions{
+  min-height:0!important;
+  padding:4px 6px 5px!important;
+  margin:0!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  background:linear-gradient(180deg,#d2bd93 0%,#c5ad80 100%)!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  gap:5px!important;
+  padding:0!important;
+  margin:0!important;
+}
+#trainStack .train-card .inbound-bottom-actions .btn.gold{
+  min-width:112px!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  padding:0 12px!important;
+  border-radius:10px!important;
+  font-size:10px!important;
+  line-height:1!important;
+}
+#trainStack .train-card .inbound-bottom-actions .archive-delete-x{
+  width:30px!important;
+  min-width:30px!important;
+  max-width:30px!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  line-height:1!important;
+}
+@media (max-width:620px){
+  #trainStack .train-card .inbound-bottom-actions{padding:4px 6px 5px!important;}
+  #trainStack .train-card .inbound-bottom-actions .inbound-archive-row{width:auto!important;max-width:max-content!important;}
+  #trainStack .train-card .inbound-bottom-actions .btn.gold{flex:0 0 auto!important;min-width:112px!important;}
+}
+</style>
+
+
+
+<!-- FINAL PATCH: remove native PAGE select permanently to stop browser dropdown glitch -->
+<style id="page-native-select-kill-css">
+  /* The real page state holder is now a hidden input, not a browser select.
+     This prevents Chrome/Edge from flashing the native DATA/INBOUND/OUTBOUND/ANALYTICS list. */
+  input#page-switcher.page-switcher,
+  select#page-switcher.page-switcher,
+  .page-switch-wrap select.page-switcher{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    position:absolute!important;
+    left:-99999px!important;
+    top:-99999px!important;
+    width:0!important;
+    height:0!important;
+    min-width:0!important;
+    min-height:0!important;
+    max-width:0!important;
+    max-height:0!important;
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    -moz-appearance:none!important;
+  }
+  .page-switch-wrap,
+  #page-menu-shell-final-repair,
+  #page-menu-shell,
+  .page-menu-shell{
+    overflow:visible!important;
+    contain:none!important;
+  }
+</style>
+<script id="page-native-select-kill-js">
+(function(){
+  'use strict';
+  function killNativePageSelect(){
+    var wrap=document.querySelector('.page-switch-wrap');
+    if(!wrap) return;
+    var el=document.getElementById('page-switcher');
+    if(el && el.tagName && el.tagName.toLowerCase()==='select'){
+      var keep=el.value || 'input';
+      var input=document.createElement('input');
+      input.type='hidden';
+      input.id='page-switcher';
+      input.className='page-switcher';
+      input.value=keep;
+      input.setAttribute('aria-hidden','true');
+      el.replaceWith(input);
+      el=input;
+    }
+    if(el){
+      el.setAttribute('aria-hidden','true');
+      el.tabIndex=-1;
+      el.style.setProperty('display','none','important');
+      el.style.setProperty('visibility','hidden','important');
+      el.style.setProperty('pointer-events','none','important');
+    }
+    // If any older patch recreates a native select, remove it immediately.
+    wrap.querySelectorAll('select.page-switcher, select#page-switcher').forEach(function(sel){
+      var keep=sel.value || (document.getElementById('page-switcher')||{}).value || 'input';
+      var input=document.createElement('input');
+      input.type='hidden'; input.id='page-switcher'; input.className='page-switcher'; input.value=keep; input.setAttribute('aria-hidden','true');
+      sel.replaceWith(input);
+    });
+  }
+  killNativePageSelect();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',killNativePageSelect,{once:true});
+  else killNativePageSelect();
+  var mo=new MutationObserver(killNativePageSelect);
+  mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
+})();
+</script>
+
 </body>
 
 
@@ -10018,6 +11872,624 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     }
   }
 </style>
+
+
+<style id="inbound-true-page-center-inside-iframe-css">
+/* True center fix inside the Inbound iframe. The table area is zoomed, so normal margin:auto
+   centers the unzoomed layout box instead of the visible card. This uses a JS-calculated
+   layout offset that matches the visible width slider. */
+html, body{
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:hidden!important;
+}
+body > main.app{
+  width:100vw!important;
+  max-width:100vw!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  padding-left:0!important;
+  padding-right:0!important;
+  overflow-x:hidden!important;
+}
+body > main.app > .topbar{
+  width:100vw!important;
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+body > main.app > section.grid{
+  width:var(--inbound-grid-layout-width, 100%)!important;
+  min-width:var(--inbound-grid-layout-width, 100%)!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  justify-items:start!important;
+  align-items:start!important;
+  overflow:visible!important;
+}
+body > main.app > section.grid > .summary-stack{
+  width:var(--table-width)!important;
+  max-width:var(--table-width)!important;
+  min-width:0!important;
+  margin-left:var(--inbound-center-layout-left, 0px)!important;
+  margin-right:0!important;
+  align-items:stretch!important;
+}
+body > main.app > section.grid > .summary-stack > .rollup-card,
+body > main.app > section.grid > .summary-stack > #trainStack,
+body > main.app #trainStack .same-day-inbound-group,
+body > main.app #trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+</style>
+<script id="inbound-true-page-center-inside-iframe-js">
+(function(){
+  'use strict';
+  function num(v, fallback){
+    var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function clamp(n,min,max){ return Math.min(max, Math.max(min,n)); }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name); }
+  function scale(){
+    var table=clamp(num(css('--table-scale'), .9), .45, 1.5);
+    var density=clamp(num(css('--inbound-density'), .86), .45, 1.25);
+    return Math.max(.25, table*density);
+  }
+  function visibleWidth(){
+    var slider=document.getElementById('widthSlider');
+    var label=document.getElementById('widthValue');
+    var fromVar=num(css('--table-visible-width'), 0);
+    var fromSlider=slider ? num(slider.value, 0) : 0;
+    var fromLabel=label ? num(label.textContent, 0) : 0;
+    return fromVar || fromSlider || fromLabel || 620;
+  }
+  function centerInboundPage(){
+    var root=document.documentElement;
+    var s=scale();
+    var viewport=Math.max(320, window.innerWidth || document.documentElement.clientWidth || 0);
+    var safeVisible=clamp(visibleWidth(), 320, Math.max(320, viewport - 16));
+    var layoutW=Math.max(320, Math.round(safeVisible / s));
+    var gridLayoutW=Math.max(layoutW, Math.ceil(viewport / s));
+    var leftVisible=Math.max(0, (viewport - safeVisible) / 2);
+    var leftLayout=Math.round(leftVisible / s);
+
+    root.style.setProperty('--table-visible-width', Math.round(safeVisible)+'px');
+    root.style.setProperty('--table-width', layoutW+'px');
+    root.style.setProperty('--inbound-grid-layout-width', gridLayoutW+'px');
+    root.style.setProperty('--inbound-center-layout-left', leftLayout+'px');
+
+    var slider=document.getElementById('widthSlider');
+    if(slider){
+      slider.min=String(Math.min(620, Math.max(320, viewport - 16)));
+      slider.max=String(Math.max(320, viewport - 16));
+      if(Math.abs(num(slider.value, safeVisible)-safeVisible)>1) slider.value=String(Math.round(safeVisible));
+    }
+    var label=document.getElementById('widthValue');
+    if(label) label.textContent=Math.round(safeVisible)+'px';
+  }
+  function schedule(){
+    centerInboundPage();
+    requestAnimationFrame(centerInboundPage);
+    setTimeout(centerInboundPage, 50);
+    setTimeout(centerInboundPage, 180);
+  }
+  window.centerInboundPageTrueFinal=centerInboundPage;
+  document.addEventListener('DOMContentLoaded', schedule);
+  window.addEventListener('load', schedule);
+  window.addEventListener('resize', schedule);
+  document.addEventListener('input', function(e){
+    if(e.target && (e.target.id==='widthSlider' || e.target.id==='sizeSlider')) schedule();
+  }, true);
+  document.addEventListener('change', function(e){
+    if(e.target && (e.target.id==='widthSlider' || e.target.id==='sizeSlider')) schedule();
+  }, true);
+  var tries=0;
+  var timer=setInterval(function(){
+    centerInboundPage();
+    if(++tries>18) clearInterval(timer);
+  }, 120);
+})();
+</script>
+
+
+<style id="width-slider-center-repair-v3">
+/* FINAL WIDTH SLIDER REPAIR:
+   Keep the inbound stack centered, but let the WIDTH slider control the visible width.
+   This runs after the previous centering patches and overrides their locked-width behavior. */
+body > main.app > section.grid{
+  width:var(--inbound-full-layout-width, 100%)!important;
+  min-width:var(--inbound-full-layout-width, 100%)!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  justify-items:start!important;
+  align-items:start!important;
+  overflow:visible!important;
+  zoom:var(--inbound-visual-scale, calc(var(--table-scale, 1) * var(--inbound-density, 1)))!important;
+}
+body > main.app > section.grid > .summary-stack{
+  width:var(--table-width)!important;
+  min-width:0!important;
+  max-width:var(--table-width)!important;
+  margin-left:var(--inbound-center-offset-layout, 0px)!important;
+  margin-right:0!important;
+  align-items:stretch!important;
+}
+body > main.app > section.grid > .summary-stack > .rollup-card,
+body > main.app > section.grid > .summary-stack > #trainStack,
+body > main.app #trainStack .same-day-inbound-group,
+body > main.app #trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+body > main.app #trainStack .same-day-inbound-row{
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count,1), minmax(0,1fr))!important;
+  gap:14px!important;
+  overflow:visible!important;
+}
+</style>
+<script id="width-slider-center-repair-v3-js">
+(function(){
+  'use strict';
+  var WIDTH_KEY='inbound-summary-table-width-v1';
+  function num(v, fallback){
+    var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function clamp(n,min,max){ return Math.min(max, Math.max(min,n)); }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name); }
+  function currentScale(){
+    var table=clamp(num(css('--table-scale'), .9), .45, 1.5);
+    var density=clamp(num(css('--inbound-density'), .86), .45, 1.25);
+    return Math.max(.25, table*density);
+  }
+  function visibleBounds(){
+    var viewport=Math.max(320, window.innerWidth || document.documentElement.clientWidth || 0);
+    return {
+      viewport: viewport,
+      min: Math.min(620, Math.max(320, viewport - 16)),
+      max: Math.max(320, viewport - 16)
+    };
+  }
+  function requestedVisible(source){
+    var b=visibleBounds();
+    var slider=document.getElementById('widthSlider');
+    if(source==='slider' && slider) return num(slider.value, b.max);
+    var stored=num(localStorage.getItem(WIDTH_KEY), 0);
+    if(stored) return stored;
+    if(slider) return num(slider.value, b.max);
+    return num(css('--table-visible-width'), b.max);
+  }
+  function applyWidthAndCenter(source){
+    var root=document.documentElement;
+    var b=visibleBounds();
+    var s=currentScale();
+    var visible=clamp(requestedVisible(source), b.min, b.max);
+    var layoutWidth=Math.max(320, Math.round(visible / s));
+    var fullLayout=Math.max(layoutWidth, Math.ceil(b.viewport / s));
+    var offsetVisible=Math.max(0, (b.viewport - visible) / 2);
+    var offsetLayout=Math.round(offsetVisible / s);
+
+    root.style.setProperty('--inbound-visual-scale', String(s));
+    root.style.setProperty('--table-visible-width', Math.round(visible)+'px');
+    root.style.setProperty('--table-width', layoutWidth+'px');
+    root.style.setProperty('--inbound-full-layout-width', fullLayout+'px');
+    root.style.setProperty('--inbound-grid-layout-width', fullLayout+'px');
+    root.style.setProperty('--inbound-center-offset-layout', offsetLayout+'px');
+    root.style.setProperty('--inbound-center-layout-left', offsetLayout+'px');
+
+    var slider=document.getElementById('widthSlider');
+    if(slider){
+      slider.min=String(Math.round(b.min));
+      slider.max=String(Math.round(b.max));
+      if(source!=='slider') slider.value=String(Math.round(visible));
+    }
+    var label=document.getElementById('widthValue');
+    if(label) label.textContent=Math.round(visible)+'px';
+    if(source==='slider' || source==='commit') localStorage.setItem(WIDTH_KEY, String(Math.round(visible)));
+  }
+  function after(source){
+    applyWidthAndCenter(source);
+    requestAnimationFrame(function(){ applyWidthAndCenter(source); });
+    setTimeout(function(){ applyWidthAndCenter(source); }, 40);
+    setTimeout(function(){ applyWidthAndCenter(source); }, 180);
+    setTimeout(function(){ applyWidthAndCenter(source); }, 420);
+  }
+  window.applyInboundWidthCenterRepairV3=applyWidthAndCenter;
+  window.applyInboundCenterRealFinal=applyWidthAndCenter;
+  window.centerInboundPageTrueFinal=applyWidthAndCenter;
+  document.addEventListener('DOMContentLoaded', function(){ after('load'); });
+  window.addEventListener('load', function(){ after('load'); });
+  window.addEventListener('resize', function(){ after('resize'); });
+  document.addEventListener('input', function(e){
+    if(!e.target) return;
+    if(e.target.id==='widthSlider') after('slider');
+    if(e.target.id==='sizeSlider') after('size');
+  }, true);
+  document.addEventListener('change', function(e){
+    if(!e.target) return;
+    if(e.target.id==='widthSlider') after('commit');
+    if(e.target.id==='sizeSlider') after('size');
+  }, true);
+  var tries=0;
+  var timer=setInterval(function(){
+    applyWidthAndCenter('load');
+    if(++tries>24) clearInterval(timer);
+  }, 120);
+})();
+</script>
+
+
+
+<!-- FINAL ROOT-CAUSE FIX: replace the PAGE control with one stable custom menu only.
+     Cause of the DATA/INBOUND/OUTBOUND native dropdown flash: older patches still left/forced
+     #page-switcher as a browser select and later scripts/styles fought over it. This patch
+     clears the page-switch wrapper, keeps only a hidden input for state, and uses independent
+     custom buttons for the visible selector. -->
+<style id="page-selector-root-cause-final-css">
+  /* Kill every native PAGE select path. The visible PAGE control below is button-based only. */
+  select#page-switcher,
+  .page-switch-wrap select,
+  .page-switch-wrap > select#page-switcher,
+  select.page-switcher{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    position:fixed!important;
+    left:-999999px!important;
+    top:-999999px!important;
+    width:0!important;
+    height:0!important;
+    min-width:0!important;
+    min-height:0!important;
+    max-width:0!important;
+    max-height:0!important;
+    overflow:hidden!important;
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    -moz-appearance:none!important;
+  }
+  input#page-switcher.page-switcher,
+  input#page-switcher{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    position:absolute!important;
+    left:-999999px!important;
+    top:-999999px!important;
+    width:0!important;
+    height:0!important;
+    min-width:0!important;
+    min-height:0!important;
+    max-width:0!important;
+    max-height:0!important;
+  }
+  #page-menu-shell,
+  #page-menu-panel,
+  #page-menu-shell-final-repair,
+  #page-menu-panel-final-repair,
+  .page-menu-shell,
+  .page-menu-panel{
+    display:none!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+  }
+  #topbar,
+  #topbar .topbar-actions,
+  #tool-toggle-menu,
+  #view-toggle-menu,
+  #tool-toggle-panel,
+  #view-toggle-panel{
+    overflow:visible!important;
+    contain:none!important;
+  }
+  .page-switch-wrap{
+    position:relative!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:8px!important;
+    width:182px!important;
+    min-width:182px!important;
+    max-width:182px!important;
+    height:42px!important;
+    padding:0 8px!important;
+    border:1px solid rgba(251,146,60,.38)!important;
+    border-radius:13px!important;
+    background:linear-gradient(180deg,rgba(17,24,39,.96),rgba(8,13,24,.98))!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(251,146,60,.05)!important;
+    overflow:visible!important;
+    contain:none!important;
+    isolation:isolate!important;
+    z-index:2147482000!important;
+  }
+  .stable-page-label{
+    flex:0 0 auto!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:8px!important;
+    font-weight:900!important;
+    letter-spacing:1.35px!important;
+    color:#fb923c!important;
+    text-transform:uppercase!important;
+    line-height:1!important;
+  }
+  #stable-page-button{
+    flex:1 1 auto!important;
+    min-width:0!important;
+    height:30px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(251,146,60,.48)!important;
+    background:linear-gradient(180deg,rgba(31,41,55,.96),rgba(15,23,42,.98))!important;
+    color:#fed7aa!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:8px!important;
+    padding:0 10px!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:12px!important;
+    font-weight:900!important;
+    letter-spacing:.55px!important;
+    text-transform:uppercase!important;
+    line-height:1!important;
+    cursor:pointer!important;
+    outline:none!important;
+    box-shadow:0 2px 7px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.07)!important;
+    user-select:none!important;
+  }
+  #stable-page-button:hover,
+  #stable-page-button[aria-expanded="true"]{
+    color:#fff7ed!important;
+    border-color:rgba(251,146,60,.82)!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.42),rgba(15,23,42,.98))!important;
+  }
+  #stable-page-button .stable-page-caret{
+    color:#fb923c!important;
+    font-size:10px!important;
+    line-height:1!important;
+  }
+  #stable-page-panel{
+    position:fixed!important;
+    display:none!important;
+    flex-direction:column!important;
+    gap:6px!important;
+    min-width:178px!important;
+    padding:8px!important;
+    border-radius:14px!important;
+    border:1px solid rgba(255,255,255,.14)!important;
+    background:linear-gradient(180deg,rgba(22,27,39,.99),rgba(9,12,19,.99))!important;
+    box-shadow:0 18px 44px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06)!important;
+    z-index:2147483647!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:auto!important;
+  }
+  #stable-page-panel.open{
+    display:flex!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  #stable-page-panel::before{
+    content:'PAGE';
+    display:block;
+    padding:2px 4px 5px;
+    font-family:var(--mono,monospace);
+    font-size:8px;
+    font-weight:900;
+    letter-spacing:1.7px;
+    color:#94a3b8;
+  }
+  #stable-page-panel .stable-page-option{
+    width:100%!important;
+    height:34px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(255,255,255,.09)!important;
+    background:rgba(255,255,255,.035)!important;
+    color:#cbd5e1!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    letter-spacing:.4px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    padding:0 11px!important;
+    text-align:left!important;
+    white-space:nowrap!important;
+  }
+  #stable-page-panel .stable-page-option:hover{
+    color:#fff!important;
+    border-color:rgba(251,146,60,.52)!important;
+    background:rgba(251,146,60,.14)!important;
+  }
+  #stable-page-panel .stable-page-option.active{
+    color:#fef3c7!important;
+    border-color:rgba(251,146,60,.78)!important;
+    background:linear-gradient(180deg,rgba(251,146,60,.28),rgba(120,53,15,.18))!important;
+    box-shadow:0 0 12px rgba(251,146,60,.14)!important;
+  }
+</style>
+<script id="page-selector-root-cause-final-js">
+(function(){
+  'use strict';
+  var labels={input:'DATA',inbound:'INBOUND',outbound:'OUTBOUND',analytics:'ANALYTICS'};
+  var tabs=['input','inbound','outbound','analytics'];
+  var installed=false;
+  function ready(fn){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true});
+    else fn();
+  }
+  function activeTab(){
+    var active=document.querySelector('.tab-view.active');
+    if(active && active.id && active.id.indexOf('tab-')===0){
+      var t=active.id.replace('tab-','');
+      if(labels[t]) return t;
+    }
+    var state=document.getElementById('page-switcher');
+    if(state && labels[state.value]) return state.value;
+    return 'input';
+  }
+  function removeNativeAndOldMenus(){
+    document.querySelectorAll('select#page-switcher, .page-switch-wrap select, #page-menu-shell, #page-menu-panel, #page-menu-shell-final-repair, #page-menu-panel-final-repair, .page-menu-shell, .page-menu-panel').forEach(function(el){
+      try{ el.remove(); }catch(e){
+        el.style.setProperty('display','none','important');
+        el.style.setProperty('visibility','hidden','important');
+        el.style.setProperty('pointer-events','none','important');
+      }
+    });
+  }
+  function setState(tab){
+    tab=labels[tab]?tab:'input';
+    var state=document.getElementById('page-switcher');
+    if(!state || state.tagName.toLowerCase()==='select'){
+      if(state) state.remove();
+      state=document.createElement('input');
+      state.type='hidden';
+      state.id='page-switcher';
+      state.className='page-switcher';
+      state.setAttribute('aria-hidden','true');
+      document.body.appendChild(state);
+    }
+    state.value=tab;
+  }
+  function build(){
+    var wrap=document.querySelector('.page-switch-wrap');
+    if(!wrap) return;
+    var tab=activeTab();
+    removeNativeAndOldMenus();
+    wrap.innerHTML='';
+    wrap.dataset.stablePageSelector='1';
+    var label=document.createElement('span');
+    label.className='stable-page-label';
+    label.textContent='PAGE';
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.id='stable-page-button';
+    btn.setAttribute('aria-haspopup','true');
+    btn.setAttribute('aria-expanded','false');
+    btn.innerHTML='<span class="stable-page-current">'+labels[tab]+'</span><span class="stable-page-caret">▾</span>';
+    wrap.appendChild(label);
+    wrap.appendChild(btn);
+    setState(tab);
+    var oldPanel=document.getElementById('stable-page-panel');
+    if(oldPanel) oldPanel.remove();
+    var panel=document.createElement('div');
+    panel.id='stable-page-panel';
+    panel.setAttribute('role','menu');
+    panel.setAttribute('aria-label','Switch page');
+    tabs.forEach(function(t){
+      var opt=document.createElement('button');
+      opt.type='button';
+      opt.className='stable-page-option';
+      opt.dataset.pageTab=t;
+      opt.textContent=labels[t];
+      panel.appendChild(opt);
+    });
+    document.body.appendChild(panel);
+    function sync(next){
+      next=labels[next]?next:activeTab();
+      var cur=btn.querySelector('.stable-page-current');
+      if(cur) cur.textContent=labels[next];
+      setState(next);
+      panel.querySelectorAll('.stable-page-option').forEach(function(opt){
+        opt.classList.toggle('active',opt.dataset.pageTab===next);
+      });
+    }
+    function place(){
+      var r=btn.getBoundingClientRect();
+      var minW=Math.max(178,Math.round(r.width || 178));
+      var left=Math.max(8,Math.min(Math.round(r.left),window.innerWidth-minW-8));
+      panel.style.minWidth=minW+'px';
+      panel.style.left=left+'px';
+      panel.style.top=Math.round(r.bottom+8)+'px';
+      panel.style.right='auto';
+    }
+    function open(flag){
+      panel.classList.toggle('open',!!flag);
+      btn.setAttribute('aria-expanded',flag?'true':'false');
+      if(flag){ place(); setTimeout(place,0); }
+    }
+    function fallbackActivate(tab){
+      document.querySelectorAll('.tab-view').forEach(function(x){ x.classList.remove('active'); });
+      var view=document.getElementById('tab-'+tab); if(view) view.classList.add('active');
+      document.querySelectorAll('.tab-pill').forEach(function(x){ x.classList.toggle('active',x.dataset && x.dataset.tab===tab); });
+      setState(tab);
+      try{ if(tab==='input' && typeof window.renderGrid==='function'){ requestAnimationFrame(function(){window.renderGrid(false);}); setTimeout(function(){window.renderGrid(false);},0); } }catch(e){}
+      try{ if(tab==='outbound' && typeof window.renderOB==='function'){ requestAnimationFrame(function(){window.renderOB();}); setTimeout(function(){window.renderOB();},0); } }catch(e){}
+      try{ if(tab==='inbound' && typeof window.hydrateInboundPageFrame==='function') window.hydrateInboundPageFrame(); }catch(e){}
+      try{ if(tab==='analytics' && typeof window.renderAnalytics==='function') window.renderAnalytics(); }catch(e){}
+    }
+    function activate(tab){
+      tab=labels[tab]?tab:'input';
+      try{
+        if(typeof window.activateAppTab==='function') window.activateAppTab(tab);
+        else fallbackActivate(tab);
+      }catch(e){ fallbackActivate(tab); }
+      sync(tab);
+      open(false);
+    }
+    btn.addEventListener('pointerdown',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); },true);
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      document.querySelectorAll('#tool-toggle-panel,#view-toggle-panel,.tool-toggle-panel,.view-toggle-panel').forEach(function(p){ p.classList.remove('tool-toggle-force-open','view-toggle-force-open','open'); });
+      open(!panel.classList.contains('open'));
+      return false;
+    },true);
+    panel.addEventListener('click',function(ev){
+      var opt=ev.target && ev.target.closest ? ev.target.closest('.stable-page-option') : null;
+      if(!opt) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      activate(opt.dataset.pageTab);
+      return false;
+    },true);
+    document.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(t && t.closest && (t.closest('#stable-page-button') || t.closest('#stable-page-panel'))) return;
+      open(false);
+    },true);
+    window.addEventListener('resize',function(){ if(panel.classList.contains('open')) place(); });
+    window.addEventListener('scroll',function(){ if(panel.classList.contains('open')) place(); },true);
+    sync(tab);
+    installed=true;
+  }
+  function guard(){
+    removeNativeAndOldMenus();
+    var wrap=document.querySelector('.page-switch-wrap');
+    if(!wrap) return;
+    if(!document.getElementById('stable-page-button') || !document.getElementById('stable-page-panel')){
+      build();
+    }
+  }
+  ready(function(){
+    build();
+    document.addEventListener('pointerdown',function(ev){
+      var t=ev.target;
+      if(t && t.matches && t.matches('select#page-switcher,.page-switch-wrap select')){
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        guard(); return false;
+      }
+    },true);
+    var mo=new MutationObserver(function(){ guard(); });
+    try{ mo.observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+    setInterval(function(){
+      if(installed){
+        var current=document.querySelector('#stable-page-button .stable-page-current');
+        var tab=activeTab();
+        if(current && current.textContent!==labels[tab]) current.textContent=labels[tab];
+      }
+      guard();
+    },500);
+  });
+})();
+</script>
 
 </html>
 </template>
@@ -10996,11 +13468,15 @@ function applyFontScale(scale){
   const pct = Math.max(100, Math.min(150, Number(scale) || DEFAULT_DWELL_FONT_SCALE));
   fontScale = pct;
   const zoom = pct / 100;
+  document.documentElement.style.setProperty('--boot-content-zoom', String(zoom));
   const content = document.getElementById('content-scale');
   if(content){
-    content.style.zoom = zoom;
-    content.style.transform = '';
-    content.style.width = '';
+    // The saved zoom is already applied in <head> before first paint.
+    // Only write inline zoom when it actually changes, preventing the Data
+    // page toolbar/grid header from reflowing during refresh.
+    if(String(content.style.zoom || '') !== String(zoom)) content.style.zoom = zoom;
+    if(content.style.transform) content.style.transform = '';
+    if(content.style.width) content.style.width = '';
   }
   const val = document.getElementById('font-val');
   const slider = document.getElementById('font-slider');
@@ -22781,36 +25257,42 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
     var labels={input:'DATA',inbound:'INBOUND',outbound:'OUTBOUND',analytics:'ANALYTICS'};
     var tabs=['input','inbound','outbound','analytics'];
 
-    var shell=document.createElement('div');
-    shell.className='page-menu-shell';
-    shell.id='page-menu-shell';
+    var shell=document.getElementById('page-menu-shell');
+    var main=document.getElementById('page-menu-main');
+    var panel=document.getElementById('page-menu-panel');
 
-    var main=document.createElement('button');
-    main.type='button';
-    main.className='page-menu-main';
-    main.id='page-menu-main';
-    main.setAttribute('aria-haspopup','true');
-    main.setAttribute('aria-expanded','false');
-    main.innerHTML='<span class="page-menu-current">DATA</span><span class="page-menu-caret">▾</span>';
+    if(!shell || !main || !panel){
+      shell=document.createElement('div');
+      shell.className='page-menu-shell';
+      shell.id='page-menu-shell';
 
-    var panel=document.createElement('div');
-    panel.className='page-menu-panel';
-    panel.id='page-menu-panel';
-    panel.setAttribute('role','menu');
-    panel.setAttribute('aria-label','Switch page');
+      main=document.createElement('button');
+      main.type='button';
+      main.className='page-menu-main';
+      main.id='page-menu-main';
+      main.setAttribute('aria-haspopup','true');
+      main.setAttribute('aria-expanded','false');
+      main.innerHTML='<span class="page-menu-current">DATA</span><span class="page-menu-caret">▾</span>';
 
-    tabs.forEach(function(tab){
-      var b=document.createElement('button');
-      b.type='button';
-      b.className='page-menu-option';
-      b.dataset.pageTab=tab;
-      b.textContent=labels[tab];
-      panel.appendChild(b);
-    });
+      panel=document.createElement('div');
+      panel.className='page-menu-panel';
+      panel.id='page-menu-panel';
+      panel.setAttribute('role','menu');
+      panel.setAttribute('aria-label','Switch page');
 
-    shell.appendChild(main);
-    shell.appendChild(panel);
-    wrap.appendChild(shell);
+      tabs.forEach(function(tab){
+        var b=document.createElement('button');
+        b.type='button';
+        b.className='page-menu-option';
+        b.dataset.pageTab=tab;
+        b.textContent=labels[tab];
+        panel.appendChild(b);
+      });
+
+      shell.appendChild(main);
+      shell.appendChild(panel);
+      wrap.appendChild(shell);
+    }
 
     function currentTab(){
       var active=document.querySelector('.tab-view.active');
@@ -23328,6 +25810,183 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   try{ mo.observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
 })();
 </script>
+
+<style id="archive-buttons-bottom-right-final-patch">
+/* Move Add to Archive/Delete out of the inbound header and pin them to the bottom-right outside the table. */
+#trainStack .train-card .train-header{
+  grid-template-columns:minmax(110px,1fr) minmax(110px,1fr) auto!important;
+}
+#trainStack .train-card .train-header .inbound-card-actions{display:none!important;}
+#trainStack .train-card .inbound-bottom-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  width:100%!important;
+  max-width:none!important;
+  padding:8px 10px 10px!important;
+  margin:0!important;
+  background:linear-gradient(180deg,#d4c19d 0%,#c9b286 100%)!important;
+  border-top:1px solid rgba(123,92,42,.24)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22)!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  width:auto!important;
+  max-width:max-content!important;
+}
+#trainStack .train-card .inbound-bottom-actions .btn.gold{
+  min-width:156px!important;
+  height:42px!important;
+  padding:0 18px!important;
+}
+#trainStack .train-card .inbound-bottom-actions .archive-delete-x{
+  width:42px!important;
+  min-width:42px!important;
+  max-width:42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  max-height:42px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  border-radius:12px!important;
+}
+#trainStack .same-day-inbound-row>.train-card .train-header{
+  grid-template-columns:minmax(96px,1fr) minmax(96px,1fr) auto!important;
+}
+#trainStack .same-day-inbound-row>.train-card .inbound-action-total{
+  grid-column:3!important;
+  justify-self:end!important;
+}
+@media (max-width:620px){
+  #trainStack .train-card .inbound-bottom-actions{justify-content:stretch!important;}
+  #trainStack .train-card .inbound-bottom-actions .inbound-archive-row{width:100%!important;max-width:none!important;}
+  #trainStack .train-card .inbound-bottom-actions .btn.gold{flex:1 1 auto!important;min-width:0!important;}
+}
+</style>
+
+
+<style id="inbound-bottom-actions-smaller-final-patch">
+/* Compact the bottom-right Add to Archive/Delete strip. Keeps the controls outside the table, but removes the oversized footer band. */
+#trainStack .train-card .inbound-bottom-actions{
+  min-height:0!important;
+  padding:4px 6px 5px!important;
+  margin:0!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  background:linear-gradient(180deg,#d2bd93 0%,#c5ad80 100%)!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  gap:5px!important;
+  padding:0!important;
+  margin:0!important;
+}
+#trainStack .train-card .inbound-bottom-actions .btn.gold{
+  min-width:112px!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  padding:0 12px!important;
+  border-radius:10px!important;
+  font-size:10px!important;
+  line-height:1!important;
+}
+#trainStack .train-card .inbound-bottom-actions .archive-delete-x{
+  width:30px!important;
+  min-width:30px!important;
+  max-width:30px!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  line-height:1!important;
+}
+@media (max-width:620px){
+  #trainStack .train-card .inbound-bottom-actions{padding:4px 6px 5px!important;}
+  #trainStack .train-card .inbound-bottom-actions .inbound-archive-row{width:auto!important;max-width:max-content!important;}
+  #trainStack .train-card .inbound-bottom-actions .btn.gold{flex:0 0 auto!important;min-width:112px!important;}
+}
+</style>
+
+
+
+<!-- FINAL PATCH: remove native PAGE select permanently to stop browser dropdown glitch -->
+<style id="page-native-select-kill-css">
+  /* The real page state holder is now a hidden input, not a browser select.
+     This prevents Chrome/Edge from flashing the native DATA/INBOUND/OUTBOUND/ANALYTICS list. */
+  input#page-switcher.page-switcher,
+  select#page-switcher.page-switcher,
+  .page-switch-wrap select.page-switcher{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    position:absolute!important;
+    left:-99999px!important;
+    top:-99999px!important;
+    width:0!important;
+    height:0!important;
+    min-width:0!important;
+    min-height:0!important;
+    max-width:0!important;
+    max-height:0!important;
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    -moz-appearance:none!important;
+  }
+  .page-switch-wrap,
+  #page-menu-shell-final-repair,
+  #page-menu-shell,
+  .page-menu-shell{
+    overflow:visible!important;
+    contain:none!important;
+  }
+</style>
+<script id="page-native-select-kill-js">
+(function(){
+  'use strict';
+  function killNativePageSelect(){
+    var wrap=document.querySelector('.page-switch-wrap');
+    if(!wrap) return;
+    var el=document.getElementById('page-switcher');
+    if(el && el.tagName && el.tagName.toLowerCase()==='select'){
+      var keep=el.value || 'input';
+      var input=document.createElement('input');
+      input.type='hidden';
+      input.id='page-switcher';
+      input.className='page-switcher';
+      input.value=keep;
+      input.setAttribute('aria-hidden','true');
+      el.replaceWith(input);
+      el=input;
+    }
+    if(el){
+      el.setAttribute('aria-hidden','true');
+      el.tabIndex=-1;
+      el.style.setProperty('display','none','important');
+      el.style.setProperty('visibility','hidden','important');
+      el.style.setProperty('pointer-events','none','important');
+    }
+    // If any older patch recreates a native select, remove it immediately.
+    wrap.querySelectorAll('select.page-switcher, select#page-switcher').forEach(function(sel){
+      var keep=sel.value || (document.getElementById('page-switcher')||{}).value || 'input';
+      var input=document.createElement('input');
+      input.type='hidden'; input.id='page-switcher'; input.className='page-switcher'; input.value=keep; input.setAttribute('aria-hidden','true');
+      sel.replaceWith(input);
+    });
+  }
+  killNativePageSelect();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',killNativePageSelect,{once:true});
+  else killNativePageSelect();
+  var mo=new MutationObserver(killNativePageSelect);
+  mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
+})();
+</script>
+
 </body>
 
 
@@ -24544,6 +27203,134 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   setTimeout(schedule,500);
 })();
 </script>
+
+
+<style id="inbound-center-real-final-patch">
+/* REAL CENTER FIX: the inbound page uses CSS zoom, so plain margin:auto does not center.
+   This patch calculates a zoom-compensated layout offset and applies it to the active inbound stack. */
+main.app{
+  width:100vw!important;
+  max-width:100vw!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  overflow-x:hidden!important;
+}
+main.app > section.grid{
+  display:block!important;
+  width:var(--inbound-full-layout-width, calc(100vw / var(--inbound-visual-scale, .5)))!important;
+  min-width:var(--inbound-full-layout-width, calc(100vw / var(--inbound-visual-scale, .5)))!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  justify-items:stretch!important;
+  align-items:start!important;
+  zoom:var(--inbound-visual-scale, calc(var(--table-scale, 1) * var(--inbound-density, 1)))!important;
+}
+main.app > section.grid > .summary-stack{
+  width:var(--table-width)!important;
+  min-width:0!important;
+  max-width:var(--table-width)!important;
+  margin-left:var(--inbound-center-offset-layout, 0px)!important;
+  margin-right:0!important;
+  align-items:stretch!important;
+}
+main.app > section.grid > .summary-stack > .rollup-card,
+main.app > section.grid > .summary-stack > #trainStack,
+main.app #trainStack .same-day-inbound-group,
+main.app #trainStack .same-day-inbound-row{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+main.app #trainStack .same-day-inbound-row{
+  display:grid!important;
+  grid-template-columns:repeat(var(--same-day-count,1), minmax(0,1fr))!important;
+  gap:14px!important;
+  overflow:visible!important;
+}
+main.app #trainStack .same-day-inbound-row > .train-card{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+}
+</style>
+<script id="inbound-center-real-final-js">
+(function(){
+  'use strict';
+  function num(v, fallback){
+    var n=parseFloat(String(v || '').trim());
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function cssVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name);
+  }
+  function clamp(n,min,max){return Math.min(max,Math.max(min,n));}
+  function getScale(){
+    var scale=clamp(num(cssVar('--table-scale'), .65), .55, 1.35);
+    var density=clamp(num(cssVar('--inbound-density'), .72), .45, 1.25);
+    return Math.max(.25, scale*density);
+  }
+  function getRequestedVisibleWidth(){
+    var root=getComputedStyle(document.documentElement);
+    var cssVisible=num(root.getPropertyValue('--table-visible-width'), 0);
+    var slider=document.getElementById('widthSlider');
+    var sliderVal=slider ? num(slider.value, 0) : 0;
+    var label=document.getElementById('widthValue');
+    var labelVal=label ? num((label.textContent||'').replace(/[^0-9.]/g,''),0) : 0;
+    return cssVisible || sliderVal || labelVal || Math.max(620, window.innerWidth-16);
+  }
+  function applyInboundCenter(){
+    var root=document.documentElement;
+    var visualScale=getScale();
+    var viewport=Math.max(320, window.innerWidth || document.documentElement.clientWidth || 0);
+    var edgePad=16;
+    var maxVisible=Math.max(620, viewport - edgePad);
+    var requested=getRequestedVisibleWidth();
+    var visible=clamp(requested, Math.min(620,maxVisible), maxVisible);
+    var layoutWidth=Math.max(620, Math.floor(visible/visualScale));
+    var fullLayout=Math.max(layoutWidth, Math.floor(viewport/visualScale));
+    var offsetVisible=Math.max(0, (viewport - visible) / 2);
+    var offsetLayout=Math.floor(offsetVisible / visualScale);
+
+    root.style.setProperty('--inbound-visual-scale', String(visualScale));
+    root.style.setProperty('--table-visible-width', Math.round(visible)+'px');
+    root.style.setProperty('--table-width', layoutWidth+'px');
+    root.style.setProperty('--inbound-full-layout-width', fullLayout+'px');
+    root.style.setProperty('--inbound-center-offset-layout', offsetLayout+'px');
+
+    var slider=document.getElementById('widthSlider');
+    if(slider){
+      slider.min=String(Math.min(620,maxVisible));
+      slider.max=String(Math.round(maxVisible));
+      if(Math.abs(num(slider.value,visible)-visible)>1) slider.value=String(Math.round(visible));
+    }
+    var label=document.getElementById('widthValue');
+    if(label) label.textContent=Math.round(visible)+'px';
+  }
+  function schedule(){
+    applyInboundCenter();
+    setTimeout(applyInboundCenter,0);
+    setTimeout(applyInboundCenter,80);
+    setTimeout(applyInboundCenter,250);
+  }
+  window.applyInboundCenterRealFinal=applyInboundCenter;
+  document.addEventListener('DOMContentLoaded', schedule);
+  window.addEventListener('resize', schedule);
+  document.addEventListener('input', function(e){
+    if(e.target && (e.target.id==='widthSlider' || e.target.id==='sizeSlider')) setTimeout(applyInboundCenter,0);
+  }, true);
+  document.addEventListener('change', function(e){
+    if(e.target && (e.target.id==='widthSlider' || e.target.id==='sizeSlider')) setTimeout(applyInboundCenter,0);
+  }, true);
+  var tries=0;
+  var timer=setInterval(function(){
+    applyInboundCenter();
+    if(++tries>12) clearInterval(timer);
+  },150);
+})();
+</script>
+
 </html>
 <script id="post-outbound-ss-display-cleanup">
 (function(){
@@ -25436,3 +28223,296 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   white-space:nowrap!important;
 }
 </style>
+
+
+<!-- FINAL PATCH: page selector visible + working, native select suppressed safely -->
+<style id="page-dropdown-visible-repair-final-css">
+  /* Suppress the browser/native select completely so it cannot flash open. */
+  #page-switcher,
+  .page-switch-wrap > select#page-switcher,
+  select#page-switcher.page-switcher{
+    position:absolute!important;
+    left:-10000px!important;
+    top:-10000px!important;
+    width:1px!important;
+    min-width:1px!important;
+    max-width:1px!important;
+    height:1px!important;
+    min-height:1px!important;
+    max-height:1px!important;
+    opacity:0!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+    display:block!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    outline:0!important;
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    -moz-appearance:none!important;
+  }
+  .page-switch-wrap{
+    position:relative!important;
+    overflow:visible!important;
+    z-index:2147483000!important;
+    min-width:178px!important;
+    max-width:196px!important;
+    width:178px!important;
+    height:42px!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:0!important;
+    padding:0!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    contain:none!important;
+    isolation:isolate!important;
+  }
+  .page-switch-label{display:none!important;}
+  #page-menu-shell,
+  #page-menu-panel,
+  .page-menu-shell,
+  .page-menu-panel{
+    display:none!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+  }
+  #page-menu-shell-final-repair{
+    display:block!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+    position:relative!important;
+    width:100%!important;
+    height:42px!important;
+    z-index:2147483200!important;
+  }
+  #page-menu-main-final-repair{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    width:100%!important;
+    height:42px!important;
+    padding:0 13px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(251,146,60,.48)!important;
+    background:linear-gradient(180deg,rgba(31,41,55,.96),rgba(15,23,42,.98))!important;
+    color:#fed7aa!important;
+    font-family:var(--mono)!important;
+    font-size:12px!important;
+    font-weight:900!important;
+    letter-spacing:.7px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+    outline:none!important;
+    box-shadow:0 2px 8px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.07)!important;
+    user-select:none!important;
+  }
+  #page-menu-main-final-repair:hover,
+  #page-menu-main-final-repair[aria-expanded="true"]{
+    border-color:rgba(251,146,60,.85)!important;
+    color:#fff7ed!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.42),rgba(15,23,42,.98))!important;
+  }
+  #page-menu-panel-final-repair{
+    position:fixed!important;
+    display:none!important;
+    flex-direction:column!important;
+    gap:6px!important;
+    min-width:178px!important;
+    padding:8px!important;
+    border-radius:14px!important;
+    border:1px solid rgba(255,255,255,.14)!important;
+    background:linear-gradient(180deg,rgba(22,27,39,.99),rgba(9,12,19,.99))!important;
+    box-shadow:0 18px 44px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.06)!important;
+    z-index:2147483646!important;
+    pointer-events:auto!important;
+    visibility:hidden!important;
+    opacity:0!important;
+  }
+  #page-menu-panel-final-repair.open{
+    display:flex!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  #page-menu-panel-final-repair::before{
+    content:'PAGE';
+    display:block;
+    padding:2px 4px 5px;
+    font-family:var(--mono);
+    font-size:8px;
+    font-weight:900;
+    letter-spacing:1.7px;
+    color:#94a3b8;
+  }
+  #page-menu-panel-final-repair .page-menu-option-final-repair{
+    width:100%!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:34px!important;
+    min-height:34px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(255,255,255,.09)!important;
+    background:rgba(255,255,255,.035)!important;
+    color:#cbd5e1!important;
+    font-family:var(--mono)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    letter-spacing:.4px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    padding:0 11px!important;
+    text-align:left!important;
+    white-space:nowrap!important;
+  }
+  #page-menu-panel-final-repair .page-menu-option-final-repair:hover{
+    color:#fff!important;
+    border-color:rgba(251,146,60,.52)!important;
+    background:rgba(251,146,60,.14)!important;
+  }
+  #page-menu-panel-final-repair .page-menu-option-final-repair.active{
+    color:#fef3c7!important;
+    border-color:rgba(251,146,60,.78)!important;
+    background:linear-gradient(180deg,rgba(251,146,60,.28),rgba(120,53,15,.18))!important;
+    box-shadow:0 0 12px rgba(251,146,60,.14)!important;
+  }
+  #topbar,#topbar .topbar-actions,#tool-toggle-menu,#view-toggle-menu,#tool-toggle-panel,#view-toggle-panel{
+    overflow:visible!important;
+    contain:none!important;
+  }
+</style>
+<script id="page-dropdown-visible-repair-final-js">
+(function(){
+  'use strict';
+  function ready(fn){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true});
+    else fn();
+  }
+  ready(function(){
+    var labels={input:'DATA', inbound:'INBOUND', outbound:'OUTBOUND', analytics:'ANALYTICS'};
+    var tabs=['input','inbound','outbound','analytics'];
+    var wrap=document.querySelector('.page-switch-wrap');
+    var select=document.getElementById('page-switcher');
+    if(!wrap) return;
+
+    // Stop older page-menu patches from owning the control.
+    wrap.dataset.customPageReady='1';
+    Array.prototype.slice.call(wrap.querySelectorAll('#page-menu-shell,.page-menu-shell,#page-menu-shell-final-repair')).forEach(function(el){ el.remove(); });
+    Array.prototype.slice.call(document.querySelectorAll('#page-menu-panel,.page-menu-panel,#page-menu-panel-final-repair')).forEach(function(el){ el.remove(); });
+
+    if(select){
+      select.setAttribute('aria-hidden','true');
+      select.tabIndex=-1;
+      ['position','left','top','width','height','opacity','visibility','pointer-events','display','padding','margin','border'].forEach(function(prop){
+        var val={position:'absolute',left:'-10000px',top:'-10000px',width:'1px',height:'1px',opacity:'0',visibility:'hidden','pointer-events':'none',display:'block',padding:'0',margin:'0',border:'0'}[prop];
+        select.style.setProperty(prop,val,'important');
+      });
+    }
+
+    var shell=document.createElement('div');
+    shell.id='page-menu-shell-final-repair';
+    var main=document.createElement('button');
+    main.id='page-menu-main-final-repair';
+    main.type='button';
+    main.setAttribute('aria-haspopup','true');
+    main.setAttribute('aria-expanded','false');
+    main.innerHTML='<span class="page-menu-current-final-repair">DATA</span><span class="page-menu-caret-final-repair">▾</span>';
+    var panel=document.createElement('div');
+    panel.id='page-menu-panel-final-repair';
+    panel.setAttribute('role','menu');
+    panel.setAttribute('aria-label','Switch page');
+    tabs.forEach(function(tab){
+      var b=document.createElement('button');
+      b.type='button';
+      b.className='page-menu-option-final-repair';
+      b.dataset.pageTab=tab;
+      b.textContent=labels[tab];
+      panel.appendChild(b);
+    });
+    shell.appendChild(main);
+    wrap.appendChild(shell);
+    document.body.appendChild(panel);
+
+    function activeTab(){
+      var active=document.querySelector('.tab-view.active');
+      if(active && active.id && active.id.indexOf('tab-')===0){
+        var t=active.id.replace('tab-','');
+        if(labels[t]) return t;
+      }
+      if(select && labels[select.value]) return select.value;
+      return 'input';
+    }
+    function sync(tab){
+      tab=labels[tab]?tab:activeTab();
+      var cur=main.querySelector('.page-menu-current-final-repair');
+      if(cur) cur.textContent=labels[tab];
+      if(select && select.value!==tab) select.value=tab;
+      panel.querySelectorAll('.page-menu-option-final-repair').forEach(function(btn){
+        btn.classList.toggle('active',btn.dataset.pageTab===tab);
+      });
+    }
+    function placePanel(){
+      var r=main.getBoundingClientRect();
+      var minW=Math.max(178,Math.round(r.width||178));
+      var left=Math.max(8,Math.min(Math.round(r.left),window.innerWidth-minW-8));
+      panel.style.minWidth=minW+'px';
+      panel.style.left=left+'px';
+      panel.style.top=Math.round(r.bottom+8)+'px';
+      panel.style.right='auto';
+    }
+    function setOpen(open){
+      panel.classList.toggle('open',!!open);
+      main.setAttribute('aria-expanded',open?'true':'false');
+      if(open){ placePanel(); setTimeout(placePanel,0); }
+    }
+    function fallbackActivate(tab){
+      document.querySelectorAll('.tab-view').forEach(function(x){x.classList.remove('active');});
+      var view=document.getElementById('tab-'+tab); if(view) view.classList.add('active');
+      document.querySelectorAll('.tab-pill').forEach(function(x){x.classList.toggle('active',x.dataset && x.dataset.tab===tab);});
+      if(select) select.value=tab;
+      try{ if(tab==='input' && typeof window.renderGrid==='function'){ requestAnimationFrame(function(){window.renderGrid(false);}); setTimeout(function(){window.renderGrid(false);},0); } }catch(e){}
+      try{ if(tab==='outbound' && typeof window.renderOB==='function'){ requestAnimationFrame(function(){window.renderOB();}); setTimeout(function(){window.renderOB();},0); } }catch(e){}
+      try{ if(tab==='inbound' && typeof window.hydrateInboundPageFrame==='function') window.hydrateInboundPageFrame(); }catch(e){}
+      try{ if(tab==='analytics' && typeof window.renderAnalytics==='function') window.renderAnalytics(); }catch(e){}
+    }
+    function activate(tab){
+      tab=labels[tab]?tab:'input';
+      try{
+        if(typeof window.activateAppTab==='function') window.activateAppTab(tab);
+        else fallbackActivate(tab);
+      }catch(e){ fallbackActivate(tab); }
+      sync(tab);
+      setOpen(false);
+    }
+    main.addEventListener('pointerdown',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); },true);
+    main.addEventListener('click',function(ev){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      var open=!panel.classList.contains('open');
+      document.querySelectorAll('#tool-toggle-panel,#view-toggle-panel,.tool-toggle-panel,.view-toggle-panel').forEach(function(p){ p.classList.remove('tool-toggle-force-open','view-toggle-force-open','open'); });
+      setOpen(open);
+      return false;
+    },true);
+    panel.addEventListener('click',function(ev){
+      var btn=ev.target && ev.target.closest ? ev.target.closest('.page-menu-option-final-repair') : null;
+      if(!btn) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      activate(btn.dataset.pageTab);
+      return false;
+    },true);
+    document.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(t && t.closest && (t.closest('#page-menu-shell-final-repair') || t.closest('#page-menu-panel-final-repair'))) return;
+      setOpen(false);
+    },true);
+    window.addEventListener('resize',function(){ if(panel.classList.contains('open')) placePanel(); });
+    window.addEventListener('scroll',function(){ if(panel.classList.contains('open')) placePanel(); },true);
+    setInterval(function(){ sync(activeTab()); },750);
+    sync(activeTab());
+  });
+})();
+</script>
