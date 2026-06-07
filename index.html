@@ -10852,7 +10852,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
         return `${separator}<div class="archive-bank-item ${isDuplicate ? 'archive-duplicate' : ''}" data-archive-id="${escapeHtml(item.archiveId || '')}" title="Click to open archived inbound preview">
           <div><div class="archive-title-line"><span class="archive-title-text">${escapeHtml(item.train || '')}</span>${isDuplicate ? '<span class="archive-dup-flag">⚠ Duplicate</span>' : ''}</div><small>Archived ${escapeHtml(new Date(Number(item.archivedAt)||Date.now()).toLocaleString([], {month:'numeric', day:'numeric', year:'2-digit', hour:'numeric', minute:'2-digit'}))}</small></div>
           <div>${escapeHtml(item.dateTime || '')}<small>${escapeHtml(item.shift || guessShift(item.dateTime))}</small></div>
-          <div>${fmt(trainTotalFt(item))} FT<small>${escapeHtml(trainTotalUnits(item) || '—')} units · ${(item.rows || []).length} block row(s)</small></div>
+          <div>${fmt(trainTotalFt(item))} FT<small>${escapeHtml(trainTotalUnits(item) || '—')} units</small></div>
           <div>${isDuplicate ? '<span class="archive-dup-flag">Same train/date</span>' : escapeHtml(archiveKey)}</div>
           <div class="archive-actions-cluster">
             <button class="archive-view-btn" type="button" data-action="view-archive" data-archive-id="${escapeHtml(item.archiveId || '')}">Preview</button>
@@ -13356,7 +13356,30 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     if(e.key === 'Escape') closeMenus();
   }, true);
 })();
-</script></body>
+</script>
+<script id="post-outbound-single-edit-modal-authority-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundSingleEditModalAuthorityInstalled) return;
+  window.__postOutboundSingleEditModalAuthorityInstalled = true;
+
+  function closeLegacyGroupWhenPostEditorOpen(){
+    var legacy = document.getElementById('bowl-group-edit-modal');
+    var post = document.getElementById('final-after-edit-modal');
+    if(!legacy || !legacy.classList.contains('open')) return;
+    if(post && post.classList.contains('open')) legacy.classList.remove('open');
+  }
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    var block = e.target.closest('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block');
+    if(!block) return;
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 0);
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 80);
+  }, true);
+})();
+</script>
+</body>
 
 
 <!-- === PATCH: top Current Ramp Blocking numeric columns use red / amber / green capacity design === -->
@@ -17180,6 +17203,29 @@ document.addEventListener('click',e=>{
 });
 
 </script>
+
+<script id="post-outbound-single-edit-modal-authority-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundSingleEditModalAuthorityInstalled) return;
+  window.__postOutboundSingleEditModalAuthorityInstalled = true;
+
+  function closeLegacyGroupWhenPostEditorOpen(){
+    var legacy = document.getElementById('bowl-group-edit-modal');
+    var post = document.getElementById('final-after-edit-modal');
+    if(!legacy || !legacy.classList.contains('open')) return;
+    if(post && post.classList.contains('open')) legacy.classList.remove('open');
+  }
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    var block = e.target.closest('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block');
+    if(!block) return;
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 0);
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 80);
+  }, true);
+})();
+</script>
 </body></html>
 </template>
 
@@ -18929,9 +18975,9 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     return vals.some(v=>/(^|[^A-Z0-9])(CU|RAMP)([^A-Z0-9]|$)/.test(clean(v).toUpperCase()) || clean(v).toUpperCase().includes('__CU') || clean(v).toUpperCase().includes('__RAMP'));
   };
   const isMissingSSStartRow=(row,group)=>{
+    // Missing SS Start rule: any block without CU or RAMP in BK1/BK2/YD BLOCK
+    // needs an SS Start value. Do not require an inbound arrival before flagging it.
     if(!row || hasCuOrRampBlockValue(row) || isBadOrderRow(row)) return false;
-    const train=trainForDwell(row);
-    if(!train || !getArrival(train)) return false;
     return !confirmedSSStartForRow(row,group);
   };
   const isInboundWorkingRow=row=>inboundWorkingByYdBlock(row);
@@ -19062,6 +19108,15 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const cls=hrs>=24?'ss-age-ok':'ss-age-warn';
     return ` <span class="ss-hours-in-ss ${cls}" data-ss-hours-in-ss="1" title="Hours in SS">${whole}H</span>`;
   };
+  const ssHoursInSsBlockAttrs=start=>{
+    const dt=parseSsAgeDate(start);
+    if(!dt) return '';
+    const hrs=Math.max(0,(new Date()-dt)/3600000);
+    if(!Number.isFinite(hrs)) return '';
+    const whole=Math.floor(hrs);
+    const tone=hrs>=24?'ok':'warn';
+    return ` data-ss-hours-label="${whole}H" data-ss-hours-tone="${tone}"`;
+  };
   const dwellClassFromAvg=avg=>{
     if(avg===null || avg===undefined || !isFinite(avg)) return '';
     if(avg < 7) return 'dw-green';
@@ -19170,12 +19225,17 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const refs={ids:new Set(), rowIdxs:new Set(), assignByRowIdx:new Map(), assignById:new Map()};
     const addRef=(car,g,assigned)=>{
       const rowIdx=Number(car && car._rowIndex);
-      if(Number.isFinite(rowIdx)){
-        refs.rowIdxs.add(rowIdx);
-        refs.assignByRowIdx.set(rowIdx, assigned);
-      }
       const carId=clean(car && car.equipId);
       const trk=clean((car && car.track) || (g && g.track));
+      if(Number.isFinite(rowIdx)){
+        const live=data[rowIdx];
+        const liveEquip=clean(live && live[CI.equipId]);
+        const liveTrack=clean(live && live[CI.track]);
+        if(!live || !liveEquip || !liveTrack || liveEquip!==carId || liveTrack!==trk) return;
+        refs.rowIdxs.add(rowIdx);
+        refs.assignByRowIdx.set(rowIdx, assigned);
+        return;
+      }
       if(carId && trk){
         const key=`${trk}||${carId}`;
         refs.ids.add(key);
@@ -19241,7 +19301,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         if(tr!==track) continue;
         const equip=clean(row[CI.equipId]);
         const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-        const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${track}||${equip}`);
+        const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${track}||${equip}`);
         const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
         const ln=num(row[CI.ln]);
         if(!ln && !clean(row[CI.bk1]) && !clean(row[CI.bk2]) && !clean(row[CI.ydBlock])) continue;
@@ -19449,8 +19509,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const tr=parseInt(row[CI.track],10);
         const equip=clean(row[CI.equipId]);
         const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-        const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
-        const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || row._afterDepartTrain || '');
+        const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
+        const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
         if(assignedDepart!==trainName) continue;
         const ln=num(row[CI.ln]);
         if(!ln) continue;
@@ -19511,7 +19571,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const trainAttr=String(seg.train||'').replace(/"/g,'&quot;');
         const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
         const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
-        return `<div class="bowl-block ${seg.cls}" data-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${departBadge}${dwellHtml}</span></div>`;
+        return `<div class="bowl-block ${seg.cls}" data-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${departBadge}${dwellHtml}</span></div>`;
       }).join('');
       const row=document.createElement('tr');
       if(!segments.length) row.classList.add('bowl-empty-track-row');
@@ -19592,8 +19652,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
           if(tr!==track) continue;
           const equip=clean(row[CI.equipId]);
           const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-          const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
-          const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || row._afterDepartTrain || '');
+          const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
+          const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
           if(assignedDepart!==trainName) continue;
           if(hidePreviousDepartingBlocks) continue;
           const ln=num(row[CI.ln]);
@@ -19661,7 +19721,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const trainAttr=String(seg.train||'').replace(/"/g,'&quot;');
         const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
         const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
-        return `<div class="bowl-block ${seg.cls}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge}${srcTrack}${dwellHtml}${manualTag}</span></div>`;
+        return `<div class="bowl-block ${seg.cls}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge}${srcTrack}${dwellHtml}${manualTag}</span></div>`;
       }).join('');
 
       const row=document.createElement('tr');
@@ -19679,6 +19739,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   };
 
 
+  try{ data.forEach(row=>{ if(row && row._afterDepartTrain) delete row._afterDepartTrain; }); }catch{}
   const selectedIds=selectedCarIdsForOutbound();
   const onlyCurrent=!!(options&&options.onlyCurrent);
   const omitCurrent=!!(options&&options.omitCurrent);
@@ -26481,7 +26542,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const timeLabel=document.getElementById('after-edit-time-label');
     const input=document.getElementById('after-edit-time');
     const isSS=!!block && block.value==='SS';
-    if(timeLabel) timeLabel.textContent=isSS?'Went Into SS':'Arrival';
+    if(timeLabel) timeLabel.textContent='SS Start';
     if(input) input.required=true;
     updateAfterEditPreview();
   }
@@ -26492,7 +26553,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const time=clean(document.getElementById('after-edit-time')&&document.getElementById('after-edit-time').value);
     const net=document.getElementById('after-edit-net');
     const timeLabel=document.getElementById('after-edit-time-label');
-    if(timeLabel) timeLabel.textContent=block==='SS'?'Went Into SS':'Arrival';
+    if(timeLabel) timeLabel.textContent='SS Start';
     if(!block){ if(net) net.value='SELECT BLOCK'; return; }
     let val=null;
     if(block==='SS'){
@@ -26595,7 +26656,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           <div class="after-edit-field"><label>Display Track</label><input id="after-edit-track" inputmode="numeric" placeholder="802"></div>
           <div class="after-edit-field"><label>Train / Inbound</label><input id="after-edit-train" placeholder="ZLBHO 22"></div>
           <div class="after-edit-field"><label>Block</label><select id="after-edit-block"><option value="">—</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div>
-          <div class="after-edit-field full"><label id="after-edit-time-label">Arrival</label><input id="after-edit-time" type="datetime-local" step="60"></div>
+          <div class="after-edit-field full"><label id="after-edit-time-label">SS Start</label><input id="after-edit-time" type="datetime-local" step="60"></div>
           <div class="after-edit-field full"><label>Calculated Net Dwell</label><input id="after-edit-net" readonly value="ENTER TIME"></div>
           <div class="after-edit-actions"><button class="after-edit-btn danger" type="button" id="after-edit-reset">Reset</button><button class="after-edit-btn" type="button" data-after-edit-cancel>Cancel</button><button class="after-edit-btn primary" type="button" id="after-edit-save">Save Changes</button></div>
         </div>
@@ -26631,7 +26692,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('after-edit-track').value=trackVal;
     document.getElementById('after-edit-train').value=train;
     document.getElementById('after-edit-block').value=blockType;
-    document.getElementById('after-edit-time').value=blockType==='SS'?toEditLocalValue(ov.ssStartTime||parsed.ssStartTime||block.dataset.afterSsStart||''):toEditLocalValue(ov.arrival||getEditArrivalForTrain(train,''));
+    document.getElementById('after-edit-time').value=toEditLocalValue(ov.ssStartTime||ov.ssStart||parsed.ssStartTime||block.dataset.afterSsStart||block.dataset.currentSsStart||'');
     updateAfterEditPreview();
     modal.querySelector('.after-edit-title').textContent='EDIT POST OUTBOUND BLOCK — 06-'+(block.dataset.afterTrack||trackVal||'');
     modal.classList.add('open');
@@ -26738,8 +26799,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       window.openManualAfterBlockEditor(blk ? (blk.track||blk.outTrack||'') : '', fiId);
       return;
     }
-    e.preventDefault(); e.stopPropagation();
-    openAfterEditModal(b);
+    // Normal Post Outbound blocks are edited by final-after-edit-modal.
+    // This legacy after-block editor remains available only through manual/future controls above.
+    return;
   },true);
   const prior=window.renderBowlTurnover;
   if(typeof prior==='function'){
@@ -30550,7 +30612,458 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   window.addEventListener('load', function(){ schedule(); setTimeout(function(){ apply(document); }, 250); }, {once:true});
 })();
 </script>
-</body>
+
+<script id="post-outbound-single-edit-modal-authority-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundSingleEditModalAuthorityInstalled) return;
+  window.__postOutboundSingleEditModalAuthorityInstalled = true;
+
+  function closeLegacyGroupWhenPostEditorOpen(){
+    var legacy = document.getElementById('bowl-group-edit-modal');
+    var post = document.getElementById('final-after-edit-modal');
+    if(!legacy || !legacy.classList.contains('open')) return;
+    if(post && post.classList.contains('open')) legacy.classList.remove('open');
+  }
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    var block = e.target.closest('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block');
+    if(!block) return;
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 0);
+    setTimeout(closeLegacyGroupWhenPostEditorOpen, 80);
+  }, true);
+})();
+</script>
+
+<style id="top-daily-rollup-card-toggle-css">
+#btn-daily-inbound-rollup{
+  border-color:rgba(34,197,94,.36)!important;
+  color:#bbf7d0!important;
+}
+#btn-daily-inbound-rollup.active,
+#btn-daily-inbound-rollup.active-toggle{
+  background:linear-gradient(180deg,rgba(34,197,94,.30),rgba(20,83,45,.32))!important;
+  border-color:rgba(74,222,128,.68)!important;
+  color:#fff!important;
+}
+#daily-inbound-rollup{
+  position:sticky!important;
+  top:0!important;
+  z-index:70!important;
+  margin:0 0 10px!important;
+  padding:0!important;
+  width:100%!important;
+  max-width:none!important;
+  border-radius:0!important;
+  overflow:visible!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}
+#daily-inbound-rollup[hidden],
+#daily-inbound-rollup.hidden{display:none!important;}
+#daily-inbound-rollup .rollup-card,
+#daily-inbound-rollup .top-rollup-table-only{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  overflow:visible!important;
+  box-shadow:none!important;
+  background:#13241d!important;
+}
+#daily-inbound-rollup .rollup-wrap{
+  width:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  overflow:visible!important;
+  border-radius:0!important;
+  background:#13241d!important;
+}
+#daily-inbound-rollup .rollup-table{
+  width:100%!important;
+  min-width:100%!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+  border-spacing:0!important;
+  font-weight:950!important;
+  color:#f7fff7!important;
+  background:#17271f!important;
+  font-size:13px!important;
+}
+#daily-inbound-rollup .rollup-table th{
+  background:#050505!important;
+  color:#ffd400!important;
+  text-align:center!important;
+  padding:7px 12px!important;
+  height:30px!important;
+  font-size:14px!important;
+  text-transform:uppercase!important;
+  border-bottom:2px solid #dedede!important;
+  white-space:nowrap!important;
+}
+#daily-inbound-rollup .rollup-table td{
+  background:#17271f!important;
+  color:#f7fff7!important;
+  padding:7px 9px!important;
+  font-size:15px!important;
+  border-bottom:0!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+}
+#daily-inbound-rollup .rollup-table .group-start td,
+#daily-inbound-rollup .rollup-table .group-start .day-cell,
+#daily-inbound-rollup .rollup-table .group-start .total-cell{
+  border-top:2px solid #e6e6e6!important;
+}
+#daily-inbound-rollup .rollup-table .day-cell{
+  width:120px!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+  background:#16251f!important;
+  font-size:16px!important;
+}
+#daily-inbound-rollup .rollup-table .inbound-cell,
+#daily-inbound-rollup .rollup-table .arrival-cell,
+#daily-inbound-rollup .rollup-table .shift-cell,
+#daily-inbound-rollup .rollup-table .ft-cell-rollup,
+#daily-inbound-rollup .rollup-table .units-cell-rollup,
+#daily-inbound-rollup .rollup-table .ups-cell-rollup{
+  min-width:0!important;
+  width:auto!important;
+  text-align:center!important;
+}
+#daily-inbound-rollup .rollup-table .total-cell{
+  width:150px!important;
+  text-align:center!important;
+  vertical-align:bottom!important;
+  background:#16251f!important;
+  padding:0!important;
+}
+#daily-inbound-rollup .rollup-table tbody tr td,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(even) td,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(odd) td{
+  background:#17271f!important;
+}
+#daily-inbound-rollup .rollup-table tbody tr .day-cell,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(even) .day-cell,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(odd) .day-cell,
+#daily-inbound-rollup .rollup-table tbody tr .total-cell,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(even) .total-cell,
+#daily-inbound-rollup .rollup-table tbody tr:nth-child(odd) .total-cell{
+  background:#16251f!important;
+}
+#daily-inbound-rollup .rollup-table .tone-today{color:#78ff83!important;}
+#daily-inbound-rollup .rollup-table .tone-plus1{color:#ffffff!important;}
+#daily-inbound-rollup .rollup-table .tone-plus2{color:#ff79dc!important;}
+#daily-inbound-rollup .total-box{
+  display:grid!important;
+  height:100%!important;
+  min-height:62px!important;
+  align-content:end!important;
+  font-weight:950!important;
+}
+#daily-inbound-rollup .total-tag{
+  padding:4px 8px 3px!important;
+  font-size:14px!important;
+  text-transform:uppercase!important;
+  color:#d9ffd9!important;
+  background:transparent!important;
+}
+#daily-inbound-rollup .total-value{
+  padding:5px 8px 2px!important;
+  font-size:16px!important;
+}
+#daily-inbound-rollup .total-units{
+  padding:0 8px 5px!important;
+  font-size:11px!important;
+  color:#2d1a00!important;
+  background:#fbefd3!important;
+  text-transform:uppercase!important;
+  letter-spacing:.06em!important;
+}
+#daily-inbound-rollup .total-box.light .total-units,
+#daily-inbound-rollup .total-box.light .total-value{background:#c9f4cf!important;color:#005d0b!important;}
+#daily-inbound-rollup .total-box.light .total-tag{color:#b8ffbd!important;}
+#daily-inbound-rollup .total-box.heavy .total-units,
+#daily-inbound-rollup .total-box.heavy .total-value,
+#daily-inbound-rollup .total-box.low .total-units,
+#daily-inbound-rollup .total-box.low .total-value{background:#ffc3cc!important;color:#970011!important;}
+#daily-inbound-rollup .total-box.heavy .total-tag,
+#daily-inbound-rollup .total-box.low .total-tag{color:#ffd6db!important;}
+#daily-inbound-rollup .rollup-empty{
+  background:#13241d!important;
+  color:#f7fff7!important;
+  padding:26px 14px!important;
+  text-align:center!important;
+  font-weight:950!important;
+}
+#topbar .topbar-actions .view-toggle-panel #btn-daily-inbound-rollup{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  justify-content:flex-start!important;
+  min-height:34px!important;
+  padding:8px 12px!important;
+  border-radius:8px!important;
+  border:1px solid rgba(34,197,94,.42)!important;
+  background:linear-gradient(180deg,rgba(34,197,94,.18),rgba(15,23,42,.92))!important;
+  color:#bbf7d0!important;
+  font-family:var(--mono)!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;
+}
+#topbar .topbar-actions .view-toggle-panel #btn-daily-inbound-rollup:hover{
+  border-color:rgba(74,222,128,.68)!important;
+  background:linear-gradient(180deg,rgba(34,197,94,.30),rgba(15,23,42,.96))!important;
+  color:#fff!important;
+}
+#topbar .topbar-actions .view-toggle-panel #btn-daily-inbound-rollup.active,
+#topbar .topbar-actions .view-toggle-panel #btn-daily-inbound-rollup.active-toggle{
+  border-color:rgba(74,222,128,.74)!important;
+  background:linear-gradient(180deg,rgba(34,197,94,.36),rgba(20,83,45,.42))!important;
+  color:#dcfce7!important;
+}</style>
+<script id="top-daily-rollup-card-toggle-js">
+(function(){
+  'use strict';
+  if(window.__topDailyRollupCardToggleInstalled) return;
+  window.__topDailyRollupCardToggleInstalled = true;
+
+  var STORAGE_KEY = 'inbound-summary-app-v1';
+  var HOST_ID = 'daily-inbound-rollup';
+  var BTN_ID = 'btn-daily-inbound-rollup';
+
+  function esc(value){
+    return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  function numericValue(value){
+    var n = Number(String(value == null ? '' : value).replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function fmt(value){
+    var n = Number(value);
+    if(!Number.isFinite(n)) n = numericValue(value);
+    return n.toLocaleString('en-US');
+  }
+  function parseInboundDate(value){
+    if(!value) return null;
+    if(value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    var str = String(value).trim();
+    var direct = new Date(str);
+    if(!Number.isNaN(direct.getTime())) return direct;
+    var m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,)?\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if(!m) return null;
+    var year = Number(m[3]);
+    if(year < 100) year += 2000;
+    var hour = Number(m[4]);
+    var minute = Number(m[5]);
+    var ap = (m[6] || '').toUpperCase();
+    if(ap === 'PM' && hour < 12) hour += 12;
+    if(ap === 'AM' && hour === 12) hour = 0;
+    var date = new Date(year, Number(m[1])-1, Number(m[2]), hour, minute);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  function startOfDay(date){ return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); }
+  function dayOffset(train){
+    var parsed = parseInboundDate(train && train.dateTime);
+    if(!parsed) return null;
+    var now = new Date();
+    return Math.round((startOfDay(parsed) - startOfDay(now)) / 86400000);
+  }
+  function rollupDayLabel(train){
+    var offset = dayOffset(train);
+    if(offset === 0) return 'TODAY';
+    if(offset === 1) return 'TOMORROW';
+    if(offset === 2) return '2 DAYS OUT';
+    return '';
+  }
+  function daySortBucket(train){
+    var offset = dayOffset(train);
+    return offset == null ? 99 : offset;
+  }
+  function shouldIncludeInRollup(train){
+    var offset = dayOffset(train);
+    return offset === 0 || offset === 1 || offset === 2;
+  }
+  function toneClassForDay(label){
+    if(label === 'TODAY') return 'tone-today';
+    if(label === 'TOMORROW') return 'tone-plus1';
+    return 'tone-plus2';
+  }
+  function guessShift(value){
+    var d = parseInboundDate(value);
+    if(!d) return '';
+    var h = d.getHours();
+    return (h >= 18 || h < 4) ? 'NIGHT SHIFT' : 'DAY SHIFT';
+  }
+  function sortValue(train){
+    var d = parseInboundDate(train && train.dateTime);
+    return d ? d.getTime() : Number.MAX_SAFE_INTEGER;
+  }
+  function trainRows(train){ return Array.isArray(train && train.rows) ? train.rows : []; }
+  function trainTotalFt(train){
+    var total = numericValue(train && train.footage);
+    if(total) return total;
+    return trainRows(train).reduce(function(sum,row){ return sum + numericValue(row && row.ft); },0);
+  }
+  function trainTotalUnits(train){
+    var total = numericValue(train && train.units);
+    if(total) return total;
+    return trainRows(train).reduce(function(sum,row){ return sum + numericValue(row && (row.units || row.cars)); },0);
+  }
+  function totalFtRule(total){
+    if(total > 10000) return {className:'heavy', tag:'HEAVY'};
+    if(total > 7000) return {className:'light', tag:'LIGHT'};
+    return {className:'low', tag:'LOW'};
+  }
+  function formatUps(train){
+    var ups = train && train.ups;
+    if(ups === null || ups === undefined || String(ups).trim() === '') return '';
+    return esc(ups) + ' UPS';
+  }
+  function loadTrains(){
+    try{
+      var parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      return [];
+    }
+  }
+  function rollupHtml(){
+    var rollupTrains = loadTrains().filter(shouldIncludeInRollup);
+    if(!rollupTrains.length){
+      return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-wrap"><div class="rollup-empty">No inbound tables for Today, Tomorrow, or 2 Days Out.</div></div></section>';
+    }
+    var sorted = rollupTrains.slice().sort(function(a,b){
+      var ad = daySortBucket(a), bd = daySortBucket(b);
+      if(ad !== bd) return ad - bd;
+      var av = sortValue(a), bv = sortValue(b);
+      if(av !== bv) return av - bv;
+      return String(a && a.train || '').localeCompare(String(b && b.train || ''));
+    });
+    var groups = [];
+    sorted.forEach(function(train){
+      var label = rollupDayLabel(train);
+      if(!label) return;
+      var group = groups.find(function(g){ return g.label === label; });
+      if(!group){ group = {label:label, trains:[]}; groups.push(group); }
+      group.trains.push(train);
+    });
+    var body = groups.map(function(group){
+      var total = group.trains.reduce(function(sum,train){ return sum + trainTotalFt(train); },0);
+      var totalUnits = group.trains.reduce(function(sum,train){ return sum + numericValue(trainTotalUnits(train)); },0);
+      var rule = totalFtRule(total);
+      var dayTone = toneClassForDay(group.label);
+      return group.trains.map(function(train,idx){
+        var first = idx === 0;
+        var ft = trainTotalFt(train);
+        return '<tr class="'+(first ? 'group-start' : '')+'">'
+          + (first ? '<td class="day-cell '+dayTone+'" rowspan="'+group.trains.length+'">'+esc(group.label)+'</td>' : '')
+          + '<td class="inbound-cell '+dayTone+'">'+esc(train && train.train || '')+'</td>'
+          + '<td class="arrival-cell '+dayTone+'">'+esc(train && train.dateTime || '')+'</td>'
+          + '<td class="shift-cell '+dayTone+'">'+esc((train && train.shift) || guessShift(train && train.dateTime))+'</td>'
+          + '<td class="ft-cell-rollup '+dayTone+'">'+fmt(ft)+'</td>'
+          + '<td class="units-cell-rollup '+dayTone+'">'+esc(trainTotalUnits(train) || '')+'</td>'
+          + '<td class="ups-cell-rollup '+dayTone+'">'+formatUps(train)+'</td>'
+          + (first ? '<td class="total-cell" rowspan="'+group.trains.length+'"><div class="total-box '+rule.className+'"><div class="total-tag">'+rule.tag+'</div><div class="total-value">'+fmt(total)+'</div><div class="total-units">'+(totalUnits ? fmt(totalUnits) + ' UNITS' : 'UNITS —')+'</div></div></td>' : '')
+          + '</tr>';
+      }).join('');
+    }).join('');
+    return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-wrap"><table class="rollup-table"><thead><tr><th>Day</th><th>Inbound</th><th>Arrival</th><th>Shift</th><th>FT</th><th>Units</th><th>UPS</th><th>Total FT</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
+  }
+  function ensureHost(){
+    var host = document.getElementById(HOST_ID);
+    if(host) return host;
+    host = document.createElement('div');
+    host.id = HOST_ID;
+    host.hidden = true;
+    var scale = document.getElementById('content-scale') || document.querySelector('.app-shell') || document.body;
+    scale.insertBefore(host, scale.firstChild);
+    return host;
+  }
+  function renderTopDailyRollup(){
+    var host = ensureHost();
+    var on = localStorage.getItem('showDailyInboundRollupAtTop') === '1';
+    host.hidden = !on;
+    if(on) host.innerHTML = rollupHtml();
+  }
+  function ensureButton(){
+    var panel = document.getElementById('view-toggle-panel');
+    if(!panel) return;
+    var btn = document.getElementById(BTN_ID);
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = BTN_ID;
+      btn.className = 'topbar-btn';
+      panel.appendChild(btn);
+      btn.addEventListener('click', function(){
+        var on = localStorage.getItem('showDailyInboundRollupAtTop') !== '1';
+        localStorage.setItem('showDailyInboundRollupAtTop', on ? '1' : '0');
+        updateButton();
+        renderTopDailyRollup();
+      });
+    }
+    updateButton();
+  }
+  function updateButton(){
+    var btn = document.getElementById(BTN_ID);
+    if(!btn) return;
+    var on = localStorage.getItem('showDailyInboundRollupAtTop') === '1';
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? 'Hide Rollup' : 'Daily Rollup';
+  }
+  function boot(){ ensureButton(); renderTopDailyRollup(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  setInterval(function(){ ensureButton(); if(localStorage.getItem('showDailyInboundRollupAtTop') === '1') renderTopDailyRollup(); }, 1500);
+  window.addEventListener('storage', renderTopDailyRollup);
+})();
+</script>
+<style id="inbound-row-remove-right-align-final-css">
+/* Keep the inbound row delete button on the same line, pinned to the far right of the block cell. */
+table[aria-label="Inbound summary table"] td.block-cell-with-remove{
+  padding-left:6px!important;
+  padding-right:6px!important;
+  vertical-align:middle!important;
+}
+table[aria-label="Inbound summary table"] .block-remove-wrap{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 34px!important;
+  align-items:center!important;
+  gap:8px!important;
+  width:100%!important;
+  min-width:0!important;
+}
+table[aria-label="Inbound summary table"] .block-remove-wrap .block-input{
+  grid-column:1!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+}
+table[aria-label="Inbound summary table"] .block-remove-wrap .inline-remove-btn,
+table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
+  grid-column:2!important;
+  justify-self:end!important;
+  align-self:center!important;
+  width:34px!important;
+  min-width:34px!important;
+  max-width:34px!important;
+  height:34px!important;
+  min-height:34px!important;
+  margin:0!important;
+  flex:0 0 34px!important;
+}
+</style></body>
 
 
 <!-- ANALYTICS SCROLL FIX: keep the data grid locked, but allow Analytics to scroll -->
@@ -31972,7 +32485,7 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var m=document.getElementById('after-block-edit-modal');
     if(!m){
       m=document.createElement('div'); m.id='after-block-edit-modal';
-      m.innerHTML='<div class="after-edit-card" role="dialog" aria-modal="true"><div class="after-edit-head"><div class="after-edit-title">EDIT POST OUTBOUND BLOCK</div><button class="after-edit-close" type="button" data-after-edit-cancel>×</button></div><div class="after-edit-body"><div class="after-edit-help">Edit the post-outbound block. Block may stay blank until you choose IHOSA, MHOAS, or SS.</div><div class="after-edit-field"><label>Footage</label><input id="after-edit-ft" inputmode="numeric"></div><div class="after-edit-field"><label>Display Track</label><input id="after-edit-track" inputmode="numeric"></div><div class="after-edit-field"><label>Train / Inbound</label><input id="after-edit-train"></div><div class="after-edit-field"><label>Block</label><select id="after-edit-block"><option value=""></option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option></select></div><div class="after-edit-field full"><label id="after-edit-time-label">Arrival</label><input id="after-edit-time" type="datetime-local" step="60"></div><div class="after-edit-field full"><label>Calculated Net Dwell</label><input id="after-edit-net" readonly value="ENTER TIME"></div><div class="after-edit-actions"><button class="after-edit-btn danger" type="button" id="after-edit-reset">Reset</button><button class="after-edit-btn" type="button" data-after-edit-cancel>Cancel</button><button class="after-edit-btn primary" type="button" id="after-edit-save">Save Changes</button></div></div></div>';
+      m.innerHTML='<div class="after-edit-card" role="dialog" aria-modal="true"><div class="after-edit-head"><div class="after-edit-title">EDIT POST OUTBOUND BLOCK</div><button class="after-edit-close" type="button" data-after-edit-cancel>×</button></div><div class="after-edit-body"><div class="after-edit-help">Edit the post-outbound block. Block may stay blank until you choose IHOSA, MHOAS, or SS.</div><div class="after-edit-field"><label>Footage</label><input id="after-edit-ft" inputmode="numeric"></div><div class="after-edit-field"><label>Display Track</label><input id="after-edit-track" inputmode="numeric"></div><div class="after-edit-field"><label>Train / Inbound</label><input id="after-edit-train"></div><div class="after-edit-field"><label>Block</label><select id="after-edit-block"><option value=""></option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option></select></div><div class="after-edit-field full"><label id="after-edit-time-label">SS Start</label><input id="after-edit-time" type="datetime-local" step="60"></div><div class="after-edit-field full"><label>Calculated Net Dwell</label><input id="after-edit-net" readonly value="ENTER TIME"></div><div class="after-edit-actions"><button class="after-edit-btn danger" type="button" id="after-edit-reset">Reset</button><button class="after-edit-btn" type="button" data-after-edit-cancel>Cancel</button><button class="after-edit-btn primary" type="button" id="after-edit-save">Save Changes</button></div></div></div>';
       document.body.appendChild(m);
     }
     if(!m.dataset.finalBound){
@@ -32014,7 +32527,7 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var bt=clean(m.querySelector('#after-edit-block')&&m.querySelector('#after-edit-block').value).toUpperCase();
     var time=clean(m.querySelector('#after-edit-time')&&m.querySelector('#after-edit-time').value);
     var net=m.querySelector('#after-edit-net'), lab=m.querySelector('#after-edit-time-label');
-    if(lab) lab.textContent=bt==='SS'?'Went Into SS':'Arrival';
+    if(lab) lab.textContent='SS Start';
     var arr=parseDate(time) || getArrivalForTrain(train); var val=null;
     if(bt==='SS'){
       var clock=''; try{clock=localStorage.getItem('dwellAfterSsFutureTime')||'';}catch(e){}
@@ -32263,7 +32776,7 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var train=clean(m.querySelector('#final-after-train').value).toUpperCase();
     var bt=clean(m.querySelector('#final-after-block').value).toUpperCase();
     var arr=clean(m.querySelector('#final-after-time').value);
-    var lab=m.querySelector('#final-after-time-label'); if(lab) lab.textContent=bt==='SS'?'Went Into SS':'Arrival';
+    var lab=m.querySelector('#final-after-time-label'); if(lab) lab.textContent='SS Start';
     var html=calcDwell(null,bt,train,arr), txt='ENTER TIME';
     var mm=html.match(/>([^<]+)</); if(mm) txt=mm[1]; else if(!bt) txt='LIVE NET IF TRAIN HAS ARRIVAL';
     m.querySelector('#final-after-net').value=txt;
@@ -33705,7 +34218,7 @@ table.bowl-board td.bowl-delta.good{
   function hasSSHistory(block){const v=readValues(block); return !!(v.ssStart||v.ssEnd||/ARR\s*TO\s*SS|SS\s*TOTAL|WENT\s*INTO\s*SS/i.test(v.raw||''));}
   function flagSSHistoryNeeds(root){}
   function prepBlocks(root){(root||document).querySelectorAll('.ob-panel.dwell-turnover-panel .bowl-board .bowl-block').forEach(block=>{blockKey(block);block.setAttribute('tabindex','0');if(!block.getAttribute('title'))block.setAttribute('title','Click to edit grouped dwell turnover values');const edit=loadStore()[block.dataset.groupedEditKey];if(edit)applyEditToBlock(block,edit);});flagSSHistoryNeeds(root||document);}
-  window.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#bowl-group-edit-modal'))return;if(e.target&&e.target.closest&&e.target.closest('select,input,textarea,a,label,.current-block-edit-btn'))return;const block=e.target&&e.target.closest&&e.target.closest('.ob-panel.dwell-turnover-panel .bowl-board .bowl-block');if(!block)return;if(block.closest('.bowl-outbound-track-table'))return;if(block.closest('.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)')&&block.querySelector('.current-block-edit-btn'))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();openModal(block);},true);
+  window.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#bowl-group-edit-modal'))return;if(e.target&&e.target.closest&&e.target.closest('select,input,textarea,a,label,.current-block-edit-btn'))return;const block=e.target&&e.target.closest&&e.target.closest('.ob-panel.dwell-turnover-panel .bowl-board .bowl-block');if(!block)return;if(block.closest('.bowl-outbound-track-table,.bowl-board-after'))return;if(block.closest('.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)')&&block.querySelector('.current-block-edit-btn'))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();openModal(block);},true);
   document.addEventListener('click',function(e){if(e.target.closest('[data-bowl-group-close]'))closeModal(); if(e.target.closest('[data-bowl-group-save]'))saveEdit(); if(e.target.closest('[data-bowl-group-clear]'))clearEdit();},true);
   document.addEventListener('input',function(e){if(e.target&&e.target.closest&&e.target.closest('#bowl-group-edit-modal'))recalcReadonly();},true);
   function run(){prepBlocks(document);}
@@ -38042,8 +38555,13 @@ table.bowl-board td.bowl-delta.good{
     var block = postCtx.block;
     var importedArrival = importedArrivalFor(trainValue(modal, block, 'final-after')) || toLocalValue(edit.arrival || (block && (block.dataset.arrival || block.dataset.currentArrival)) || '');
     if(arr) arr.value = importedArrival;
-    if(start && !start.dataset.userTouched){
-      setDateText(start, edit.ssStart || edit.ssStartTime || (block && (block.dataset.afterSsStart || block.dataset.currentSsStart)) || '');
+    var savedSSStart = edit.ssStart || edit.ssStartTime || (block && (block.dataset.afterSsStart || block.dataset.currentSsStart)) || '';
+    var currentStart = clean(start && start.value);
+    var arrivalDisplay = formatDisplay(importedArrival);
+    var startLooksLikeArrival = importedArrival && (currentStart === importedArrival || currentStart === arrivalDisplay || getDateIso(start) === importedArrival);
+    if(start && (!start.dataset.userTouched || startLooksLikeArrival || !savedSSStart)){
+      setDateText(start, savedSSStart || '');
+      if(!savedSSStart) delete start.dataset.userTouched;
     }
     if(end && !end.dataset.userTouched){
       setDateText(end, edit.ssEnd || (block && (block.dataset.afterSsEnd || block.dataset.currentSsEnd)) || '');
@@ -38089,6 +38607,8 @@ table.bowl-board td.bowl-delta.good{
     window.openFinalAfterEditModal = function(block){
       postCtx.block = block || null;
       postCtx.key = postKey(block);
+      var priorStart = document.getElementById('final-after-time');
+      if(priorStart) delete priorStart.dataset.userTouched;
       var result = oldPost.apply(this, arguments);
       if(!postCtx.key && block) postCtx.key = postKey(block);
       setTimeout(patchPostModal, 0);
@@ -38153,7 +38673,7 @@ table.bowl-board td.bowl-delta.good{
       var fblock = clean(document.getElementById('final-after-block') && document.getElementById('final-after-block').value).toUpperCase();
       var ftime = document.getElementById('final-after-time');
       if(ftime){
-        ftime.dataset.saveIsoValue = fblock === 'SS' ? getDateIso(fstart) : clean(farr && farr.value);
+        ftime.dataset.saveIsoValue = getDateIso(fstart);
         ftime.value = ftime.dataset.saveIsoValue;
       }
       setTimeout(function(){
@@ -38938,6 +39458,24 @@ table.bowl-board td.bowl-delta.good{
   }
 
   var normalizing = false;
+  var ssBadgeCache = Object.create(null);
+  function blockCacheKey(block){
+    var tr = block && block.closest && block.closest('tr');
+    var track = tr ? clean((tr.querySelector('.bowl-track') || tr.children[0] || {}).textContent || '') : '';
+    var ft = clean((block.querySelector('b') || {}).textContent || '');
+    var train = clean(block.dataset.afterTrain || block.dataset.sourceTrain || block.dataset.currentTrain || '');
+    return [track, ft, train].join('|');
+  }
+  function rememberBadge(block, hours){
+    var n = parseInt(hours, 10);
+    if(!Number.isFinite(n)) return;
+    var key = blockCacheKey(block);
+    if(key) ssBadgeCache[key] = n;
+  }
+  function rememberedBadge(block){
+    var key = blockCacheKey(block);
+    return key && Object.prototype.hasOwnProperty.call(ssBadgeCache, key) ? ssBadgeCache[key] : null;
+  }
   function normalizeBlock(block){
     if(!block || !block.closest || !block.closest('.bowl-board-after .bowl-segments-cell')) return;
     var span = block.querySelector('span') || block;
@@ -38965,6 +39503,7 @@ table.bowl-board td.bowl-delta.good{
       if(idx > 0){ el.remove(); return; }
       el.dataset.ssHoursInSs = '1';
       el.classList.add('ss-hours-in-ss');
+      var n=parseInt(String(el.textContent||''),10); if(Number.isFinite(n)){ block.dataset.ssHoursLabel=n+'H'; block.dataset.ssHoursTone=n>=24?'ok':'warn'; }
     });
 
     if(!block.querySelector('.ss-hours-in-ss,[data-ss-hours-in-ss]') && foundPlain){
@@ -38998,7 +39537,7 @@ table.bowl-board td.bowl-delta.good{
   window.addEventListener('load', function(){ schedule(); setTimeout(function(){ run(document); }, 500); }, {once:true});
 })();
 </script>
-<script id="post-outbound-ss-hours-badge-owner-v2-js">
+<script type="text/plain" id="post-outbound-ss-hours-badge-owner-v2-js-disabled">
 (function(){
   'use strict';
   if(window.__postOutboundSsHoursBadgeOwnerV2Installed) return;
@@ -39048,6 +39587,24 @@ table.bowl-board td.bowl-delta.good{
     return true;
   }
   var normalizing = false;
+  var ssBadgeCache = Object.create(null);
+  function blockCacheKey(block){
+    var tr = block && block.closest && block.closest('tr');
+    var track = tr ? clean((tr.querySelector('.bowl-track') || tr.children[0] || {}).textContent || '') : '';
+    var ft = clean((block.querySelector('b') || {}).textContent || '');
+    var train = clean(block.dataset.afterTrain || block.dataset.sourceTrain || block.dataset.currentTrain || '');
+    return [track, ft, train].join('|');
+  }
+  function rememberBadge(block, hours){
+    var n = parseInt(hours, 10);
+    if(!Number.isFinite(n)) return;
+    var key = blockCacheKey(block);
+    if(key) ssBadgeCache[key] = n;
+  }
+  function rememberedBadge(block){
+    var key = blockCacheKey(block);
+    return key && Object.prototype.hasOwnProperty.call(ssBadgeCache, key) ? ssBadgeCache[key] : null;
+  }
   function normalizeBlock(block){
     if(!block || !block.closest || !block.closest('.bowl-board-after .bowl-segments-cell')) return;
     var clone = block.cloneNode(true);
@@ -39079,11 +39636,12 @@ table.bowl-board td.bowl-delta.good{
       el.classList.add('ss-hours-in-ss');
       el.classList.toggle('ss-age-ok', Number.isFinite(n) && n >= 24);
       el.classList.toggle('ss-age-warn', !Number.isFinite(n) || n < 24);
-      if(Number.isFinite(n)) el.textContent = n + 'H';
+      if(Number.isFinite(n)){ el.textContent = n + 'H'; rememberBadge(block, n); }
     });
 
     if(!block.querySelector('.ss-hours-in-ss,[data-ss-hours-in-ss]')){
       var hours = foundPlain ? foundPlain.hours : hoursFromStart(block.dataset.afterSsStart || block.dataset.currentSsStart || block.dataset.ssStart || '');
+      if(hours === null) hours = rememberedBadge(block);
       var badge = hours !== null ? makeBadge(hours) : null;
       if(badge) insertAfterSsText(block, badge);
     }
@@ -39106,7 +39664,7 @@ table.bowl-board td.bowl-delta.good{
     new MutationObserver(function(muts){
       for(var i=0;i<muts.length;i++){
         var target = muts[i].target && (muts[i].target.nodeType === 3 ? muts[i].target.parentElement : muts[i].target);
-        if(target && target.closest && target.closest('.bowl-board-after')){ clearTimeout(window.__postOutboundSsHoursBadgeOwnerV2ObserverTimer); window.__postOutboundSsHoursBadgeOwnerV2ObserverTimer = setTimeout(function(){ run(document); }, 0); return; }
+        if(target && target.closest && target.closest('.bowl-board-after')){ if(window.queueMicrotask) queueMicrotask(function(){ run(document); }); else setTimeout(function(){ run(document); }, 0); return; }
       }
     }).observe(root, {childList:true, subtree:true, characterData:true});
   }
@@ -39129,5 +39687,399 @@ table.bowl-board td.bowl-delta.good{
   document.addEventListener('change', schedule, true);
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ run(document); }, {once:true}); else run(document);
   window.addEventListener('load', function(){ run(document); setTimeout(function(){ run(document); }, 350); }, {once:true});
+})();
+</script>
+<script id="post-outbound-ss-hours-render-only-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundSsHoursRenderOnlyInstalled) return;
+  window.__postOutboundSsHoursRenderOnlyInstalled = true;
+
+  function clean(v){ return String(v || '').replace(/\s+/g, ' ').trim(); }
+  function parseDate(v){
+    v = clean(v);
+    if(!v) return null;
+    var d = new Date(v);
+    if(!isNaN(d)) return d;
+    var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+    if(!m) return null;
+    var y = Number(m[3]);
+    if(y < 100) y += 2000;
+    var h = Number(m[4]);
+    var ap = (m[6] || '').toUpperCase();
+    if(ap === 'PM' && h < 12) h += 12;
+    if(ap === 'AM' && h === 12) h = 0;
+    d = new Date(y, Number(m[1]) - 1, Number(m[2]), h, Number(m[5]));
+    return isNaN(d) ? null : d;
+  }
+  function makeBadge(hours){
+    var n = parseInt(hours, 10);
+    if(!Number.isFinite(n)) return null;
+    var span = document.createElement('span');
+    span.className = 'ss-hours-in-ss ' + (n >= 24 ? 'ss-age-ok' : 'ss-age-warn');
+    span.dataset.ssHoursInSs = '1';
+    span.title = 'Hours in SS';
+    span.textContent = n + 'H';
+    return span;
+  }
+  function hoursFromBlock(block){
+    var start = block.dataset.afterSsStart || block.dataset.currentSsStart || block.dataset.ssStart || '';
+    var d = parseDate(start);
+    if(!d) return null;
+    var hrs = Math.max(0, (new Date() - d) / 3600000);
+    return Number.isFinite(hrs) ? Math.floor(hrs) : null;
+  }
+  function normalizeBlock(block){
+    if(!block || !block.closest || !block.closest('.bowl-board-after .bowl-segments-cell')) return;
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss],.bowl-inbound-source-tag,button,.bowl-dwell').forEach(function(el){ el.remove(); });
+    var txt = clean(clone.textContent);
+    if(!/\|\s*SS(?:\s|$)/i.test(txt) && clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType).toUpperCase() !== 'SS') return;
+
+    block.dataset.postOutboundSsOnly = '1';
+    block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
+
+    var plainHours = null;
+    var walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while(walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function(node){
+      var s = node.nodeValue || '';
+      var m = s.match(/(\|\s*SS)\s+(\d+)H\b/i);
+      if(m && plainHours === null) plainHours = m[2];
+      node.nodeValue = s.replace(/(\|\s*SS)\s+\d+H\b/ig, '$1').replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
+    });
+
+    var badges = Array.from(block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]'));
+    badges.forEach(function(el, idx){
+      if(idx > 0){ el.remove(); return; }
+      var n = parseInt(clean(el.textContent), 10);
+      el.dataset.ssHoursInSs = '1';
+      el.classList.add('ss-hours-in-ss');
+      el.classList.toggle('ss-age-ok', Number.isFinite(n) && n >= 24);
+      el.classList.toggle('ss-age-warn', !Number.isFinite(n) || n < 24);
+      if(Number.isFinite(n)){ el.textContent = n + 'H'; block.dataset.ssHoursLabel=n+'H'; block.dataset.ssHoursTone=n>=24?'ok':'warn'; }
+    });
+    if(block.querySelector('.ss-hours-in-ss,[data-ss-hours-in-ss]')) return;
+
+    var hours = plainHours !== null ? plainHours : hoursFromBlock(block);
+    var badge = hours !== null ? makeBadge(hours) : null;
+    if(!badge) return;
+    var n=parseInt(String(badge.textContent||''),10); if(Number.isFinite(n)){ block.dataset.ssHoursLabel=n+'H'; block.dataset.ssHoursTone=n>=24?'ok':'warn'; }
+    var span = block.querySelector('span') || block;
+    span.appendChild(badge);
+  }
+  function run(){
+    var board = document.querySelector('.bowl-board-after');
+    if(!board) return;
+    board.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(normalizeBlock);
+  }
+  function afterRender(){ run(); setTimeout(run, 80); setTimeout(run, 240); }
+  ['renderOB','renderBowlTurnover','restoreFinalPostOutboundDwell','syncStableCurrentEditsToPostOutbound','syncCurrentEditsToPostOutbound','finalEnhanceBowlEditButtons'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn === 'function' && !fn.__postOutboundSsHoursRenderOnlyWrapped){
+      var wrapped = function(){ var result = fn.apply(this, arguments); afterRender(); return result; };
+      wrapped.__postOutboundSsHoursRenderOnlyWrapped = true;
+      window[name] = wrapped;
+    }
+  });
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('.bowl-board-after,.page-menu-option,[data-page-tab]')) setTimeout(run, 0); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('.bowl-board-after,#ob-view,#ob-frozen')) afterRender(); }, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', afterRender, {once:true}); else afterRender();
+  window.addEventListener('load', afterRender, {once:true});
+})();
+</script>
+<style id="post-outbound-ss-hours-block-attr-css">
+  .bowl-board-after .bowl-block[data-ss-hours-label] .ss-hours-in-ss,
+  .bowl-board-after .bowl-block[data-ss-hours-label] [data-ss-hours-in-ss]{
+    display:none!important;
+  }
+  .bowl-board-after .bowl-block[data-ss-hours-label]::after{
+    content:attr(data-ss-hours-label);
+    display:inline-flex!important;
+    align-items:center!important;
+    margin-left:6px!important;
+    padding:1px 6px!important;
+    border:1px solid currentColor!important;
+    border-radius:999px!important;
+    font-size:.82em!important;
+    line-height:1.1!important;
+    font-weight:900!important;
+    letter-spacing:0!important;
+    background:rgba(15,23,42,.72)!important;
+    flex:0 0 auto!important;
+  }
+  .bowl-board-after .bowl-block[data-ss-hours-tone="warn"]::after{color:#f87171!important;}
+  .bowl-board-after .bowl-block[data-ss-hours-tone="ok"]::after{color:#4ade80!important;}
+</style>
+<style id="bowl-block-pipe-opacity-css">
+  .bowl-block .bowl-block-pipe-dim{
+    opacity:.7!important;
+  }
+</style>
+<script id="bowl-block-pipe-opacity-js">
+(function(){
+  'use strict';
+  if(window.__bowlBlockPipeOpacityInstalled) return;
+  window.__bowlBlockPipeOpacityInstalled = true;
+
+  function wrapPipeInText(node){
+    if(!node || node.nodeType !== 3 || !node.nodeValue || node.nodeValue.indexOf('|') < 0) return;
+    var parent = node.parentNode;
+    if(!parent || (parent.classList && parent.classList.contains('bowl-block-pipe-dim'))) return;
+    var frag = document.createDocumentFragment();
+    var parts = node.nodeValue.split('|');
+    for(var i=0;i<parts.length;i++){
+      if(parts[i]) frag.appendChild(document.createTextNode(parts[i]));
+      if(i < parts.length - 1){
+        var span = document.createElement('span');
+        span.className = 'bowl-block-pipe-dim';
+        span.textContent = '|';
+        frag.appendChild(span);
+      }
+    }
+    parent.replaceChild(frag, node);
+  }
+  function wrapBlock(block){
+    if(!block || block.dataset.pipeOpacityWrapped === '1') return;
+    var walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode:function(node){ return node.nodeValue && node.nodeValue.indexOf('|') >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP; }
+    });
+    var nodes = [];
+    while(walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(wrapPipeInText);
+    block.dataset.pipeOpacityWrapped = '1';
+  }
+  function run(root){
+    (root || document).querySelectorAll('.bowl-block').forEach(wrapBlock);
+  }
+  function schedule(){ setTimeout(function(){ run(document); }, 0); setTimeout(function(){ run(document); }, 120); }
+  ['renderOB','renderBowlTurnover','renderOutbound','syncStableCurrentEditsToPostOutbound','syncCurrentEditsToPostOutbound','finalEnhanceBowlEditButtons'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn === 'function' && !fn.__bowlBlockPipeOpacityWrapped){
+      var wrapped = function(){ var result = fn.apply(this, arguments); schedule(); return result; };
+      wrapped.__bowlBlockPipeOpacityWrapped = true;
+      window[name] = wrapped;
+    }
+  });
+  document.addEventListener('click', schedule, true);
+  document.addEventListener('change', schedule, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true}); else schedule();
+  window.addEventListener('load', schedule, {once:true});
+})();
+</script>
+<style id="bowl-block-professional-alignment-css">
+  .bowl-block > span{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:7px!important;
+    white-space:nowrap!important;
+    line-height:1!important;
+    min-height:100%!important;
+  }
+  .bowl-block > span > b{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    line-height:1!important;
+    font-variant-numeric:tabular-nums!important;
+  }
+  .bowl-block .bowl-block-pipe-dim{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    opacity:.7!important;
+    line-height:1!important;
+    transform:translateY(-1px);
+  }
+  .bowl-block .ss-hours-in-ss,
+  .bowl-block [data-ss-hours-in-ss],
+  .bowl-block .bowl-dwell,
+  .bowl-block .after-depart-badge,
+  .bowl-block .future-shove-badge,
+  .bowl-block .manual-tag,
+  .bowl-block .bowl-inbound-source-tag{
+    flex:0 0 auto!important;
+    align-self:center!important;
+  }
+  .bowl-board-after .bowl-block[data-ss-hours-label]::after{
+    align-self:center!important;
+    transform:translateY(0)!important;
+  }
+</style>
+<style id="bowl-table-dropdown-professional-final-css">
+  .bowl-current-options-menu,
+  .bowl-post-options-menu{
+    position:relative!important;
+    overflow:visible!important;
+  }
+  .bowl-current-options-menu .bowl-options-main,
+  .bowl-post-options-menu .bowl-options-main{
+    height:36px!important;
+    min-height:36px!important;
+    padding:0 16px!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:8px!important;
+    border-radius:8px!important;
+    line-height:1!important;
+    font-size:11px!important;
+    letter-spacing:1.7px!important;
+    text-align:center!important;
+  }
+  .bowl-current-options-menu .bowl-options-panel,
+  .bowl-post-options-menu .bowl-options-panel{
+    min-width:300px!important;
+    max-width:340px!important;
+    padding:8px!important;
+    gap:6px!important;
+    border-radius:8px!important;
+    align-items:stretch!important;
+    overflow:hidden!important;
+  }
+  .bowl-current-options-menu .bowl-options-panel button,
+  .bowl-post-options-menu .bowl-options-panel button,
+  .bowl-current-options-menu .bowl-options-panel .bowl-head-btn,
+  .bowl-post-options-menu .bowl-options-panel .bowl-head-btn,
+  .bowl-current-options-menu .bowl-options-panel .bowl-track-toggle-head,
+  .bowl-post-options-menu .bowl-options-panel .bowl-track-toggle-head{
+    box-sizing:border-box!important;
+    position:relative!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    width:100%!important;
+    height:42px!important;
+    min-height:42px!important;
+    max-height:42px!important;
+    margin:0!important;
+    padding:0 14px!important;
+    border-radius:8px!important;
+    line-height:1!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    letter-spacing:1.5px!important;
+    text-align:left!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    opacity:1!important;
+    visibility:visible!important;
+    transform:none!important;
+  }
+  .bowl-current-options-menu .bowl-options-panel button + button,
+  .bowl-post-options-menu .bowl-options-panel button + button{
+    margin-top:0!important;
+  }
+  .bowl-current-options-menu .bowl-options-panel button[style*="display: none"],
+  .bowl-post-options-menu .bowl-options-panel button[style*="display: none"]{
+    display:none!important;
+  }
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-track-suffix-toggle]{
+    color:#d8c8ff!important;
+    border-color:rgba(168,85,247,.72)!important;
+    background:linear-gradient(180deg,rgba(76,29,149,.86),rgba(35,18,66,.98))!important;
+  }
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-future-tag-toggle],
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-future-block-toggle]{
+    color:#ffd6ea!important;
+    border-color:rgba(236,72,153,.64)!important;
+    background:linear-gradient(180deg,rgba(88,28,73,.88),rgba(24,24,37,.98))!important;
+  }
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-prev-depart-toggle],
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-tomorrow-depart-toggle],
+  .bowl-current-options-menu .bowl-options-panel button{
+    color:#dbeafe!important;
+    border-color:rgba(96,165,250,.58)!important;
+    background:linear-gradient(180deg,rgba(30,64,175,.66),rgba(15,23,42,.98))!important;
+  }
+  .bowl-current-options-menu .bowl-options-panel [data-bowl-dwell-toggle],
+  .bowl-post-options-menu .bowl-options-panel [data-bowl-dwell-toggle]{
+    color:#ffe8b5!important;
+    border-color:rgba(245,158,11,.72)!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.88),rgba(38,24,15,.98))!important;
+  }
+</style>
+<style id="missing-ss-start-purple-authority-final-css">
+  .bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block.missing-ss-start,
+  .bowl-page-shell .bowl-board-after .bowl-segments-cell .bowl-block.missing-ss-start,
+  .bowl-page-shell .bowl-outbound-track-table .bowl-segments-cell .bowl-block.missing-ss-start{
+    background:#3b0764!important;
+    background-image:linear-gradient(180deg,rgba(88,28,135,.96),rgba(59,7,100,.98))!important;
+    border-color:#d8b4fe!important;
+    color:#faf5ff!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 1px rgba(216,180,254,.45),0 0 14px rgba(168,85,247,.34)!important;
+    outline:1px solid rgba(250,232,255,.56)!important;
+  }
+  .bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block.missing-ss-start b,
+  .bowl-page-shell .bowl-board-after .bowl-segments-cell .bowl-block.missing-ss-start b,
+  .bowl-page-shell .bowl-outbound-track-table .bowl-segments-cell .bowl-block.missing-ss-start b{
+    color:#ffffff!important;
+    text-shadow:0 0 8px rgba(216,180,254,.55)!important;
+  }
+  .bowl-page-shell .bowl-block.missing-ss-start .bowl-dwell,
+  .bowl-page-shell .bowl-block.missing-ss-start .after-depart-badge,
+  .bowl-page-shell .bowl-block.missing-ss-start .bowl-inbound-source-tag{
+    background:#581c87!important;
+    border-color:#e9d5ff!important;
+    color:#f5e8ff!important;
+  }
+</style>
+<script id="missing-ss-start-render-authority-js">
+(function(){
+  'use strict';
+  if(window.__missingSsStartRenderAuthorityInstalled) return;
+  window.__missingSsStartRenderAuthorityInstalled = true;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function hasCuRamp(v){ return /(^|[^A-Z0-9])(CU|RAMP)([^A-Z0-9]|$)/.test(clean(v).toUpperCase()); }
+  function stripUi(block){
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,.bowl-dwell,.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent);
+  }
+  function labelFromBlock(block){
+    var explicit = clean(block.dataset.currentBlockType || block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.afterStatus || '');
+    if(explicit && !/^(IHOSA|MHOAS)$/i.test(explicit)) return explicit;
+    var text = stripUi(block).replace(/^\s*[\d,]+\s*\|\s*/, '').replace(/\s*\[\d{3}\]\s*$/,'');
+    var parts = text.split('|').map(clean).filter(Boolean);
+    return clean(parts.length > 1 ? parts[1] : text);
+  }
+  function hasSsStart(block){
+    return !!clean(block.dataset.currentSsStart || block.dataset.afterSsStart || block.dataset.ssStart || block.dataset.ssHoursLabel || '');
+  }
+  function shouldFlag(block){
+    if(!block || !block.closest || !block.closest('.bowl-page-shell .bowl-board')) return false;
+    if(block.classList.contains('future-inbound') || block.classList.contains('manual-future')) return false;
+    var label = labelFromBlock(block);
+    if(!label || label === '-') return false;
+    if(hasCuRamp(label)) return false;
+    if(hasCuRamp(block.dataset.currentBlockType || block.dataset.afterBlockType || block.dataset.afterStatus || '')) return false;
+    return !hasSsStart(block);
+  }
+  function apply(){
+    document.querySelectorAll('.bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block').forEach(function(block){
+      var missing = shouldFlag(block);
+      block.classList.toggle('missing-ss-start', missing);
+      block.dataset.missingSsStartAuthority = missing ? '1' : '0';
+    });
+  }
+  function schedule(){ apply(); setTimeout(apply, 80); setTimeout(apply, 240); }
+  ['renderOB','renderBowlTurnover','buildPostOutboundTracksBoard','syncStableCurrentEditsToPostOutbound','syncCurrentEditsToPostOutbound','finalEnhanceBowlEditButtons'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn === 'function' && !fn.__missingSsStartAuthorityWrapped){
+      var wrapped = function(){ var result = fn.apply(this, arguments); schedule(); return result; };
+      wrapped.__missingSsStartAuthorityWrapped = true;
+      window[name] = wrapped;
+    }
+  });
+  document.addEventListener('click', schedule, true);
+  document.addEventListener('change', schedule, true);
+  document.addEventListener('input', schedule, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true}); else schedule();
+  window.addEventListener('load', schedule, {once:true});
 })();
 </script>
