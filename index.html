@@ -4919,6 +4919,497 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   try{ new MutationObserver(scan).observe(document.documentElement, {childList:true, subtree:true}); }catch(e){}
 })();
 </script>
+<style id="switching-page-scroll-final-css">
+  html body #main > #tab-switching.tab-view.active{
+    overflow-y:auto!important;
+    overflow-x:auto!important;
+    height:auto!important;
+    min-height:0!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  html body #main > #tab-switching.tab-view.active #switching-page-content{
+    flex:0 0 auto!important;
+    min-height:max-content!important;
+    padding-bottom:80px!important;
+  }
+</style>
+<style id="switching-page-css">
+  #tab-switching{
+    padding:14px 10px 30px!important;
+  }
+  #switching-page-content{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-width:1180px;
+  }
+  .switching-table-section{
+    width:100%;
+  }
+  .switching-table-section .bowl-page-shell{
+    margin:0!important;
+  }
+  .switching-blank-table .bowl-current,
+  .switching-blank-table .bowl-delta{
+    color:transparent!important;
+    text-shadow:none!important;
+  }
+  .switching-blank-table .bowl-segments-cell{
+    min-height:42px!important;
+  }
+  .switching-copy-current-btn{
+    position:absolute!important;
+    top:50%!important;
+    right:10px!important;
+    transform:translateY(-50%)!important;
+    min-height:24px!important;
+    padding:0 9px!important;
+    border:1px solid rgba(148,163,184,.24)!important;
+    border-radius:6px!important;
+    background:rgba(15,23,42,.36)!important;
+    color:rgba(203,213,225,.78)!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:800!important;
+    letter-spacing:.8px!important;
+    cursor:pointer!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+  }
+  .switching-copy-current-btn:hover{
+    border-color:rgba(147,197,253,.42)!important;
+    background:rgba(30,64,175,.28)!important;
+    color:#dbeafe!important;
+  }
+  .switching-clear-current-btn{
+    right:142px!important;
+    border-color:rgba(248,113,113,.22)!important;
+    color:rgba(254,202,202,.72)!important;
+  }
+  .switching-clear-current-btn:hover{
+    border-color:rgba(248,113,113,.42)!important;
+    background:rgba(127,29,29,.26)!important;
+    color:#fecaca!important;
+  }
+  #switching-current-mirror .bowl-ramp-head{
+    position:relative!important;
+  }
+  #switching-blank-one .bowl-ramp-head{
+    position:relative!important;
+  }
+  #switching-blank-two .bowl-ramp-head{
+    position:relative!important;
+  }
+  #tab-switching .bowl-block{
+    cursor:grab!important;
+    pointer-events:auto!important;
+    user-select:none!important;
+  }
+  #tab-switching .bowl-block:active{
+    cursor:grabbing!important;
+  }
+  #tab-switching .bowl-block.switching-dragging{
+    opacity:.55!important;
+    outline:1px solid rgba(147,197,253,.65)!important;
+  }
+  #tab-switching .bowl-segments-cell.switching-drop-target{
+    box-shadow:inset 0 0 0 2px rgba(147,197,253,.55)!important;
+    background:rgba(30,64,175,.18)!important;
+  }
+  #tab-switching .bowl-segments-wrap{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    align-items:center!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+  }
+  #tab-switching{
+    overflow-y:auto!important;
+    overflow-x:auto!important;
+    min-height:0!important;
+  }
+  #switching-page-content{
+    flex:0 0 auto!important;
+    min-height:max-content!important;
+    padding-bottom:28px!important;
+  }
+  #tab-switching::-webkit-scrollbar{width:8px;height:8px;}
+  #tab-switching::-webkit-scrollbar-track{background:var(--surface);}
+  #tab-switching::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:4px;}
+</style>
+<script id="switching-page-renderer-js">
+(function(){
+  'use strict';
+
+  function addCopyButton(table){
+    if(!table) return;
+    var head=table.querySelector('.bowl-ramp-head');
+    if(!head) return;
+    if(!head.querySelector('[data-switching-copy-current]')){
+      var button=document.createElement('button');
+      button.type='button';
+      button.className='switching-copy-current-btn';
+      button.dataset.switchingCopyCurrent='1';
+      button.textContent='COPY CURRENT BLOCKS';
+      head.appendChild(button);
+    }
+    if(!head.querySelector('[data-switching-clear-current]')){
+      var clear=document.createElement('button');
+      clear.type='button';
+      clear.className='switching-copy-current-btn switching-clear-current-btn';
+      clear.dataset.switchingClearCurrent='1';
+      clear.textContent='CLEAR TABLE';
+      head.appendChild(clear);
+    }
+  }
+
+  function addCopyAboveButton(table){
+    if(!table) return;
+    var head=table.querySelector('.bowl-ramp-head');
+    if(!head || head.querySelector('[data-switching-copy-above]')) return;
+    var button=document.createElement('button');
+    button.type='button';
+    button.className='switching-copy-current-btn';
+    button.dataset.switchingCopyAbove='1';
+    button.textContent='COPY TABLE ABOVE';
+    head.appendChild(button);
+  }
+
+  function addCopySecondButton(table){
+    if(!table) return;
+    var head=table.querySelector('.bowl-ramp-head');
+    if(!head || head.querySelector('[data-switching-copy-second]')) return;
+    var button=document.createElement('button');
+    button.type='button';
+    button.className='switching-copy-current-btn';
+    button.dataset.switchingCopySecond='1';
+    button.textContent='COPY TABLE ABOVE';
+    head.appendChild(button);
+  }
+
+  function cleanSwitchingCopy(table){
+    table.querySelectorAll('button,.bowl-control-dropdown').forEach(function(el){el.remove();});
+    table.querySelectorAll('.bowl-block').forEach(function(block){
+      block.removeAttribute('tabindex');
+      block.style.pointerEvents='';
+    });
+    return table;
+  }
+
+  function prepareDraggableBlocks(root){
+    (root || document).querySelectorAll('#tab-switching .bowl-segments-cell .bowl-block').forEach(function(block){
+      block.draggable=true;
+      block.dataset.switchingDraggable='1';
+      block.style.pointerEvents='';
+    });
+  }
+
+  function parseBlockFootage(block){
+    var text=(block&&block.textContent||'').replace(/,/g,' ');
+    var match=text.match(/\d+/);
+    return match ? parseInt(match[0],10) || 0 : 0;
+  }
+
+  function refreshSwitchingRow(row){
+    if(!row) return;
+    var total=0;
+    row.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(function(block){
+      total+=parseBlockFootage(block);
+    });
+    var current=row.querySelector('.bowl-current');
+    if(current) current.textContent=total ? total.toLocaleString() : '';
+    var delta=row.querySelector('.bowl-delta');
+    if(delta) delta.textContent='';
+  }
+
+  function refreshSwitchingTable(table){
+    if(!table) return;
+    table.querySelectorAll('tbody tr').forEach(refreshSwitchingRow);
+    prepareDraggableBlocks(table);
+  }
+
+  function outboundCurrentTable(){
+    return document.querySelector('#ob-standalone-bowl table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)') ||
+      document.querySelector('#ob-frozen-bowl table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+  }
+
+  function ensureBlankSwitchingTables(source){
+    var host=document.getElementById('switching-page-content');
+    if(!host || !source) return;
+    var one=document.getElementById('switching-blank-one');
+    var two=document.getElementById('switching-blank-two');
+    if(!one){
+      one=document.createElement('div');
+      one.id='switching-blank-one';
+      one.className='switching-table-section';
+      host.appendChild(one);
+    }
+    if(!two){
+      two=document.createElement('div');
+      two.id='switching-blank-two';
+      two.className='switching-table-section';
+      host.appendChild(two);
+    }
+    if(!one.querySelector('table')) one.appendChild(makeBlankTable(source,'SWITCHING TABLE 1'));
+    if(!two.querySelector('table')) two.appendChild(makeBlankTable(source,'SWITCHING TABLE 2'));
+    addCopyAboveButton(one.querySelector('table'));
+    addCopySecondButton(two.querySelector('table'));
+    prepareDraggableBlocks(host);
+  }
+
+  function copyCurrentBlocks(){
+    var target=document.getElementById('switching-current-mirror');
+    if(!target) return;
+    var source=outboundCurrentTable();
+    var temp=null;
+    if(!source && typeof window.renderBowlTurnover==='function'){
+      temp=document.createElement('div');
+      temp.id='switching-copy-source-temp';
+      temp.style.display='none';
+      document.body.appendChild(temp);
+      window.renderBowlTurnover(temp.id,{onlyCurrent:true});
+      source=temp.querySelector('table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+    }
+    if(source){
+      var copy=cleanSwitchingCopy(source.cloneNode(true));
+      target.replaceChildren(copy);
+      addCopyButton(copy);
+      ensureBlankSwitchingTables(copy);
+      refreshSwitchingTable(copy);
+      if(typeof window.toast==='function') window.toast('Current Ramp blocks copied to Switching');
+    }
+    if(temp) temp.remove();
+  }
+
+  function clearCurrentSwitchingTable(){
+    var target=document.getElementById('switching-current-mirror');
+    var table=target&&target.querySelector('table.bowl-board');
+    if(!table) return;
+    table.querySelectorAll('.bowl-block').forEach(function(block){block.remove();});
+    table.querySelectorAll('tbody tr').forEach(function(row){
+      var current=row.querySelector('.bowl-current');
+      var delta=row.querySelector('.bowl-delta');
+      if(current) current.textContent='';
+      if(delta) delta.textContent='';
+    });
+    if(typeof window.toast==='function') window.toast('Switching current table cleared');
+  }
+
+  function copyFirstSwitchingTableToSecond(){
+    var source=document.querySelector('#switching-current-mirror table.bowl-board');
+    var target=document.getElementById('switching-blank-one');
+    if(!source || !target) return;
+    var copy=cleanSwitchingCopy(source.cloneNode(true));
+    copy.classList.add('switching-blank-table');
+    var heading=copy.querySelector('.bowl-ramp-head > span,.bowl-ramp-head span');
+    if(heading) heading.textContent='SWITCHING TABLE 1';
+    target.replaceChildren(copy);
+    addCopyAboveButton(copy);
+    refreshSwitchingTable(copy);
+    if(typeof window.toast==='function') window.toast('First Switching table copied to second table');
+  }
+
+  function copySecondSwitchingTableToThird(){
+    var source=document.querySelector('#switching-blank-one table.bowl-board');
+    var target=document.getElementById('switching-blank-two');
+    if(!source || !target) return;
+    var copy=cleanSwitchingCopy(source.cloneNode(true));
+    copy.classList.add('switching-blank-table');
+    var heading=copy.querySelector('.bowl-ramp-head > span,.bowl-ramp-head span');
+    if(heading) heading.textContent='SWITCHING TABLE 2';
+    target.replaceChildren(copy);
+    addCopySecondButton(copy);
+    refreshSwitchingTable(copy);
+    if(typeof window.toast==='function') window.toast('Second Switching table copied to third table');
+  }
+
+  function makeBlankTable(source,title){
+    var table=source.cloneNode(true);
+    table.classList.add('switching-blank-table');
+    table.querySelectorAll('.bowl-block').forEach(function(block){block.remove();});
+    table.querySelectorAll('button,.bowl-control-dropdown').forEach(function(el){el.remove();});
+    table.querySelectorAll('tbody tr').forEach(function(row){
+      var current=row.querySelector('.bowl-current');
+      var delta=row.querySelector('.bowl-delta');
+      if(current) current.textContent='';
+      if(delta) delta.textContent='';
+    });
+    var heading=table.querySelector('.bowl-ramp-head > span,.bowl-ramp-head span');
+    if(heading) heading.textContent=title;
+    return table;
+  }
+
+  function renderSwitchingPage(){
+    var host=document.getElementById('switching-page-content');
+    if(!host || typeof window.renderBowlTurnover!=='function') return;
+    host.innerHTML='<div class="switching-table-section" id="switching-current-mirror"></div><div class="switching-table-section" id="switching-blank-one"></div><div class="switching-table-section" id="switching-blank-two"></div>';
+
+    window.renderBowlTurnover('switching-current-mirror',{onlyCurrent:true});
+    var attempts=0;
+    function finishSwitchingRender(){
+      if(!host.isConnected) return;
+      var source=host.querySelector('#switching-current-mirror table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+      if(!source){
+        attempts+=1;
+        if(attempts<20) setTimeout(finishSwitchingRender,25);
+        return;
+      }
+      addCopyButton(source);
+      ensureBlankSwitchingTables(source);
+      prepareDraggableBlocks(host);
+    }
+    finishSwitchingRender();
+  }
+
+  window.renderSwitchingPage=renderSwitchingPage;
+  function refreshSwitchingControls(){
+    var source=document.querySelector('#switching-current-mirror table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+    if(source) addCopyButton(source);
+    if(source) ensureBlankSwitchingTables(source);
+    prepareDraggableBlocks(document.getElementById('tab-switching'));
+  }
+  var draggingBlock=null;
+  var pointerDrag=null;
+  function clearPointerDrag(){
+    if(pointerDrag&&pointerDrag.ghost) pointerDrag.ghost.remove();
+    document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(cell){cell.classList.remove('switching-drop-target');});
+    if(pointerDrag&&pointerDrag.block) pointerDrag.block.classList.remove('switching-dragging');
+    pointerDrag=null;
+  }
+  function pointerCellAt(x,y){
+    var el=document.elementFromPoint(x,y);
+    return el&&el.closest&&el.closest('#tab-switching .bowl-segments-cell');
+  }
+  document.addEventListener('pointerdown',function(e){
+    var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
+    if(!block || e.button!==0) return;
+    if(e.target.closest('button,input,select,textarea')) return;
+    pointerDrag={
+      block:block,
+      table:block.closest('table.bowl-board'),
+      startRow:block.closest('tr'),
+      startX:e.clientX,
+      startY:e.clientY,
+      active:false,
+      ghost:null
+    };
+  },true);
+  document.addEventListener('pointermove',function(e){
+    if(!pointerDrag) return;
+    var dx=Math.abs(e.clientX-pointerDrag.startX);
+    var dy=Math.abs(e.clientY-pointerDrag.startY);
+    if(!pointerDrag.active && dx+dy<6) return;
+    if(!pointerDrag.active){
+      pointerDrag.active=true;
+      pointerDrag.block.classList.add('switching-dragging');
+      var ghost=pointerDrag.block.cloneNode(true);
+      ghost.classList.add('switching-drag-ghost');
+      ghost.style.position='fixed';
+      ghost.style.left='0';
+      ghost.style.top='0';
+      ghost.style.zIndex='2147483647';
+      ghost.style.pointerEvents='none';
+      ghost.style.opacity='.86';
+      ghost.style.transform='translate(-9999px,-9999px)';
+      document.body.appendChild(ghost);
+      pointerDrag.ghost=ghost;
+    }
+    e.preventDefault();
+    if(pointerDrag.ghost) pointerDrag.ghost.style.transform='translate('+(e.clientX+10)+'px,'+(e.clientY+10)+'px)';
+    var cell=pointerCellAt(e.clientX,e.clientY);
+    document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(el){ if(el!==cell) el.classList.remove('switching-drop-target'); });
+    if(cell && cell.closest('table.bowl-board')===pointerDrag.table) cell.classList.add('switching-drop-target');
+  },true);
+  document.addEventListener('pointerup',function(e){
+    if(!pointerDrag) return;
+    if(pointerDrag.active){
+      e.preventDefault();
+      var cell=pointerCellAt(e.clientX,e.clientY);
+      if(cell && cell.closest('table.bowl-board')===pointerDrag.table){
+        var wrap=cell.querySelector('.bowl-segments-wrap') || cell;
+        wrap.appendChild(pointerDrag.block);
+        refreshSwitchingRow(pointerDrag.startRow);
+        refreshSwitchingRow(cell.closest('tr'));
+        prepareDraggableBlocks(pointerDrag.table);
+      }
+    }
+    clearPointerDrag();
+  },true);
+  document.addEventListener('pointercancel',clearPointerDrag,true);
+  document.addEventListener('dragstart',function(e){
+    var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
+    if(!block) return;
+    draggingBlock=block;
+    block.classList.add('switching-dragging');
+    if(e.dataTransfer){
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain','switching-block');
+    }
+  },true);
+  document.addEventListener('dragend',function(e){
+    var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
+    if(block) block.classList.remove('switching-dragging');
+    document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(cell){cell.classList.remove('switching-drop-target');});
+    draggingBlock=null;
+  },true);
+  document.addEventListener('dragover',function(e){
+    if(!draggingBlock) return;
+    var cell=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell');
+    if(!cell) return;
+    var sourceTable=draggingBlock.closest('table.bowl-board');
+    if(!sourceTable || cell.closest('table.bowl-board')!==sourceTable) return;
+    e.preventDefault();
+    if(e.dataTransfer) e.dataTransfer.dropEffect='move';
+    document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(el){ if(el!==cell) el.classList.remove('switching-drop-target'); });
+    cell.classList.add('switching-drop-target');
+  },true);
+  document.addEventListener('drop',function(e){
+    if(!draggingBlock) return;
+    var cell=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell');
+    if(!cell) return;
+    var sourceTable=draggingBlock.closest('table.bowl-board');
+    var targetTable=cell.closest('table.bowl-board');
+    if(!sourceTable || sourceTable!==targetTable) return;
+    e.preventDefault();
+    var oldRow=draggingBlock.closest('tr');
+    var wrap=cell.querySelector('.bowl-segments-wrap') || cell;
+    wrap.appendChild(draggingBlock);
+    draggingBlock.classList.remove('switching-dragging');
+    cell.classList.remove('switching-drop-target');
+    refreshSwitchingRow(oldRow);
+    refreshSwitchingRow(cell.closest('tr'));
+    prepareDraggableBlocks(sourceTable);
+  },true);
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-page-tab="switching"]')){
+      setTimeout(renderSwitchingPage,0);
+      setTimeout(refreshSwitchingControls,150);
+      setTimeout(refreshSwitchingControls,500);
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-current]')){
+      e.preventDefault();
+      e.stopPropagation();
+      copyCurrentBlocks();
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-clear-current]')){
+      e.preventDefault();
+      e.stopPropagation();
+      clearCurrentSwitchingTable();
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-above]')){
+      e.preventDefault();
+      e.stopPropagation();
+      copyFirstSwitchingTableToSecond();
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-second]')){
+      e.preventDefault();
+      e.stopPropagation();
+      copySecondSwitchingTableToThird();
+    }
+  },true);
+})();
+</script>
 <script id="post-outbound-compound-ss-label-lock-js">
 (function(){
   'use strict';
@@ -7890,6 +8381,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
         <button type="button" class="page-menu-option" data-page-tab="inbound">INBOUND</button>
         <button type="button" class="page-menu-option" data-page-tab="analytics">ANALYTICS</button>
         <button type="button" class="page-menu-option" data-page-tab="checklist">CHECKLIST</button>
+        <button type="button" class="page-menu-option" data-page-tab="switching">SWITCHING</button>
       </div>
     </div>
   </div>
@@ -7984,6 +8476,11 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
   <div class="tab-view" id="tab-outbound" style="background:var(--surface);">
     <div id="ob-frozen"></div>
     <div id="ob-view" style="flex:1;min-height:0;overflow-y:auto;"><div id="ob-inner"></div></div>
+  </div>
+
+  <!-- SWITCHING TAB -->
+  <div class="tab-view" id="tab-switching" style="background:var(--surface);overflow-y:auto;">
+    <div id="switching-page-content"></div>
   </div>
 
   <!-- ── ANALYTICS TAB ── -->
@@ -13480,6 +13977,25 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
   }, true);
 })();
 </script>
+<style id="switching-page-scroll-absolute-final-css">
+  html body #main > #tab-switching.tab-view.active{
+    overflow-y:scroll!important;
+    overflow-x:auto!important;
+    height:100%!important;
+    min-height:0!important;
+    flex:1 1 auto!important;
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  html body #main > #tab-switching.tab-view.active #switching-page-content{
+    display:flex!important;
+    flex-direction:column!important;
+    flex:0 0 auto!important;
+    min-height:max-content!important;
+    height:auto!important;
+    padding-bottom:120px!important;
+  }
+</style>
 </body>
 
 
@@ -31498,7 +32014,74 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   });
   window.applyPostOutboundLeftoverAuthority=apply;
 })();
-</script></body>
+</script>
+<style id="switching-page-scroll-last-owner-css">
+  html body #main > #tab-switching.tab-view.active{
+    overflow-y:scroll!important;
+    overflow-x:auto!important;
+    height:100%!important;
+    min-height:0!important;
+    flex:1 1 auto!important;
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  html body #main > #tab-switching.tab-view.active #switching-page-content{
+    display:flex!important;
+    flex-direction:column!important;
+    flex:0 0 auto!important;
+    min-height:max-content!important;
+    height:auto!important;
+    padding-bottom:120px!important;
+  }
+</style>
+<style id="switching-copy-buttons-muted-final-css">
+  html body #tab-switching .switching-copy-current-btn{
+    min-height:24px!important;
+    padding:0 9px!important;
+    border-color:rgba(148,163,184,.24)!important;
+    background:rgba(15,23,42,.36)!important;
+    color:rgba(203,213,225,.78)!important;
+    font-size:9px!important;
+    font-weight:800!important;
+    letter-spacing:.8px!important;
+    box-shadow:none!important;
+  }
+  html body #tab-switching .switching-copy-current-btn:hover{
+    border-color:rgba(147,197,253,.42)!important;
+    background:rgba(30,64,175,.28)!important;
+    color:#dbeafe!important;
+  }
+  html body #tab-switching .switching-clear-current-btn{
+    border-color:rgba(248,113,113,.22)!important;
+    color:rgba(254,202,202,.72)!important;
+  }
+</style>
+<style id="switching-drag-drop-final-css">
+  html body #tab-switching .bowl-segments-cell .bowl-block{
+    cursor:grab!important;
+    pointer-events:auto!important;
+    user-select:none!important;
+  }
+  html body #tab-switching .bowl-segments-cell .bowl-block:active{
+    cursor:grabbing!important;
+  }
+  html body #tab-switching .bowl-segments-cell.switching-drop-target{
+    box-shadow:inset 0 0 0 2px rgba(147,197,253,.55)!important;
+    background:rgba(30,64,175,.18)!important;
+  }
+  html body #tab-switching .bowl-segments-wrap{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    align-items:center!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+  }
+  html body .switching-drag-ghost{
+    box-shadow:0 10px 24px rgba(0,0,0,.36)!important;
+  }
+</style>
+</body>
 
 
 <!-- ANALYTICS SCROLL FIX: keep the data grid locked, but allow Analytics to scroll -->
@@ -38265,8 +38848,8 @@ table.bowl-board td.bowl-delta.good{
   if(window.__checklistPageAddInstalled) return;
   window.__checklistPageAddInstalled = true;
 
-  const TABS = ['input','outbound','inbound','analytics','checklist'];
-  const LABELS = {input:'DATA', inbound:'INBOUND', checklist:'CHECKLIST', outbound:'OUTBOUND', analytics:'ANALYTICS'};
+  const TABS = ['input','outbound','inbound','analytics','checklist','switching'];
+  const LABELS = {input:'DATA', inbound:'INBOUND', checklist:'CHECKLIST', outbound:'OUTBOUND', analytics:'ANALYTICS', switching:'SWITCHING'};
 
   function valid(tab){ return TABS.includes(tab) ? tab : 'inbound'; }
 
@@ -38361,6 +38944,8 @@ table.bowl-board td.bowl-delta.good{
       try{ if(typeof window.renderOB === 'function') requestAnimationFrame(window.renderOB); }catch(e){}
     }else if(tab === 'analytics'){
       try{ if(typeof window.renderAnalytics === 'function') window.renderAnalytics(); }catch(e){}
+    }else if(tab === 'switching'){
+      try{ if(typeof window.renderSwitchingPage === 'function') requestAnimationFrame(window.renderSwitchingPage); }catch(e){}
     }
   }
 
