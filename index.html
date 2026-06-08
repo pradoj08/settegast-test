@@ -2991,7 +2991,7 @@ td.bowl-current,
 #topbar .logo .logo-kicker{
   display:block!important;
   color:var(--cmd-muted)!important;
-  font-size:8px!important;
+  font-size:11px!important;
   font-weight:900!important;
   letter-spacing:2.4px!important;
   text-transform:uppercase!important;
@@ -4654,6 +4654,36 @@ body.help-tips-on .help-hover-outline{
 .bowl-outbound-track-table .bowl-block b{
   color:#fff7cc!important;
 }
+.bowl-outbound-track-head{
+  position:relative!important;
+  padding-left:170px!important;
+  padding-right:170px!important;
+}
+.bowl-outbound-track-hide-btn{
+  position:absolute!important;
+  top:50%!important;
+  right:10px!important;
+  transform:translateY(-50%)!important;
+  min-height:24px!important;
+  padding:0 9px!important;
+  border:1px solid rgba(255,247,204,.22)!important;
+  border-radius:6px!important;
+  background:rgba(15,12,8,.38)!important;
+  color:rgba(255,247,204,.68)!important;
+  font-family:var(--mono,monospace)!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  letter-spacing:.8px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  cursor:pointer!important;
+  box-shadow:none!important;
+}
+.bowl-outbound-track-hide-btn:hover{
+  background:rgba(69,26,3,.58)!important;
+  border-color:rgba(251,191,36,.46)!important;
+  color:#fff7cc!important;
+}
 /* === END PATCH === */
 
 
@@ -4889,6 +4919,77 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   try{ new MutationObserver(scan).observe(document.documentElement, {childList:true, subtree:true}); }catch(e){}
 })();
 </script>
+<script id="post-outbound-compound-ss-label-lock-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundCompoundSsLabelLockInstalled) return;
+  window.__postOutboundCompoundSsLabelLockInstalled = true;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function isCompoundSs(v){
+    v=clean(v);
+    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(v) && v.toUpperCase()!=='SS';
+  }
+  function visibleLabel(block){
+    var copy=block.cloneNode(true);
+    copy.querySelectorAll('button,b,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge').forEach(function(el){el.remove();});
+    return clean(copy.textContent).replace(/^\|\s*/,'');
+  }
+  function replaceLabelText(block,label){
+    var span=block.querySelector(':scope > span')||block.querySelector('span')||block;
+    var walker=document.createTreeWalker(span,NodeFilter.SHOW_TEXT);
+    var node;
+    while((node=walker.nextNode())){
+      var value=node.nodeValue||'';
+      if(/\|\s*SS(?:\s*$|\s+(?=\d+H\b))/i.test(value)){
+        node.nodeValue=value.replace(/(\|\s*)SS(?=\s*$|\s+(?=\d+H\b))/i,'$1'+label);
+        return true;
+      }
+    }
+    return false;
+  }
+  function lockBlock(block){
+    if(!block||!block.closest||!block.closest('.bowl-board-after .bowl-segments-cell')) return;
+    var source=clean(block.dataset.sourceBlockLabel||block.dataset.afterStatus||'');
+    if(!isCompoundSs(source)) return;
+    if(!block.dataset.sourceBlockLabel) block.dataset.sourceBlockLabel=source;
+    var shown=visibleLabel(block);
+    if(shown.toUpperCase()===source.toUpperCase()) return;
+    if(/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(shown)) replaceLabelText(block,source);
+  }
+  function lock(root){
+    if(root&&root.matches&&root.matches('.bowl-block')) lockBlock(root);
+    (root&&root.querySelectorAll?root:document).querySelectorAll('.bowl-board-after .bowl-segments-cell .bowl-block').forEach(lockBlock);
+  }
+  function observeBoard(board){
+    if(!board||board.dataset.compoundSsLabelLockObserved==='1') return;
+    board.dataset.compoundSsLabelLockObserved='1';
+    lock(board);
+    new MutationObserver(function(mutations){
+      mutations.forEach(function(mutation){
+        var target=mutation.target.nodeType===1?mutation.target:mutation.target.parentElement;
+        var block=target&&target.closest&&target.closest('.bowl-block');
+        if(block) lockBlock(block);
+        mutation.addedNodes.forEach(function(node){if(node.nodeType===1) lock(node);});
+      });
+    }).observe(board,{childList:true,subtree:true,characterData:true});
+  }
+  function boot(){
+    document.querySelectorAll('.bowl-board-after').forEach(observeBoard);
+    new MutationObserver(function(mutations){
+      mutations.forEach(function(mutation){
+        mutation.addedNodes.forEach(function(node){
+          if(node.nodeType!==1) return;
+          if(node.matches&&node.matches('.bowl-board-after')) observeBoard(node);
+          node.querySelectorAll&&node.querySelectorAll('.bowl-board-after').forEach(observeBoard);
+        });
+      });
+    }).observe(document.documentElement,{childList:true,subtree:true});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+</script>
 
 <script id="absolute-final-update-net-from-ss-visible-fields-js">
 (function(){
@@ -5021,7 +5122,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   window.__removePostOutboundPencilsInstalled = true;
 
   function removePostOutboundPencils(){
-    document.querySelectorAll('.bowl-board-after .after-block-edit-btn,.bowl-board-after .bowl-manual-edit,.future-inbound-post-body .after-block-edit-btn').forEach(function(btn){
+    document.querySelectorAll('.bowl-board-after .current-block-edit-btn,.bowl-board-after .after-block-edit-btn,.bowl-board-after .bowl-manual-edit,.future-inbound-post-body .current-block-edit-btn,.future-inbound-post-body .after-block-edit-btn').forEach(function(btn){
       btn.remove();
     });
     document.querySelectorAll('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block').forEach(function(block){
@@ -16027,7 +16128,226 @@ body.theme-dark .archive-chip.pending{background:#172033;color:#cbd5e1;border-co
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-</head>
+<style id="conference-countdown-centered-final-css">
+/* Center the compact conference countdown as one balanced unit. */
+.conference-banner .conf-combo-card{
+  grid-template-columns:minmax(0,1fr) 120px!important;
+  gap:12px!important;
+  min-height:92px!important;
+  max-height:92px!important;
+  padding:8px 10px 8px 12px!important;
+  align-items:stretch!important;
+}
+.conference-banner .conf-count-panel{
+  grid-template-columns:42px minmax(0,1fr)!important;
+  grid-template-rows:14px 36px 16px!important;
+  column-gap:10px!important;
+  row-gap:2px!important;
+  align-content:center!important;
+  align-items:center!important;
+  transform:none!important;
+  min-width:0!important;
+}
+.conference-banner .conf-count-panel:before{
+  grid-column:1!important;
+  grid-row:1 / 4!important;
+  align-self:center!important;
+  justify-self:center!important;
+  width:34px!important;
+  height:34px!important;
+  font-size:20px!important;
+  transform:none!important;
+}
+.conference-banner .conf-count-panel .conf-kicker{
+  grid-column:2!important;
+  grid-row:1!important;
+  align-self:end!important;
+  margin:0!important;
+  font-size:10px!important;
+  line-height:1!important;
+  text-align:left!important;
+}
+.conference-banner .conf-countdown{
+  grid-column:2!important;
+  grid-row:2!important;
+  align-self:center!important;
+  margin:0!important;
+  font-size:34px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.conference-banner .conf-count-sub{
+  grid-column:2!important;
+  grid-row:3!important;
+  align-self:start!important;
+  min-width:0!important;
+  width:100%!important;
+  margin:0!important;
+  gap:5px!important;
+  font-size:11px!important;
+  line-height:1.1!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.conference-banner .conf-actions{
+  grid-template-rows:1fr 1fr!important;
+  gap:5px!important;
+  align-content:stretch!important;
+  align-items:stretch!important;
+}
+.conference-banner .conf-actions .btn{
+  width:100%!important;
+  min-height:32px!important;
+  max-height:92px!important;
+  padding:0 10px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  gap:5px!important;
+}
+.conference-banner .conf-actions .btn:before{
+  font-size:16px!important;
+}
+.conference-banner .conf-combo-card{
+  grid-template-columns:minmax(0,1fr) max-content!important;
+}
+.conference-banner .conf-actions{
+  width:max-content!important;
+  min-width:0!important;
+  justify-self:end!important;
+}
+.conference-banner .conf-actions .btn{
+  width:auto!important;
+  min-width:max-content!important;
+  padding:0 11px!important;
+}</style><style id="toolbar-single-page-unified-colors-css">
+/* Match every primary toolbar action to the Single Page button. */
+.toolbar .nav-tone,
+.toolbar .split-tone,
+.toolbar .task-tone,
+.toolbar .archive-tone,
+.toolbar .conference-tone,
+.toolbar .urgent-tone,
+.toolbar .reset-tone{
+  background:linear-gradient(180deg,#ffffff,#f4f6f8)!important;
+  color:#111!important;
+  border-color:#cfd6dd!important;
+  box-shadow:0 5px 14px rgba(17,24,39,.10)!important;
+}
+.toolbar .urgent-tone:before{display:none!important;content:none!important;}
+.toolbar .nav-tone:hover,
+.toolbar .split-tone:hover,
+.toolbar .task-tone:hover,
+.toolbar .archive-tone:hover,
+.toolbar .conference-tone:hover,
+.toolbar .urgent-tone:hover,
+.toolbar .reset-tone:hover{
+  background:linear-gradient(180deg,#ffffff,#edf1f4)!important;
+  color:#111!important;
+  border-color:#bcc6cf!important;
+  filter:none!important;
+}
+body.theme-dark .toolbar .nav-tone,
+body.theme-dark .toolbar .split-tone,
+body.theme-dark .toolbar .task-tone,
+body.theme-dark .toolbar .archive-tone,
+body.theme-dark .toolbar .conference-tone,
+body.theme-dark .toolbar .urgent-tone,
+body.theme-dark .toolbar .reset-tone{
+  background:linear-gradient(180deg,#273241,#202a36)!important;
+  color:#eef2f7!important;
+  border-color:#435063!important;
+  box-shadow:0 5px 14px rgba(0,0,0,.22)!important;
+}
+body.theme-dark .toolbar .nav-tone:hover,
+body.theme-dark .toolbar .split-tone:hover,
+body.theme-dark .toolbar .task-tone:hover,
+body.theme-dark .toolbar .archive-tone:hover,
+body.theme-dark .toolbar .conference-tone:hover,
+body.theme-dark .toolbar .urgent-tone:hover,
+body.theme-dark .toolbar .reset-tone:hover{
+  background:linear-gradient(180deg,#303d4e,#263241)!important;
+  color:#fff!important;
+  border-color:#59697d!important;
+}
+</style><style id="checklist-dark-conference-marker-fix-css">
+.conf-count-sub:before{
+  content:""!important;
+  display:inline-block!important;
+  flex:0 0 auto!important;
+  width:10px!important;
+  height:10px!important;
+  border:2px solid #ff8a0a!important;
+  border-radius:1px!important;
+  background:transparent!important;
+  box-shadow:inset 0 0 0 2px rgba(255,138,10,.18)!important;
+  font-size:0!important;
+  line-height:0!important;
+}
+body.theme-dark .conf-count-sub:before{
+  border-color:#86efac!important;
+  background:rgba(34,197,94,.14)!important;
+  box-shadow:inset 0 0 0 2px rgba(15,23,32,.72)!important;
+}
+body.theme-dark .conference-banner .conf-combo-card{
+  background:linear-gradient(135deg,#4b2b46 0%,#332030 55%,#2a1828 100%)!important;
+  border-color:#8b5b80!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 18px rgba(0,0,0,.28)!important;
+}
+body.theme-dark .conference-banner .conf-count-panel{
+  background:transparent!important;
+  color:#fff7fb!important;
+}
+body.theme-dark .conference-banner .conf-count-panel:before{
+  background:linear-gradient(180deg,#51344d,#2d1c2b)!important;
+  border-color:#9b6f91!important;
+  color:#f2bfdc!important;
+  box-shadow:inset 0 1px 6px rgba(255,255,255,.08),0 5px 12px rgba(0,0,0,.24)!important;
+}
+body.theme-dark .conference-banner .conf-count-panel .conf-kicker{
+  color:#f0badb!important;
+}
+body.theme-dark .conference-banner .conf-count-sub{
+  color:#efd7e5!important;
+}
+body.theme-dark .conference-banner .conf-count-sub:before{
+  border-color:#e7a9d0!important;
+  background:rgba(231,169,208,.16)!important;
+  box-shadow:inset 0 0 0 2px rgba(42,24,40,.78)!important;
+}
+body.theme-dark .conference-banner .conf-actions .btn{
+  background:rgba(43,24,41,.64)!important;
+  border-color:#8b5b80!important;
+  color:#fff7fb!important;
+}
+body.theme-dark .conference-banner .conf-actions .btn:before{
+  color:#efb6d9!important;
+}
+body.theme-dark .conference-banner .conf-actions .btn:hover{
+  background:rgba(91,53,83,.76)!important;
+  border-color:#b783aa!important;
+}</style><style id="post-outbound-remove-all-legacy-pencil-controls-css">
+/* Post Outbound blocks themselves are the edit target. Remove every legacy pencil control. */
+.bowl-board-after .current-block-edit-btn,
+.bowl-board-after .after-block-edit-btn,
+.bowl-board-after .bowl-manual-edit,
+.bowl-board-after [data-bowl-edit],
+.bowl-board-after button[title="Edit block"],
+.future-inbound-post-body .current-block-edit-btn,
+.future-inbound-post-body .after-block-edit-btn,
+.future-inbound-post-body .bowl-manual-edit{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+  width:0!important;
+  min-width:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+}
+</style></head>
 <body>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -16045,7 +16365,7 @@ body.theme-dark .archive-chip.pending{background:#172033;color:#cbd5e1;border-co
 </div>
 
 <main class="app" id="app">
-<header class="topbar"><div class="brand"><div class="railmark" aria-hidden="true"><svg viewBox="0 0 64 52" role="img"><path class="railbed" d="M19 5h26l13 42H6L19 5Z"/><path class="rail" d="M23 6 10 47"/><path class="rail" d="M41 6 54 47"/><rect class="tiebar" x="23" y="7" width="18" height="4" rx="2"/><rect class="tiebar" x="20" y="16" width="24" height="4" rx="2"/><rect class="tiebar" x="17" y="26" width="30" height="4" rx="2"/><rect class="tiebar" x="13" y="37" width="38" height="5" rx="2.5"/><path d="M32 8v34" stroke="rgba(255,255,255,.38)" stroke-width="2" stroke-linecap="round"/></svg></div><h1>SETTEGAST <span>— DAILY OPERATIONS TIMELINE</span></h1></div><div class="top-actions"><div class="top-control-stack"><div class="top-split-control"><button class="btn light top-theme-btn" id="themeBtn">Dark Version</button><button class="btn light top-toolbar-btn" id="toolbarToggleBtn">Hide Toolbar</button></div><label class="text-control top-text-control">Text Size <input type="range" id="textScale" min="85" max="130" step="5" value="100"><span id="textScaleValue">100%</span></label></div><div class="datebox"><div class="label">TODAY</div><div class="date" id="todayText"></div></div></div></header>
+<header class="topbar"><div class="brand"><div class="railmark" aria-hidden="true"><svg viewBox="0 0 64 52" role="img"><path class="railbed" d="M19 5h26l13 42H6L19 5Z"/><path class="rail" d="M23 6 10 47"/><path class="rail" d="M41 6 54 47"/><rect class="tiebar" x="23" y="7" width="18" height="4" rx="2"/><rect class="tiebar" x="20" y="16" width="24" height="4" rx="2"/><rect class="tiebar" x="17" y="26" width="30" height="4" rx="2"/><rect class="tiebar" x="13" y="37" width="38" height="5" rx="2.5"/><path d="M32 8v34" stroke="rgba(255,255,255,.38)" stroke-width="2" stroke-linecap="round"/></svg></div><h1>SETTEGAST <span>— OPERATIONS TIMELINE</span></h1></div><div class="top-actions"><div class="top-control-stack"><div class="top-split-control"><button class="btn light top-theme-btn" id="themeBtn">Dark Version</button><button class="btn light top-toolbar-btn" id="toolbarToggleBtn">Hide Toolbar</button></div><label class="text-control top-text-control">Text Size <input type="range" id="textScale" min="85" max="130" step="5" value="100"><span id="textScaleValue">100%</span></label></div><div class="datebox"><div class="label">TODAY</div><div class="date" id="todayText"></div></div></div></header>
 <div class="toolbar"><div class="tool-left"><label class="role-switch-wrap">Role <select id="roleSwitch"><option value="default">Assistant Terminal Manager</option><option value="example">Example Role</option></select></label><button class="btn nav-tone split-tone" id="splitBtn">Split Page</button><button class="btn nav-tone task-tone" id="defaultsBtn">Task Manager</button><button class="btn nav-tone archive-tone" id="archiveBtn">Archive</button><button class="btn nav-tone conference-tone" id="confToggleBtn">Conference</button><div class="notes-menu-wrap">
   <button class="btn nav-tone urgent-tone" id="notesMenuBtn" type="button">Urgent Notes ▾</button>
   <div class="notes-menu" id="notesMenu">
@@ -16394,7 +16714,7 @@ function renderConferenceBanner(){
       if(nextTomorrow)start.setDate(start.getDate()+1);
       countdownLabel='STARTS IN';
       countdown=formatDuration(start-new Date());
-      countSub='Next conference call';
+      countSub='Next conference';
     }
   }
 
@@ -19226,15 +19546,21 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const addRef=(car,g,assigned)=>{
       const rowIdx=Number(car && car._rowIndex);
       const carId=clean(car && car.equipId);
-      const trk=clean((car && car.track) || (g && g.track));
+      const rawTrack=clean((car && car.track) || (g && g.track));
+      const trkMatch=rawTrack.match(/(?:06-)?(80[1-9])/);
+      const trk=trkMatch ? trkMatch[1] : rawTrack;
       if(Number.isFinite(rowIdx)){
         const live=data[rowIdx];
         const liveEquip=clean(live && live[CI.equipId]);
-        const liveTrack=clean(live && live[CI.track]);
-        if(!live || !liveEquip || !liveTrack || liveEquip!==carId || liveTrack!==trk) return;
-        refs.rowIdxs.add(rowIdx);
-        refs.assignByRowIdx.set(rowIdx, assigned);
-        return;
+        const liveTrackRaw=clean(live && live[CI.track]);
+        const liveTrackMatch=liveTrackRaw.match(/(?:06-)?(80[1-9])/);
+        const liveTrack=liveTrackMatch ? liveTrackMatch[1] : liveTrackRaw;
+        if(live && liveEquip && liveTrack && liveEquip===carId && liveTrack===trk){
+          refs.rowIdxs.add(rowIdx);
+          refs.assignByRowIdx.set(rowIdx, assigned);
+          return;
+        }
+        // A stale row index must not discard a valid selected car. Fall back to track + equipment ID.
       }
       if(carId && trk){
         const key=`${trk}||${carId}`;
@@ -19301,7 +19627,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         if(tr!==track) continue;
         const equip=clean(row[CI.equipId]);
         const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-        const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${track}||${equip}`);
+        const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${track}||${equip}`);
         const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
         const ln=num(row[CI.ln]);
         if(!ln && !clean(row[CI.bk1]) && !clean(row[CI.bk2]) && !clean(row[CI.ydBlock])) continue;
@@ -19443,25 +19769,28 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         // and the hidden `| [TRACK]` span was creating the apparent blank gap before the edit pen.
         const trackSuffix='';
         const manualTag=seg.manual ? `<span class="manual-tag ${seg.futureInbound?'future-inbound-tag':'manual-block-tag'}">${seg.futureInbound?'future inbound':'manual'}</span>` : '';
-        const editBtn=seg.manual ? `<button class="bowl-manual-edit" data-bowl-edit="${seg.id}" title="Edit block" type="button">✎</button>` : '';
+        const editBtn=(seg.manual && !isAfterBoard) ? `<button class="bowl-manual-edit" data-bowl-edit="${seg.id}" title="Edit block" type="button">✎</button>` : '';
         const delBtn=seg.manual ? `<button class="bowl-manual-del" data-bowl-del="${seg.id}" title="Remove manual block" type="button">×</button>` : '';
         // For non-manual segments on the after-board, render the edit-pen up front
         // so it's there from first paint. Prevents the pen from appearing/disappearing
         // between the initial render and the post-render `enhanceAfterBoard` pass.
-        const afterEditBtn=(isAfterBoard && !seg.manual) ? `<button class="after-block-edit-btn" type="button" title="Edit block">✎</button>` : '';
+        const afterEditBtn='';
         const currentEditBtn=(!isAfterBoard && !seg.manual) ? `<button class="current-block-edit-btn" type="button" title="Edit block">✎</button>` : '';
         const arrivalTitle=seg.manual&&seg.arrival ? ` title="Arrival: ${String(seg.arrival).replace(/"/g,'&quot;')}"` : '';
         const fiAttrs=seg.futureInbound ? ` data-future-inbound-id="${String(seg.id||'').replace(/"/g,'&quot;')}" data-future-inbound-group="${String(seg.groupId||'').replace(/"/g,'&quot;')}" data-future-inbound-train="${String(seg.departureTrain||seg.futureBlock||'').replace(/"/g,'&quot;')}"` : '';
         const inboundSource=String(seg.train||seg.inbound||'').trim().toUpperCase();
         const inboundAttr=inboundSource ? ` data-block-inbound-source="${inboundSource.replace(/"/g,'&quot;')}"` : '';
         const displayLabel=isAfterBoard ? cleanPostOutboundLabel(seg.label) : String(seg.label||'').replace(/\s*SS\?\?\s*/g,' ').replace(/\s{2,}/g,' ').trim();
-        const ssAgeBadge=/^SS$/i.test(displayLabel) ? ssHoursInSsBadge(seg.ssStartRaw) : "";
-        const hidePostOutboundSsSource=isAfterBoard && /^SS$/i.test(displayLabel);
+        const isSsDisplay=/(?:^|,)\s*SS\s*(?=,|$)/i.test(displayLabel);
+        const ssAgeBadge=isSsDisplay ? ssHoursInSsBadge(seg.ssStartRaw) : "";
+        const hidePostOutboundSsSource=isAfterBoard && isSsDisplay;
         const inboundTag=(inboundSource && !hidePostOutboundSsSource) ? ` <span class="bowl-inbound-source-tag">${inboundSource.replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}</span>` : '';
-        const currentAttrs=(!isAfterBoard && !seg.manual) ? ` data-current-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-current-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}"` : '';
-        const afterAttrs=(isAfterBoard && !seg.manual) ? ` data-after-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-after-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}" data-after-status="${String(seg.label||'').replace(/"/g,'&quot;')}"` : '';
+        const sourceBlockLabel=String(seg.label||'').replace(/"/g,'&quot;');
+        const currentAttrs=(!isAfterBoard && !seg.manual) ? ` data-current-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-current-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}" data-source-block-label="${sourceBlockLabel}"` : '';
+        const afterAttrs=(isAfterBoard && !seg.manual) ? ` data-after-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-after-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}" data-after-status="${sourceBlockLabel}" data-source-block-label="${sourceBlockLabel}"` : '';
         const sampleAttrs=` data-sample-car="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}" data-sample-equip-id="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}"`;
-        return `<div class="bowl-block ${seg.cls}${currentOnlyHiddenCls}"${arrivalTitle}${fiAttrs}${currentAttrs}${afterAttrs}${inboundAttr}${sampleAttrs}><span><b>${fmtN(seg.ft)}</b> | ${displayLabel}${ssAgeBadge}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${inboundTag}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
+        const missingSsAttr=seg.missingSSStart ? ' data-missing-ss-start="1"' : '';
+        return `<div class="bowl-block ${seg.cls}${currentOnlyHiddenCls}"${arrivalTitle}${fiAttrs}${currentAttrs}${afterAttrs}${inboundAttr}${sampleAttrs}${missingSsAttr}><span><b>${fmtN(seg.ft)}</b> | ${displayLabel}${ssAgeBadge}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${inboundTag}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
       }).join('');
 
       const segmentDisplayHtml = segmentHtml || '';
@@ -19491,7 +19820,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     head.innerHTML='<tr>'+ 
       '<th>OUTBOUND</th>'+ 
       '<th>CURRENT</th>'+ 
-      '<th colspan="12" class="bowl-ramp-head" style="text-align:center;"><span>OUTBOUND TRACKS — SELECTED FROM CURRENT RAMP</span></th>'+ 
+      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS — SELECTED FROM CURRENT RAMP</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">HIDE OUTBOUND TRACKS</button></th>'+ 
       '<th>SUM</th>'+ 
     '</tr>';
     board.appendChild(head);
@@ -19509,7 +19838,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const tr=parseInt(row[CI.track],10);
         const equip=clean(row[CI.equipId]);
         const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-        const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
+        const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
         const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
         if(assignedDepart!==trainName) continue;
         const ln=num(row[CI.ln]);
@@ -19601,7 +19930,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     head.innerHTML='<tr>'+ 
       '<th>OUTBOUND</th>'+ 
       '<th>TOTAL</th>'+ 
-      '<th colspan="12" class="bowl-ramp-head" style="text-align:center;"><span>OUTBOUND TRACKS — DEPARTING FROM POST OUTBOUND CONSIST</span></th>'+ 
+      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS — DEPARTING FROM POST OUTBOUND CONSIST</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">HIDE OUTBOUND TRACKS</button></th>'+ 
       '<th>SUM</th>'+ 
     '</tr>';
     board.appendChild(head);
@@ -19652,7 +19981,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
           if(tr!==track) continue;
           const equip=clean(row[CI.equipId]);
           const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-          const selectedById=(!Number.isFinite(Number(row && row._bowlRowIndex))) && excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
+          const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
           const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
           if(assignedDepart!==trainName) continue;
           if(hidePreviousDepartingBlocks) continue;
@@ -26446,7 +26775,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(clean(ov.blockType).toUpperCase()!=='SS' || !clean(ov.ssStart)) return;
       const keyTrack=clean(key.split('||')[0]).replace(/[^0-9]/g,'');
       if(track && keyTrack && keyTrack!==String(track)) return;
-      const ovLabel='SS';
+      const ovLabel=clean(ov.sourceBlockLabel||ov.label||parsed&&parsed.label||'SS').toUpperCase();
       const ovTrain=clean(ov.train).toUpperCase();
       const ftClose=!pFt || !n(ov.ft) || Math.abs(n(ov.ft)-pFt)<2;
       const labelClose=(pLabel && (pLabel===ovLabel || pLabel.includes(ovLabel) || ovLabel.includes(pLabel) || (ovTrain && pLabel.includes(ovTrain))));
@@ -26454,7 +26783,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         best={
           ft:pFt||ov.ft,
           train:safeAfterTrainValue(ov.train),
-          label:'SS',
+          label:clean(ov.sourceBlockLabel||ov.label||parsed&&parsed.label||'SS'),
           displayTrack:track,
           departureTrain:'SS',
           ssStartTime:ov.ssStart,
@@ -26591,7 +26920,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     // SS Went-Into time remains saved for the edit form, but is not displayed on the pill.
     block.classList.toggle('after-departing-block', depVal==='IHOSA' || depVal==='MHOAS');
-    const displayLabel=depVal==='SS' ? 'SS' : clean(ov.label);
+    const liveLabel=(()=>{
+      const copy=block.cloneNode(true);
+      copy.querySelectorAll('button,b,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag').forEach(el=>el.remove());
+      return clean(copy.textContent).replace(/^\|\s*/,'').replace(/\s+/g,' ');
+    })();
+    const savedLabel=clean(ov.label);
+    const compoundSs=value=>/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(value) && clean(value).toUpperCase()!=='SS';
+    const displayLabel=depVal==='SS'
+      ? (compoundSs(savedLabel) ? savedLabel : (compoundSs(liveLabel) ? liveLabel : 'SS'))
+      : savedLabel;
     const ssAgeBadge=depVal==='SS' ? ssHoursInSsBadge(ov.ssStartTime||ov.ssStart||block.dataset.afterSsStart||'') : '';
     block.innerHTML=`<span><b>${fmt(ov.ft)}</b> | ${esc(displayLabel)}${ssAgeBadge}${departHtml}${dwellHtml}${suffix}<button class="after-block-edit-btn" type="button" title="Edit block">✎</button></span>`;
     block.dataset.afterEdited='1';
@@ -26631,7 +26969,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           const mirrored=findCurrentSSMirror(track, parsed);
           if(mirrored) renderOverride(block, mirrored);
           else if(blockLabelLooksSS(parsed.label) && parsed.ssStartTime){
-            renderOverride(block,{ft:parsed.ft,label:'SS',displayTrack:parsed.displayTrack||track,departureTrain:'SS',ssStartTime:parsed.ssStartTime,dwellHtml:parsed.dwellHtml});
+            renderOverride(block,{ft:parsed.ft,label:clean(block.dataset.sourceBlockLabel||parsed.label||'SS'),displayTrack:parsed.displayTrack||track,departureTrain:'SS',ssStartTime:parsed.ssStartTime,dwellHtml:parsed.dwellHtml});
           }
         }
         if(!isManual && !block.querySelector('.after-block-edit-btn')){
@@ -26726,7 +27064,12 @@ document.addEventListener('DOMContentLoaded',()=>{
       edit.ft=ft || edit.ft || n(block.querySelector('b')&&block.querySelector('b').textContent);
       edit.train=train || edit.train || clean(block.dataset.sourceTrain||block.dataset.currentTrain||'');
       edit.blockType='SS';
-      edit.label='SS';
+      const liveCopy=block.cloneNode(true);
+      liveCopy.querySelectorAll('button,b,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag').forEach(el=>el.remove());
+      const liveLabel=clean(liveCopy.textContent).replace(/^\|\s*/,'').replace(/\s+/g,' ');
+      edit.label=/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(liveLabel) && liveLabel.toUpperCase()!=='SS'
+        ? liveLabel
+        : (edit.label && edit.label.toUpperCase()!=='SS' ? edit.label : 'SS');
       edit.ssStart=time;
       edit.arrival=arrival || edit.arrival || clean(block.dataset.currentArrival||'');
       store[currentKey]=edit;
@@ -29124,7 +29467,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function getCurrentReleaseDate(block){block=normBlock(block); if(block==='SS') return null; return new Date(getDepDtForTrain(block));}
   function calcArrivalToOutbound(train, block, arrivalOverride){const arr=getArrivalForTrain(train,arrivalOverride); const rel=getCurrentReleaseDate(block); if(!arr||!rel) return null; const hrs=(rel-arr)/3600000; return Number.isFinite(hrs)?Math.max(0,hrs):null;}
   function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const sourceTrain=clean(block.dataset.sourceTrain||block.dataset.currentTrain||'').toUpperCase(); const train=safeTrainValue(sourceTrain, block, txt); const displayLabel=(type==='SS' && isSSLabel(txt)) ? txt : makeLabel(train,type); return {ft:ft,label:displayLabel,train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||'')};}
-  function renderBlock(block,ov){const ft=fmt(ov.ft); const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); if(!block.dataset.sourceTrain){const src=clean(block.dataset.currentTrain||block.dataset.afterTrain||'').toUpperCase(); if(src && !looksLikeHoldCodeNotTrain(src)) block.dataset.sourceTrain=src;} const train=safeTrainValue(ov.train, block, ov.label); const rawLabel=clean(ov.label); const label=(blockType==='SS' && isSSLabel(rawLabel)) ? rawLabel : makeLabel(train,blockType); let dwell=clean(ov.dwell); if(blockType==='SS' && ov.ssStart){const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}else if(blockType!=='SS' && ov.arrival){const calc=calcArrivalToOutbound(train,blockType,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}
+  function renderBlock(block,ov){const ft=fmt(ov.ft); const liveBefore=parseBlock(block).label; const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); if(!block.dataset.sourceTrain){const src=clean(block.dataset.currentTrain||block.dataset.afterTrain||'').toUpperCase(); if(src && !looksLikeHoldCodeNotTrain(src)) block.dataset.sourceTrain=src;} const train=safeTrainValue(ov.train, block, ov.label); const rawLabel=clean(ov.label); const savedCompound=blockType==='SS'&&isSSLabel(rawLabel)&&rawLabel.toUpperCase()!=='SS'; const liveCompound=blockType==='SS'&&isSSLabel(liveBefore)&&clean(liveBefore).toUpperCase()!=='SS'; const label=savedCompound?rawLabel:(liveCompound?liveBefore:((blockType==='SS'&&isSSLabel(rawLabel))?rawLabel:makeLabel(train,blockType))); let dwell=clean(ov.dwell); if(blockType==='SS' && ov.ssStart){const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}else if(blockType!=='SS' && ov.arrival){const calc=calcArrivalToOutbound(train,blockType,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}
     const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b> | ${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
   function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button>');}}); recalcRow(tr);});}
@@ -29133,7 +29476,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK — 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toLocalValue(base.ssStart||block.dataset.currentSsStart||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
   function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
   function saveModal(){if(!activeBlock||!activeKey)return; const m=document.getElementById('current-block-edit-modal'); const ft=n(m.querySelector('#current-edit-ft').value); const outTrack=clean(m.querySelector('#current-edit-outtrack').value).replace(/[^0-9]/g,'')||m.dataset.originalTrack||''; const train=clean(m.querySelector('#current-edit-train').value).toUpperCase(); const blockType=normBlock(m.querySelector('#current-edit-block').value); const time=clean(m.querySelector('#current-edit-time').value); if(!ft||ft<=0){toastMsg('Enter valid footage'); m.querySelector('#current-edit-ft').focus(); return;} if(!train || looksLikeHoldCodeNotTrain(train)){toastMsg('Train / inbound must be the inbound train value, not a BK/YD hold code'); m.querySelector('#current-edit-train').focus(); return;} if(blockType==='SS'&&!time){toastMsg('Select what time this block went into SS'); m.querySelector('#current-edit-time').focus(); return;} if(blockType!=='SS'&&!time){toastMsg('Select SS Start time so net dwell can calculate'); m.querySelector('#current-edit-time').focus(); return;} let dwell=''; {const calc=calcArrivalToSS(train,time,m.dataset.currentArrival||''); dwell=calc===null?'':calc.toFixed(1)+'H NET';}
-    const parsedNow=parseBlock(activeBlock); const savedLabel=(blockType==='SS') ? 'SS' : makeLabel(train,blockType); const ov={ft:ft,train:train,blockType:blockType,label:savedLabel,dwell:dwell,arrival:(m.dataset.currentArrival||''),ssStart:time}; const edits=load(); delete edits[activeKey]; const targetRow=findRowByTrack(outTrack); const oldRow=activeOriginalRow||activeBlock.closest('tr'); if(targetRow&&targetRow!==oldRow){const wrap=targetRow.querySelector('.bowl-segments-wrap')||targetRow.querySelector('.bowl-segments-cell'); if(wrap)wrap.appendChild(activeBlock);} renderBlock(activeBlock,ov); activeBlock.dataset.currentEditKey=activeKey; edits[activeKey]=ov; save(edits); recalcRow(oldRow); recalcRow(activeBlock.closest('tr')); try{ if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound(); }catch(e){} try{ if(typeof renderOB==='function') setTimeout(function(){ renderOB(); try{ if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound(); }catch(e){} },0); }catch(e){} closeModal(); toastMsg(blockType==='SS'?'Current Ramp SS block updated':'Current Ramp block updated');}
+    const parsedNow=parseBlock(activeBlock); const sourceLabel=clean(activeBlock.dataset.sourceBlockLabel||parsedNow.label); const savedLabel=(blockType==='SS') ? (isSSLabel(sourceLabel)?sourceLabel:'SS') : makeLabel(train,blockType); const ov={ft:ft,train:train,blockType:blockType,label:savedLabel,sourceBlockLabel:sourceLabel,dwell:dwell,arrival:(m.dataset.currentArrival||''),ssStart:time}; const edits=load(); delete edits[activeKey]; const targetRow=findRowByTrack(outTrack); const oldRow=activeOriginalRow||activeBlock.closest('tr'); if(targetRow&&targetRow!==oldRow){const wrap=targetRow.querySelector('.bowl-segments-wrap')||targetRow.querySelector('.bowl-segments-cell'); if(wrap)wrap.appendChild(activeBlock);} renderBlock(activeBlock,ov); activeBlock.dataset.currentEditKey=activeKey; edits[activeKey]=ov; save(edits); recalcRow(oldRow); recalcRow(activeBlock.closest('tr')); try{ if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound(); }catch(e){} try{ if(typeof renderOB==='function') setTimeout(function(){ renderOB(); try{ if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound(); }catch(e){} },0); }catch(e){} closeModal(); toastMsg(blockType==='SS'?'Current Ramp SS block updated':'Current Ramp block updated');}
   function resetModal(){if(!activeBlock||!activeKey)return; const edits=load(); delete edits[activeKey]; save(edits); closeModal(); toastMsg('Current Ramp edit reset'); try{if(typeof renderOutbound==='function')renderOutbound(); else if(typeof renderOB==='function')renderOB(); else enhance();}catch(e){enhance();}}
   window.openCurrentRampBlockEdit=function(block){if(block) openModal(block);};
   document.addEventListener('click',function(e){const btn=e.target.closest&&e.target.closest('.current-block-edit-btn'); if(!btn)return; const block=btn.closest('.bowl-block'); if(!block)return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); openModal(block);},true);
@@ -29902,7 +30245,7 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var label=clean(c.textContent).replace(/^\|\s*/,'').replace(/\s*\|\s*\[\d{3}\]\s*$/,'').replace(/\|\s*$/,'').replace(/\s+/g,' ').trim();
     var train=clean(block.dataset.sourceTrain||block.dataset.currentTrain||trainFromLabel(label)).toUpperCase();
     var bt=clean(block.dataset.currentBlockType||blockTypeFromLabel(label)).toUpperCase();
-    return {ft:ft,label:label,dwell:dwell,train:train,blockType:bt,ssStart:clean(block.dataset.currentSsStart||''),arrival:clean(block.dataset.currentArrival||'')};
+    return {ft:ft,label:label,sourceBlockLabel:clean(block.dataset.sourceBlockLabel||label),dwell:dwell,train:train,blockType:bt,ssStart:clean(block.dataset.currentSsStart||''),arrival:clean(block.dataset.currentArrival||'')};
   }
   function dwellClass(txt){var h=parseFloat(clean(txt)); if(!Number.isFinite(h)) return ''; if(h<7) return 'dw-green'; if(h<11) return 'dw-gold'; return 'dw-red';}
   function parseSsAgeDate(raw){raw=clean(raw); if(!raw)return null; var d=new Date(raw); if(d&&!Number.isNaN(d.getTime()))return d; try{if(typeof parseCompactDate==='function'){d=parseCompactDate(raw); if(d&&!Number.isNaN(new Date(d).getTime()))return new Date(d);}}catch(e){} return null;}
@@ -29924,7 +30267,9 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   }
   function applyInfoToAfterBlock(block,info){
     if(!block||!info) return;
-    var label=(clean(info.blockType).toUpperCase()==='SS') ? 'SS' : (info.label || ((info.train?info.train+' ':'')+(info.blockType||'')));
+    var label=(clean(info.blockType).toUpperCase()==='SS')
+      ? (clean(info.sourceBlockLabel||info.label||block.dataset.sourceBlockLabel||'SS'))
+      : (info.label || ((info.train?info.train+' ':'')+(info.blockType||'')));
     var dwell=clean(info.dwell);
     var html='<span><b>'+fmt(info.ft)+'</b> | '+esc(label)+(clean(info.blockType).toUpperCase()==='SS'?ssHoursInSsBadge(info.ssStart):'');
     if(dwell){ html+=' <span class="bowl-dwell '+dwellClass(dwell)+'">'+esc(dwell.toUpperCase().indexOf('NET')>=0?dwell:(dwell+' NET'))+'</span>'; }
@@ -30568,13 +30913,9 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var clone = span.cloneNode(true);
     clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
     var txt = clean(clone.textContent).replace(/\s+/g,' ');
-    if(!/\|\s*SS(?:\s|$)/i.test(txt)) return;
+    if(!/(?:^|[|,])\s*SS\s*(?=,|$)/i.test(txt) && !/(?:^|,)\s*SS\s*(?=,|$)/i.test(clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.currentBlockType))) return;
     block.dataset.postOutboundSsOnly = '1';
     block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
-    Array.from(span.childNodes).forEach(function(node){
-      if(node.nodeType !== 3) return;
-      node.nodeValue = node.nodeValue.replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
-    });
     var seen = false;
     block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){
       if(seen){ el.remove(); return; }
@@ -31063,7 +31404,101 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   margin:0!important;
   flex:0 0 34px!important;
 }
-</style></body>
+</style><script id="post-outbound-leftover-from-current-authority-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundLeftoverFromCurrentAuthorityInstalled) return;
+  window.__postOutboundLeftoverFromCurrentAuthorityInstalled=true;
+
+  var CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  var applying=false;
+  function clean(v){return String(v==null?'':v).trim();}
+  function num(v){var n=parseFloat(clean(v).replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0;}
+  function fmt(v){return Math.round(Number(v)||0).toLocaleString('en-US');}
+  function trackOf(row){var cell=row&&row.querySelector('.bowl-track');var m=clean(cell&&cell.textContent).match(/(?:06-)?(80[1-9])/);return m?Number(m[1]):0;}
+  function isFuture(block){return !!(block&&(block.classList.contains('future-inbound')||block.hasAttribute('data-future-inbound-id')||block.querySelector('.future-inbound-tag')));}
+  function isPreviousDepart(block){
+    if(!block||isFuture(block)) return false;
+    if(block.classList.contains('previous-departing-block')||block.classList.contains('after-departing-block')||block.classList.contains('depart-ihosa')||block.classList.contains('depart-mhoas')||block.dataset.afterDeparting==='1') return true;
+    if(block.querySelector('.after-depart-badge.ihosa,.after-depart-badge.mhoas')) return true;
+    var vals=[block.getAttribute('data-depart-train'),block.getAttribute('data-after-depart')].map(function(v){return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,'');});
+    return vals.indexOf('IHOSA')>=0||vals.indexOf('MHOAS')>=0;
+  }
+  function blockFt(block){var b=block&&block.querySelector('b');return num(b?b.textContent:block&&block.textContent);}
+  function semanticKey(block){
+    var copy=block.cloneNode(true);
+    copy.querySelectorAll('.after-depart-badge,.bowl-dwell,.bowl-oldest-flag,.bowl-inbound-source-tag,.current-edit-badge,.after-edit-badge,.after-block-edit-btn,.current-block-edit-btn,.bowl-manual-edit,.manual-tag').forEach(function(el){el.remove();});
+    return String(blockFt(block))+'|'+clean(copy.textContent).replace(/\s+/g,' ').toUpperCase();
+  }
+  function prepareClone(source){
+    var clone=source.cloneNode(true);
+    clone.classList.remove('current-only-layout-placeholder','previous-departing-block','tomorrow-departing-block','after-departing-block','depart-ihosa','depart-mhoas');
+    clone.removeAttribute('data-after-departing');
+    clone.querySelectorAll('.after-depart-badge,.bowl-oldest-flag,.current-edit-badge,.after-edit-badge,.current-block-edit-btn,.after-block-edit-btn,.bowl-manual-edit,[data-bowl-edit]').forEach(function(el){el.remove();});
+    return clone;
+  }
+  function hidePreviousEnabled(){
+    try{return localStorage.getItem('dwellHidePreviousIhosaMhoas')==='1'||localStorage.getItem('dwellHideAfterDepartingBlocks')==='1';}catch(e){return false;}
+  }
+  function apply(){
+    if(applying||!hidePreviousEnabled()) return;
+    var current=document.querySelector('table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+    var after=document.querySelector('table.bowl-board-after');
+    if(!current||!after) return;
+    applying=true;
+    try{
+      var currentRows=Array.from(current.querySelectorAll('tbody tr'));
+      Array.from(after.querySelectorAll('tbody tr')).forEach(function(afterRow){
+        var track=trackOf(afterRow); if(!track) return;
+        var currentRow=currentRows.find(function(row){return trackOf(row)===track;}); if(!currentRow) return;
+        var targetCell=afterRow.querySelector('.bowl-segments-cell'); if(!targetCell) return;
+        var sources=Array.from(currentRow.querySelectorAll('.bowl-segments-cell .bowl-block')).filter(function(block){return !isPreviousDepart(block);});
+        var desiredKeys=sources.map(semanticKey);
+        var liveBlocks=Array.from(targetCell.querySelectorAll('.bowl-block'));
+        var liveKeys=liveBlocks.map(semanticKey);
+        var same=desiredKeys.length===liveKeys.length&&desiredKeys.every(function(key,index){return key===liveKeys[index];});
+        if(!same) targetCell.replaceChildren.apply(targetCell,sources.map(prepareClone));
+        var total=sources.reduce(function(sum,block){return sum+blockFt(block);},0);
+        var currentCell=afterRow.querySelector('.bowl-current');
+        if(currentCell&&num(currentCell.textContent)!==total) currentCell.textContent=fmt(total);
+        var delta=(CAPS[track]||0)-total;
+        var deltaCell=afterRow.querySelector('.bowl-delta,td:last-child');
+        if(deltaCell){
+          if(num(deltaCell.textContent)!==delta) deltaCell.textContent=fmt(delta);
+          deltaCell.classList.remove('good','warn','bad','sum');
+          deltaCell.classList.add('bowl-delta',delta>=750?'good':delta>=300?'warn':'bad');
+        }
+      });
+    }finally{applying=false;}
+  }
+  var timer=0;
+  function schedule(delay){clearTimeout(timer);timer=setTimeout(apply,delay||0);}
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-bowl-prev-depart-toggle]')){
+      schedule(0);setTimeout(apply,80);setTimeout(apply,240);setTimeout(apply,600);
+    }
+  },true);
+  var observer=new MutationObserver(function(mutations){
+    if(applying||!hidePreviousEnabled()) return;
+    for(var i=0;i<mutations.length;i++){
+      var node=mutations[i].target;
+      var el=node&&node.nodeType===1?node:node&&node.parentElement;
+      if(el&&(el.closest&&el.closest('.bowl-board-after')||el.querySelector&&el.querySelector('.bowl-board-after'))){schedule(0);break;}
+    }
+  });
+  function boot(){observer.observe(document.body,{childList:true,subtree:true,characterData:true});apply();setTimeout(apply,250);setTimeout(apply,1000);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+  ['renderOB','renderBowlTurnover'].forEach(function(name){
+    var fn=window[name];
+    if(typeof fn==='function'&&!fn.__postOutboundLeftoverAuthority){
+      var wrapped=function(){var result=fn.apply(this,arguments);apply();setTimeout(apply,80);setTimeout(apply,240);return result;};
+      wrapped.__postOutboundLeftoverAuthority=true;
+      window[name]=wrapped;
+    }
+  });
+  window.applyPostOutboundLeftoverAuthority=apply;
+})();
+</script></body>
 
 
 <!-- ANALYTICS SCROLL FIX: keep the data grid locked, but allow Analytics to scroll -->
@@ -32254,8 +32689,9 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
           // Keep the displayed block text exactly in the same order as Current Ramp Blocking.
           // This prevents outputs such as ", DB SS" and keeps "SS, DB" intact.
           var dwell=afterClockDwellHtml(aft,cur,label);
-          var editBtn='<button class="after-block-edit-btn" type="button" title="Edit block">✎</button>';
-          aft.innerHTML='<span><b>'+fmt(src.ft || aftParsed.ft)+'</b> | '+esc(label)+dwell+editBtn+'</span>';
+          var ssBadge=aft.querySelector('.ss-hours-in-ss,[data-ss-hours-in-ss]');
+          var ssBadgeHtml=ssBadge ? ' '+ssBadge.outerHTML : '';
+          aft.innerHTML='<span><b>'+fmt(src.ft || aftParsed.ft)+'</b> | '+esc(label)+ssBadgeHtml+dwell+'</span>';
           aft.classList.add('after-ss-display-synced','after-board-editable');
           aft.dataset.afterSyncedFromCurrent='1';
           if(cur.dataset && cur.dataset.currentTrain && !aft.dataset.afterTrain) aft.dataset.afterTrain=cur.dataset.currentTrain;
@@ -32264,7 +32700,12 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
       });
     }catch(err){console.error('Post outbound SS display sync failed',err);}
   }
-  function schedule(){setTimeout(normalizeAfterSSDisplay,0);setTimeout(normalizeAfterSSDisplay,80);setTimeout(normalizeAfterSSDisplay,220);}
+  function schedule(){
+    // Correct compound SS labels before the browser paints, then make one quiet
+    // follow-up pass for any board content appended later in the same render.
+    normalizeAfterSSDisplay();
+    setTimeout(normalizeAfterSSDisplay,80);
+  }
   window.normalizePostOutboundSsCarryoverDisplay=normalizeAfterSSDisplay;
   if(typeof window.renderBowlTurnover==='function'){
     var oldR=window.renderBowlTurnover;
@@ -32758,7 +33199,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     if(bt!=='IHOSA'&&bt!=='MHOAS'&&bt!=='SS') bt='';
     var train=clean(ov.train||p.train||findTrainNearBlock(block)).toUpperCase();
     var track=clean(ov.displayTrack||trackFromRow(block.closest('tr')));
-    m.dataset.key=key; m.dataset.originalLabel=p.label; m.dataset.originalFt=p.ft||''; m.dataset.originalTrack=track; m.dataset.targetTrack=track; m.dataset.targetIndex=String(blockIndex(block));
+    m.dataset.key=key; m.dataset.originalLabel=p.label; m.dataset.sourceBlockLabel=clean(block.dataset.sourceBlockLabel||ov.sourceBlockLabel||p.label); m.dataset.originalFt=p.ft||''; m.dataset.originalTrack=track; m.dataset.targetTrack=track; m.dataset.targetIndex=String(blockIndex(block));
     m.querySelector('#final-after-ft').value=ov.ft||p.ft||'';
     m.querySelector('#final-after-track').value=track||'';
     m.querySelector('#final-after-train').value=train||'';
@@ -32785,6 +33226,12 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     document.querySelectorAll('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block').forEach(function(block){
       if(keyFor(block)!==key) return;
       var label=ov.label||'';
+      if(clean(ov.blockType).toUpperCase()==='SS' && clean(label).toUpperCase()==='SS'){
+        var liveCopy=block.cloneNode(true);
+        liveCopy.querySelectorAll('button,b,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag').forEach(function(el){el.remove();});
+        var liveLabel=clean(liveCopy.textContent).replace(/^\|\s*/,'').replace(/\s+/g,' ');
+        if(/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(liveLabel) && liveLabel.toUpperCase()!=='SS') label=liveLabel;
+      }
       var html='<span><b>'+fmt(ov.ft)+'</b> | '+esc(label)+(clean(ov.blockType).toUpperCase()==='SS'?ssHoursInSsBadge(ov.ssStartTime||ov.ssStart||''):'')+(ov.dwellHtml||'')+'<button class="after-block-edit-btn" type="button" title="Edit block">✎</button></span>';
       block.innerHTML=html; block.classList.add('after-board-editable');
       if(ov.train){block.dataset.afterTrain=ov.train; block.dataset.sourceTrain=ov.train;}
@@ -32813,7 +33260,12 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
       edit.ft=ov.ft||edit.ft;
       edit.train=ov.train||edit.train||clean(block.dataset.sourceTrain||'');
       edit.blockType='SS';
-      edit.label='SS';
+      const liveCopy=block.cloneNode(true);
+      liveCopy.querySelectorAll('button,b,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag').forEach(el=>el.remove());
+      const liveLabel=clean(liveCopy.textContent).replace(/^\|\s*/,'').replace(/\s+/g,' ');
+      edit.label=/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(liveLabel) && liveLabel.toUpperCase()!=='SS'
+        ? liveLabel
+        : (edit.label && edit.label.toUpperCase()!=='SS' ? edit.label : 'SS');
       edit.ssStart=ov.ssStartTime||ov.ssStart||ov.arrival||'';
       edit.arrival=ov.arrival||edit.arrival||clean(block.dataset.currentArrival||'');
       store[currentKey]=edit;
@@ -32829,7 +33281,10 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     var bt=clean(m.querySelector('#final-after-block').value).toUpperCase();
     var arrival=clean(m.querySelector('#final-after-time').value);
     var base=clean(m.dataset.originalLabel);
-    var label=bt==='SS' ? 'SS' : (bt ? ((train?train+' ':'')+bt) : (base || train || ''));
+    var sourceLabel=clean((m.dataset&&m.dataset.sourceBlockLabel)||base);
+    var label=bt==='SS'
+      ? (/((^|[^A-Z0-9])SS([^A-Z0-9]|$))/i.test(sourceLabel)?sourceLabel:'SS')
+      : (bt ? ((train?train+' ':'')+bt) : (base || train || ''));
     var dwell=calcDwell(null,bt,train,arrival);
     var ov={ft:ft,displayTrack:track,train:train,blockType:bt,label:label,arrival:arrival,dwellHtml:dwell,updatedAt:new Date().toISOString()};
     var all=load(); all[m.dataset.key]=ov; save(all);
@@ -38078,7 +38533,7 @@ table.bowl-board td.bowl-delta.good{
     document.querySelectorAll('.bowl-board-after .bowl-segments-cell .bowl-block').forEach(function(block){
       if(isPostOutboundBlock(block)) {
         block.classList.add('after-board-editable');
-        block.querySelectorAll('.after-block-edit-btn,.bowl-manual-edit').forEach(function(btn){ btn.remove(); });
+        block.querySelectorAll('.current-block-edit-btn,.after-block-edit-btn,.bowl-manual-edit,[data-bowl-edit]').forEach(function(btn){ btn.remove(); });
       }
     });
     try{ if(typeof window.restoreFinalPostOutboundDwell === 'function') window.restoreFinalPostOutboundDwell(); }catch(e){}
@@ -39276,15 +39731,11 @@ table.bowl-board td.bowl-delta.good{
     var clone = span.cloneNode(true);
     clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
     var txt = clean(clone.textContent).replace(/\s+/g, ' ');
-    if(!/\|\s*SS(?:\s|$)/i.test(txt)) return;
+    if(!/(?:^|[|,])\s*SS\s*(?=,|$)/i.test(txt) && !/(?:^|,)\s*SS\s*(?=,|$)/i.test(clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.currentBlockType))) return;
 
     block.dataset.postOutboundSsOnly = '1';
     block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
 
-    Array.from(span.childNodes).forEach(function(node){
-      if(node.nodeType !== 3) return;
-      node.nodeValue = node.nodeValue.replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
-    });
     var seen = false;
     block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){
       if(seen){ el.remove(); return; }
@@ -39482,7 +39933,7 @@ table.bowl-board td.bowl-delta.good{
     var clone = span.cloneNode(true);
     clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss],.bowl-inbound-source-tag,button').forEach(function(el){ el.remove(); });
     var txt = String(clone.textContent || '').replace(/\s+/g, ' ').trim();
-    if(!/\|\s*SS(?:\s|$)/i.test(txt)) return;
+    if(!/(?:^|[|,])\s*SS\s*(?=,|$)/i.test(txt) && !/(?:^|,)\s*SS\s*(?=,|$)/i.test(clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.currentBlockType))) return;
 
     block.dataset.postOutboundSsOnly = '1';
     block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
@@ -39493,9 +39944,7 @@ table.bowl-board td.bowl-delta.good{
       var s = node.nodeValue || '';
       var m = s.match(/(\|\s*SS)\s+(\d+)H\b/i);
       if(m && !foundPlain) foundPlain = { node: node, hours: m[2] };
-      node.nodeValue = s
-        .replace(/(\|\s*SS)\s+(\d+)H\b/ig, '$1')
-        .replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
+      node.nodeValue = s.replace(/(\|\s*SS)\s+(\d+)H\b/ig, '$1');
     });
 
     var badges = Array.from(block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]'));
@@ -39610,7 +40059,7 @@ table.bowl-board td.bowl-delta.good{
     var clone = block.cloneNode(true);
     clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss],.bowl-inbound-source-tag,button,.bowl-dwell').forEach(function(el){ el.remove(); });
     var txt = clean(clone.textContent);
-    if(!/\|\s*SS(?:\s|$)/i.test(txt) && clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType).toUpperCase() !== 'SS') return;
+    if(!/(?:^|[|,])\s*SS\s*(?=,|$)/i.test(txt) && !/(?:^|,)\s*SS\s*(?=,|$)/i.test(clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.currentBlockType))) return;
 
     block.dataset.postOutboundSsOnly = '1';
     block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
@@ -39623,9 +40072,7 @@ table.bowl-board td.bowl-delta.good{
       var s = node.nodeValue || '';
       var m = s.match(/(\|\s*SS)\s+(\d+)H\b/i);
       if(m && !foundPlain) foundPlain = { hours: m[2] };
-      node.nodeValue = s
-        .replace(/(\|\s*SS)\s+\d+H\b/ig, '$1')
-        .replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
+      node.nodeValue = s.replace(/(\|\s*SS)\s+\d+H\b/ig, '$1');
     });
 
     var badges = Array.from(block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]'));
@@ -39734,7 +40181,7 @@ table.bowl-board td.bowl-delta.good{
     var clone = block.cloneNode(true);
     clone.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss],.bowl-inbound-source-tag,button,.bowl-dwell').forEach(function(el){ el.remove(); });
     var txt = clean(clone.textContent);
-    if(!/\|\s*SS(?:\s|$)/i.test(txt) && clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType).toUpperCase() !== 'SS') return;
+    if(!/(?:^|[|,])\s*SS\s*(?=,|$)/i.test(txt) && !/(?:^|,)\s*SS\s*(?=,|$)/i.test(clean(block.dataset.afterBlockType || block.dataset.postOutboundBlockType || block.dataset.currentBlockType))) return;
 
     block.dataset.postOutboundSsOnly = '1';
     block.querySelectorAll('.bowl-inbound-source-tag').forEach(function(tag){ tag.remove(); });
@@ -39747,7 +40194,7 @@ table.bowl-board td.bowl-delta.good{
       var s = node.nodeValue || '';
       var m = s.match(/(\|\s*SS)\s+(\d+)H\b/i);
       if(m && plainHours === null) plainHours = m[2];
-      node.nodeValue = s.replace(/(\|\s*SS)\s+\d+H\b/ig, '$1').replace(/(\|\s*SS)\s+[A-Z]{2,}\w*(?:\s+\d+)?/ig, '$1');
+      node.nodeValue = s.replace(/(\|\s*SS)\s+\d+H\b/ig, '$1');
     });
 
     var badges = Array.from(block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]'));
@@ -40005,6 +40452,7 @@ table.bowl-board td.bowl-delta.good{
 </style>
 <style id="missing-ss-start-purple-authority-final-css">
   .bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block.missing-ss-start,
+  .bowl-page-shell .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block[data-missing-ss-start="1"],
   .bowl-page-shell .bowl-board-after .bowl-segments-cell .bowl-block.missing-ss-start,
   .bowl-page-shell .bowl-outbound-track-table .bowl-segments-cell .bowl-block.missing-ss-start{
     background:#3b0764!important;
@@ -40015,6 +40463,7 @@ table.bowl-board td.bowl-delta.good{
     outline:1px solid rgba(250,232,255,.56)!important;
   }
   .bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block.missing-ss-start b,
+  .bowl-page-shell .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block[data-missing-ss-start="1"] b,
   .bowl-page-shell .bowl-board-after .bowl-segments-cell .bowl-block.missing-ss-start b,
   .bowl-page-shell .bowl-outbound-track-table .bowl-segments-cell .bowl-block.missing-ss-start b{
     color:#ffffff!important;
@@ -40064,6 +40513,8 @@ table.bowl-board td.bowl-delta.good{
     document.querySelectorAll('.bowl-page-shell .bowl-board .bowl-segments-cell .bowl-block').forEach(function(block){
       var missing = shouldFlag(block);
       block.classList.toggle('missing-ss-start', missing);
+      if(missing) block.dataset.missingSsStart='1';
+      else delete block.dataset.missingSsStart;
       block.dataset.missingSsStartAuthority = missing ? '1' : '0';
     });
   }
