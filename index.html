@@ -4919,6 +4919,34 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   try{ new MutationObserver(scan).observe(document.documentElement, {childList:true, subtree:true}); }catch(e){}
 })();
 </script>
+<style id="switching-table-page-width-last-owner-css">
+  html body #main > #tab-switching,
+  html body #main > #tab-switching #switching-page-content,
+  html body #main > #tab-switching .switching-table-section{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+  html body #main > #tab-switching .switching-table-section > table.bowl-board{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    table-layout:fixed!important;
+  }
+  html body #main > #tab-switching .bowl-segments-cell{
+    max-width:0!important;
+    overflow:hidden!important;
+  }
+  html body #main > #tab-switching .bowl-segments-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    flex-wrap:wrap!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+  }
+</style>
 <style id="switching-page-scroll-final-css">
   html body #main > #tab-switching.tab-view.active{
     overflow-y:auto!important;
@@ -5012,17 +5040,48 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     opacity:.55!important;
     outline:1px solid rgba(147,197,253,.65)!important;
   }
+  #tab-switching .bowl-block.switching-selected{
+    border-color:#fb923c!important;
+    outline:2px solid #fb923c!important;
+    outline-offset:1px!important;
+    box-shadow:0 0 0 1px #f472b6,0 0 10px rgba(244,114,182,.9),0 0 18px rgba(251,146,60,.62)!important;
+  }
   #tab-switching .bowl-segments-cell.switching-drop-target{
     box-shadow:inset 0 0 0 2px rgba(147,197,253,.55)!important;
     background:rgba(30,64,175,.18)!important;
+  }
+  #tab-switching .switching-insert-marker{
+    display:inline-flex!important;
+    flex:0 0 auto!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:10px!important;
+    min-width:10px!important;
+    height:28px!important;
+    color:#fb923c!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:24px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    text-shadow:0 0 6px #f472b6,0 0 12px rgba(251,146,60,.85)!important;
+    pointer-events:none!important;
   }
   #tab-switching .bowl-segments-wrap{
     display:flex!important;
     flex-direction:row!important;
     flex-wrap:nowrap!important;
     align-items:center!important;
-    overflow-x:auto!important;
-    overflow-y:hidden!important;
+    overflow:visible!important;
+  }
+  #tab-switching .switching-table-section{
+    overflow:visible!important;
+    width:100%!important;
+    min-width:100%!important;
+  }
+  #tab-switching .switching-table-section > table.bowl-board{
+    width:100%!important;
+    min-width:100%!important;
+    table-layout:fixed!important;
   }
   #tab-switching{
     overflow-y:auto!important;
@@ -5067,25 +5126,45 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   function addCopyAboveButton(table){
     if(!table) return;
     var head=table.querySelector('.bowl-ramp-head');
-    if(!head || head.querySelector('[data-switching-copy-above]')) return;
-    var button=document.createElement('button');
-    button.type='button';
-    button.className='switching-copy-current-btn';
-    button.dataset.switchingCopyAbove='1';
-    button.textContent='COPY TABLE ABOVE';
-    head.appendChild(button);
+    if(!head) return;
+    if(!head.querySelector('[data-switching-copy-above]')){
+      var button=document.createElement('button');
+      button.type='button';
+      button.className='switching-copy-current-btn';
+      button.dataset.switchingCopyAbove='1';
+      button.textContent='COPY TABLE ABOVE';
+      head.appendChild(button);
+    }
+    if(!head.querySelector('[data-switching-clear-second]')){
+      var clear=document.createElement('button');
+      clear.type='button';
+      clear.className='switching-copy-current-btn switching-clear-current-btn';
+      clear.dataset.switchingClearSecond='1';
+      clear.textContent='CLEAR TABLE';
+      head.appendChild(clear);
+    }
   }
 
   function addCopySecondButton(table){
     if(!table) return;
     var head=table.querySelector('.bowl-ramp-head');
-    if(!head || head.querySelector('[data-switching-copy-second]')) return;
-    var button=document.createElement('button');
-    button.type='button';
-    button.className='switching-copy-current-btn';
-    button.dataset.switchingCopySecond='1';
-    button.textContent='COPY TABLE ABOVE';
-    head.appendChild(button);
+    if(!head) return;
+    if(!head.querySelector('[data-switching-copy-second]')){
+      var button=document.createElement('button');
+      button.type='button';
+      button.className='switching-copy-current-btn';
+      button.dataset.switchingCopySecond='1';
+      button.textContent='COPY TABLE ABOVE';
+      head.appendChild(button);
+    }
+    if(!head.querySelector('[data-switching-clear-third]')){
+      var clear=document.createElement('button');
+      clear.type='button';
+      clear.className='switching-copy-current-btn switching-clear-current-btn';
+      clear.dataset.switchingClearThird='1';
+      clear.textContent='CLEAR TABLE';
+      head.appendChild(clear);
+    }
   }
 
   function cleanSwitchingCopy(table){
@@ -5099,7 +5178,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
 
   function prepareDraggableBlocks(root){
     (root || document).querySelectorAll('#tab-switching .bowl-segments-cell .bowl-block').forEach(function(block){
-      block.draggable=true;
+      block.draggable=false;
       block.dataset.switchingDraggable='1';
       block.style.pointerEvents='';
     });
@@ -5184,7 +5263,10 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
 
   function clearCurrentSwitchingTable(){
     var target=document.getElementById('switching-current-mirror');
-    var table=target&&target.querySelector('table.bowl-board');
+    clearSwitchingTable(target&&target.querySelector('table.bowl-board'),'Switching current table cleared');
+  }
+
+  function clearSwitchingTable(table,message){
     if(!table) return;
     table.querySelectorAll('.bowl-block').forEach(function(block){block.remove();});
     table.querySelectorAll('tbody tr').forEach(function(row){
@@ -5193,7 +5275,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       if(current) current.textContent='';
       if(delta) delta.textContent='';
     });
-    if(typeof window.toast==='function') window.toast('Switching current table cleared');
+    if(typeof window.toast==='function') window.toast(message||'Switching table cleared');
   }
 
   function copyFirstSwitchingTableToSecond(){
@@ -5271,10 +5353,46 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   }
   var draggingBlock=null;
   var pointerDrag=null;
+  var suppressSelectionClickUntil=0;
+  var switchingInsertMarker=null;
+  function removeInsertMarker(){
+    if(switchingInsertMarker) switchingInsertMarker.remove();
+    switchingInsertMarker=null;
+  }
+  function showInsertMarker(cell,x,dragBlocks){
+    var wrap=cell.querySelector('.bowl-segments-wrap') || cell;
+    removeInsertMarker();
+    var marker=document.createElement('span');
+    marker.className='switching-insert-marker';
+    marker.textContent='|';
+    var candidates=Array.from(wrap.children).filter(function(el){
+      return el.classList&&el.classList.contains('bowl-block')&&dragBlocks.indexOf(el)===-1;
+    });
+    var before=null;
+    for(var i=0;i<candidates.length;i++){
+      var rect=candidates[i].getBoundingClientRect();
+      if(x<rect.left+(rect.width/2)){ before=candidates[i]; break; }
+    }
+    wrap.insertBefore(marker,before);
+    switchingInsertMarker=marker;
+    return marker;
+  }
+  function selectedBlocksFor(block){
+    var table=block&&block.closest('table.bowl-board');
+    if(!table) return [];
+    if(!block.classList.contains('switching-selected')) return [block];
+    return Array.from(table.querySelectorAll('.bowl-segments-cell .bowl-block.switching-selected'));
+  }
+  function clearSwitchingSelection(exceptTable){
+    document.querySelectorAll('#tab-switching .bowl-block.switching-selected').forEach(function(block){
+      if(!exceptTable || block.closest('table.bowl-board')!==exceptTable) block.classList.remove('switching-selected');
+    });
+  }
   function clearPointerDrag(){
     if(pointerDrag&&pointerDrag.ghost) pointerDrag.ghost.remove();
+    removeInsertMarker();
     document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(cell){cell.classList.remove('switching-drop-target');});
-    if(pointerDrag&&pointerDrag.block) pointerDrag.block.classList.remove('switching-dragging');
+    if(pointerDrag&&pointerDrag.blocks) pointerDrag.blocks.forEach(function(block){block.classList.remove('switching-dragging');});
     pointerDrag=null;
   }
   function pointerCellAt(x,y){
@@ -5285,10 +5403,18 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
     if(!block || e.button!==0) return;
     if(e.target.closest('button,input,select,textarea')) return;
+    var table=block.closest('table.bowl-board');
+    if(!e.ctrlKey && !block.classList.contains('switching-selected')){
+      clearSwitchingSelection();
+      block.classList.add('switching-selected');
+    }
+    clearSwitchingSelection(table);
+    var blocks=selectedBlocksFor(block);
     pointerDrag={
       block:block,
-      table:block.closest('table.bowl-board'),
-      startRow:block.closest('tr'),
+      blocks:blocks,
+      table:table,
+      startRows:Array.from(new Set(blocks.map(function(item){return item.closest('tr');}))),
       startX:e.clientX,
       startY:e.clientY,
       active:false,
@@ -5302,10 +5428,14 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     if(!pointerDrag.active && dx+dy<6) return;
     if(!pointerDrag.active){
       pointerDrag.active=true;
-      pointerDrag.block.classList.add('switching-dragging');
-      var ghost=pointerDrag.block.cloneNode(true);
+      pointerDrag.blocks.forEach(function(block){block.classList.add('switching-dragging');});
+      var ghost=document.createElement('div');
+      ghost.className='switching-drag-ghost';
+      pointerDrag.blocks.forEach(function(block){ghost.appendChild(block.cloneNode(true));});
       ghost.classList.add('switching-drag-ghost');
       ghost.style.position='fixed';
+      ghost.style.display='flex';
+      ghost.style.gap='6px';
       ghost.style.left='0';
       ghost.style.top='0';
       ghost.style.zIndex='2147483647';
@@ -5319,17 +5449,24 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     if(pointerDrag.ghost) pointerDrag.ghost.style.transform='translate('+(e.clientX+10)+'px,'+(e.clientY+10)+'px)';
     var cell=pointerCellAt(e.clientX,e.clientY);
     document.querySelectorAll('#tab-switching .switching-drop-target').forEach(function(el){ if(el!==cell) el.classList.remove('switching-drop-target'); });
-    if(cell && cell.closest('table.bowl-board')===pointerDrag.table) cell.classList.add('switching-drop-target');
+    if(cell && cell.closest('table.bowl-board')===pointerDrag.table){
+      cell.classList.add('switching-drop-target');
+      showInsertMarker(cell,e.clientX,pointerDrag.blocks);
+    }else{
+      removeInsertMarker();
+    }
   },true);
   document.addEventListener('pointerup',function(e){
     if(!pointerDrag) return;
     if(pointerDrag.active){
       e.preventDefault();
+      suppressSelectionClickUntil=Date.now()+250;
       var cell=pointerCellAt(e.clientX,e.clientY);
       if(cell && cell.closest('table.bowl-board')===pointerDrag.table){
         var wrap=cell.querySelector('.bowl-segments-wrap') || cell;
-        wrap.appendChild(pointerDrag.block);
-        refreshSwitchingRow(pointerDrag.startRow);
+        var before=switchingInsertMarker&&switchingInsertMarker.parentNode===wrap ? switchingInsertMarker : null;
+        pointerDrag.blocks.forEach(function(block){wrap.insertBefore(block,before);});
+        pointerDrag.startRows.forEach(refreshSwitchingRow);
         refreshSwitchingRow(cell.closest('tr'));
         prepareDraggableBlocks(pointerDrag.table);
       }
@@ -5337,6 +5474,22 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     clearPointerDrag();
   },true);
   document.addEventListener('pointercancel',clearPointerDrag,true);
+  document.addEventListener('click',function(e){
+    var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
+    if(!block || !e.ctrlKey) return;
+    if(Date.now()<suppressSelectionClickUntil){
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    var table=block.closest('table.bowl-board');
+    clearSwitchingSelection(table);
+    block.classList.toggle('switching-selected');
+  },true);
   document.addEventListener('dragstart',function(e){
     var block=e.target&&e.target.closest&&e.target.closest('#tab-switching .bowl-segments-cell .bowl-block');
     if(!block) return;
@@ -5396,6 +5549,18 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       e.preventDefault();
       e.stopPropagation();
       clearCurrentSwitchingTable();
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-clear-second]')){
+      e.preventDefault();
+      e.stopPropagation();
+      var second=document.querySelector('#switching-blank-one table.bowl-board');
+      clearSwitchingTable(second,'Second Switching table cleared');
+    }
+    if(e.target&&e.target.closest&&e.target.closest('[data-switching-clear-third]')){
+      e.preventDefault();
+      e.stopPropagation();
+      var third=document.querySelector('#switching-blank-two table.bowl-board');
+      clearSwitchingTable(third,'Third Switching table cleared');
     }
     if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-above]')){
       e.preventDefault();
@@ -32065,22 +32230,132 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   html body #tab-switching .bowl-segments-cell .bowl-block:active{
     cursor:grabbing!important;
   }
+  html body #tab-switching .bowl-segments-cell .bowl-block.switching-selected{
+    border-color:#fb923c!important;
+    outline:2px solid #fb923c!important;
+    outline-offset:1px!important;
+    box-shadow:0 0 0 1px #f472b6,0 0 10px rgba(244,114,182,.9),0 0 18px rgba(251,146,60,.62)!important;
+  }
   html body #tab-switching .bowl-segments-cell.switching-drop-target{
     box-shadow:inset 0 0 0 2px rgba(147,197,253,.55)!important;
     background:rgba(30,64,175,.18)!important;
+  }
+  html body #tab-switching .switching-insert-marker{
+    display:inline-flex!important;
+    flex:0 0 10px!important;
+    width:10px!important;
+    height:28px!important;
+    align-items:center!important;
+    justify-content:center!important;
+    color:#fb923c!important;
+    font-size:24px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    text-shadow:0 0 6px #f472b6,0 0 12px rgba(251,146,60,.85)!important;
+    pointer-events:none!important;
   }
   html body #tab-switching .bowl-segments-wrap{
     display:flex!important;
     flex-direction:row!important;
     flex-wrap:nowrap!important;
     align-items:center!important;
-    overflow-x:auto!important;
-    overflow-y:hidden!important;
+    overflow:visible!important;
+  }
+  html body #tab-switching .switching-table-section{
+    overflow:visible!important;
+    width:100%!important;
+    min-width:100%!important;
+  }
+  html body #tab-switching .switching-table-section > table.bowl-board{
+    width:100%!important;
+    min-width:100%!important;
+    table-layout:fixed!important;
   }
   html body .switching-drag-ghost{
     box-shadow:0 10px 24px rgba(0,0,0,.36)!important;
   }
 </style>
+<style id="bowl-options-muted-absolute-final-css">
+  html body .bowl-current-options-menu .bowl-options-main,
+  html body .bowl-post-options-menu .bowl-options-main{
+    height:28px!important;
+    min-height:28px!important;
+    padding:0 11px!important;
+    border:1px solid rgba(148,163,184,.24)!important;
+    border-radius:6px!important;
+    background:rgba(15,23,42,.34)!important;
+    color:rgba(203,213,225,.76)!important;
+    box-shadow:none!important;
+    font-size:9px!important;
+    font-weight:800!important;
+    letter-spacing:1px!important;
+  }
+  html body .bowl-current-options-menu .bowl-options-main:hover,
+  html body .bowl-post-options-menu .bowl-options-main:hover{
+    border-color:rgba(147,197,253,.38)!important;
+    background:rgba(30,64,175,.24)!important;
+    color:#dbeafe!important;
+  }
+</style>
+<style id="switching-table-page-width-absolute-final-css">
+  html body #tab-switching,
+  html body #tab-switching #switching-page-content,
+  html body #tab-switching .switching-table-section{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+  html body #tab-switching .switching-table-section > table.bowl-board{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    table-layout:fixed!important;
+  }
+  html body #tab-switching table.bowl-board th:first-child,
+  html body #tab-switching table.bowl-board td:first-child{
+    width:120px!important;
+  }
+  html body #tab-switching table.bowl-board th:nth-child(2),
+  html body #tab-switching table.bowl-board td:nth-child(2){
+    width:170px!important;
+  }
+  html body #tab-switching table.bowl-board th:last-child,
+  html body #tab-switching table.bowl-board td:last-child{
+    width:130px!important;
+  }
+  html body #tab-switching .bowl-segments-cell{
+    max-width:0!important;
+    overflow:hidden!important;
+  }
+  html body #tab-switching .bowl-segments-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:wrap!important;
+    align-items:center!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:thin!important;
+    box-sizing:border-box!important;
+  }
+</style>
+<script id="bowl-options-label-absolute-final-js">
+(function(){
+  'use strict';
+  function normalize(){
+    document.querySelectorAll('.bowl-current-options-menu [data-bowl-options-main],.bowl-post-options-menu [data-bowl-options-main]').forEach(function(button){
+      if(button.textContent!=='OPTIONS') button.textContent='OPTIONS';
+    });
+  }
+  function schedule(){ normalize(); setTimeout(normalize,40); setTimeout(normalize,180); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule,{once:true}); else schedule();
+  document.addEventListener('click',schedule,true);
+  window.addEventListener('load',schedule,{once:true});
+})();
+</script>
 </body>
 
 
@@ -40247,6 +40522,36 @@ table.bowl-board td.bowl-delta.good{
   window.addEventListener('load', schedule);
   window.addEventListener('resize', schedule);
   document.addEventListener('click', schedule, true);
+  document.addEventListener('pointerdown',function(e){
+    [
+      ['tool-toggle-menu','tool-toggle-panel'],
+      ['view-toggle-menu','view-toggle-panel']
+    ].forEach(function(ids){
+      var menu=document.getElementById(ids[0]);
+      var panel=document.getElementById(ids[1]);
+      if(!menu || !panel || menu.contains(e.target)) return;
+      menu.classList.remove('open');
+      panel.classList.remove('dropdown-force-open');
+      panel.style.removeProperty('display');
+      var main=menu.querySelector('button[aria-expanded]');
+      if(main) main.setAttribute('aria-expanded','false');
+    });
+  },true);
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    ['tool-toggle-menu','view-toggle-menu'].forEach(function(id){
+      var menu=document.getElementById(id);
+      if(!menu) return;
+      menu.classList.remove('open');
+      var panel=menu.querySelector('.tool-toggle-panel,.view-toggle-panel,#tool-toggle-panel,#view-toggle-panel');
+      if(panel){
+        panel.classList.remove('dropdown-force-open');
+        panel.style.removeProperty('display');
+      }
+      var main=menu.querySelector('button[aria-expanded]');
+      if(main) main.setAttribute('aria-expanded','false');
+    });
+  },true);
   try{
     new MutationObserver(function(){ clearTimeout(window.__finalTopbarDropdownOwnerTimer); window.__finalTopbarDropdownOwnerTimer=setTimeout(schedule,20); }).observe(document.documentElement,{childList:true,subtree:true});
   }catch(e){}
@@ -40900,6 +41205,44 @@ table.bowl-board td.bowl-delta.good{
   window.addEventListener('load', schedule, {once:true});
 })();
 </script>
+<style id="switching-table-page-width-true-final-css">
+  html body #main > #tab-switching,
+  html body #main > #tab-switching #switching-page-content,
+  html body #main > #tab-switching .switching-table-section{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+  html body #main > #tab-switching .switching-table-section > table.bowl-board{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    table-layout:fixed!important;
+  }
+  html body #main > #tab-switching table.bowl-board th:first-child,
+  html body #main > #tab-switching table.bowl-board td:first-child{width:120px!important;}
+  html body #main > #tab-switching table.bowl-board th:nth-child(2),
+  html body #main > #tab-switching table.bowl-board td:nth-child(2){width:170px!important;}
+  html body #main > #tab-switching table.bowl-board th:last-child,
+  html body #main > #tab-switching table.bowl-board td:last-child{width:130px!important;}
+  html body #main > #tab-switching .bowl-segments-cell{
+    max-width:0!important;
+    overflow:hidden!important;
+  }
+  html body #main > #tab-switching .bowl-segments-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:wrap!important;
+    align-items:center!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:thin!important;
+  }
+</style>
 <style id="bowl-block-professional-alignment-css">
   .bowl-block > span{
     display:inline-flex!important;
