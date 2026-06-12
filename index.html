@@ -21319,7 +21319,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const renderedBlockCls=seg.missingSSStart
           ? (suppressCurrentMissingSsFlair ? baseCurrentBlockCls : `${baseCurrentBlockCls} missing-ss-start`)
           : seg.cls;
-        return `<div class="bowl-block ${renderedBlockCls}${currentOnlyHiddenCls}"${arrivalTitle}${fiAttrs}${currentAttrs}${afterAttrs}${inboundAttr}${sampleAttrs}${missingSsAttr}><span><b>${fmtN(seg.ft)}</b> | ${displayLabel}${ssAgeBadge}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${inboundTag}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
+        return `<div class="bowl-block ${renderedBlockCls}${currentOnlyHiddenCls}"${arrivalTitle}${fiAttrs}${currentAttrs}${afterAttrs}${inboundAttr}${sampleAttrs}${missingSsAttr}><span><b>${fmtN(seg.ft)}</b> <span class="bowl-block-pipe-dim">|</span> ${displayLabel}${ssAgeBadge}${shoveBadge}${oldestBadge}${departBadge}${dwellHtml}${inboundTag}${trackSuffix}${manualTag}${editBtn}${delBtn}${currentEditBtn}${afterEditBtn}</span></div>`;
       }).join('');
 
       const segmentDisplayHtml = segmentHtml || '';
@@ -21429,7 +21429,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const trainAttr=String(seg.train||'').replace(/"/g,'&quot;');
         const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
         const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
-        return `<div class="bowl-block ${seg.cls}" data-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${departBadge}${dwellHtml}</span></div>`;
+        return `<div class="bowl-block ${seg.cls}" data-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> <span class="bowl-block-pipe-dim">|</span> ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${departBadge}${dwellHtml}</span></div>`;
       }).join('');
       const row=document.createElement('tr');
       if(!segments.length) row.classList.add('bowl-empty-track-row');
@@ -21579,7 +21579,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const trainAttr=String(seg.train||'').replace(/"/g,'&quot;');
         const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
         const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
-        return `<div class="bowl-block ${seg.cls}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> | ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge}${srcTrack}${dwellHtml}${manualTag}</span></div>`;
+        return `<div class="bowl-block ${seg.cls}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b> <span class="bowl-block-pipe-dim">|</span> ${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge}${srcTrack}${dwellHtml}${manualTag}</span></div>`;
       }).join('');
 
       const row=document.createElement('tr');
@@ -28188,7 +28188,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       div.setAttribute('data-future-inbound-id', String(nb.id||''));
       div.setAttribute('data-future-inbound-group', String(nb.groupId||''));
       div.setAttribute('data-future-inbound-train', futureBlock);
-      div.innerHTML=`<span><b>${ft.toLocaleString()}</b> | ${trainName} ${labelDisplay}${shoveLabel}${dwellHtml}</span>`;
+      div.innerHTML=`<span><b>${ft.toLocaleString()}</b> <span class="bowl-block-pipe-dim">|</span> ${trainName} ${labelDisplay}${shoveLabel}${dwellHtml}</span>`;
       wrap.appendChild(div);
 
       // Recalculate row total + delta
@@ -31191,7 +31191,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const sourceTrain=clean(block.dataset.sourceTrain||block.dataset.currentTrain||'').toUpperCase(); const train=safeTrainValue(sourceTrain, block, txt); const displayLabel=(type==='SS' && isSSLabel(txt)) ? txt : makeLabel(train,type); return {ft:ft,label:displayLabel,train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||'')};}
   function renderBlock(block,ov){const ft=fmt(ov.ft); const liveBefore=parseBlock(block).label; const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); if(!block.dataset.sourceTrain){const src=clean(block.dataset.currentTrain||block.dataset.afterTrain||'').toUpperCase(); if(src && !looksLikeHoldCodeNotTrain(src)) block.dataset.sourceTrain=src;} const train=safeTrainValue(ov.train, block, ov.label); const rawLabel=clean(ov.label); const savedCompound=blockType==='SS'&&isSSLabel(rawLabel)&&rawLabel.toUpperCase()!=='SS'; const liveCompound=blockType==='SS'&&isSSLabel(liveBefore)&&clean(liveBefore).toUpperCase()!=='SS'; const label=savedCompound?rawLabel:(liveCompound?liveBefore:((blockType==='SS'&&isSSLabel(rawLabel))?rawLabel:makeLabel(train,blockType))); let dwell=clean(ov.dwell); if(blockType==='SS' && ov.ssStart){const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}else if(blockType!=='SS' && ov.arrival){const calc=calcArrivalToOutbound(train,blockType,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}
     const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b> | ${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
-  function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
+  function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); /* CURRENT RAMP BLOCKING's DELTA/SUM column shows the row total (class "sum"), not a capacity-based delta — leave it untouched here to avoid the colored-background flash on load. */ const d=tr.querySelector('.bowl-delta'); if(d && !d.classList.contains('sum')){const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');} else if(d){ d.textContent=fmt(total); }}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button>');}}); recalcRow(tr);});}
   function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>×</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">—</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS START ENTERED':val.toFixed(1)+'H NET') : 'ENTER SS START';}
@@ -42277,55 +42277,9 @@ table.bowl-board td.bowl-delta.good{
   }
 </style>
 <script id="bowl-block-pipe-opacity-js">
-(function(){
-  'use strict';
-  if(window.__bowlBlockPipeOpacityInstalled) return;
-  window.__bowlBlockPipeOpacityInstalled = true;
-
-  function wrapPipeInText(node){
-    if(!node || node.nodeType !== 3 || !node.nodeValue || node.nodeValue.indexOf('|') < 0) return;
-    var parent = node.parentNode;
-    if(!parent || (parent.classList && parent.classList.contains('bowl-block-pipe-dim'))) return;
-    var frag = document.createDocumentFragment();
-    var parts = node.nodeValue.split('|');
-    for(var i=0;i<parts.length;i++){
-      if(parts[i]) frag.appendChild(document.createTextNode(parts[i]));
-      if(i < parts.length - 1){
-        var span = document.createElement('span');
-        span.className = 'bowl-block-pipe-dim';
-        span.textContent = '|';
-        frag.appendChild(span);
-      }
-    }
-    parent.replaceChild(frag, node);
-  }
-  function wrapBlock(block){
-    if(!block || block.dataset.pipeOpacityWrapped === '1') return;
-    var walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
-      acceptNode:function(node){ return node.nodeValue && node.nodeValue.indexOf('|') >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP; }
-    });
-    var nodes = [];
-    while(walker.nextNode()) nodes.push(walker.currentNode);
-    nodes.forEach(wrapPipeInText);
-    block.dataset.pipeOpacityWrapped = '1';
-  }
-  function run(root){
-    (root || document).querySelectorAll('.bowl-block').forEach(wrapBlock);
-  }
-  function schedule(){ setTimeout(function(){ run(document); }, 0); setTimeout(function(){ run(document); }, 120); }
-  ['renderOB','renderBowlTurnover','renderOutbound','syncStableCurrentEditsToPostOutbound','syncCurrentEditsToPostOutbound','finalEnhanceBowlEditButtons'].forEach(function(name){
-    var fn = window[name];
-    if(typeof fn === 'function' && !fn.__bowlBlockPipeOpacityWrapped){
-      var wrapped = function(){ var result = fn.apply(this, arguments); schedule(); return result; };
-      wrapped.__bowlBlockPipeOpacityWrapped = true;
-      window[name] = wrapped;
-    }
-  });
-  document.addEventListener('click', schedule, true);
-  document.addEventListener('change', schedule, true);
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true}); else schedule();
-  window.addEventListener('load', schedule, {once:true});
-})();
+/* Disabled: pipe separators are now emitted pre-wrapped in <span class="bowl-block-pipe-dim">
+   directly from the block render templates, so this post-processing pass (which caused a
+   visible "heavy then settles" flash on every render) is no longer needed. */
 </script>
 <style id="current-ramp-missing-ss-pure-border-eof-css">
   .bowl-page-shell:not(.bowl-hide-current-missing-ss-flair) .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-block.missing-ss-start{
