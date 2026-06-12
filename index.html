@@ -32,6 +32,19 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
 
+/* Defined early so the bowl-block pipe separator is correctly dimmed on the
+   very first paint — avoids a "heavy then settles to lighter" flash that
+   happened when this rule lived in a <style> tag near the end of the file
+   and hadn't been parsed yet when the first blocks rendered. */
+.bowl-block .bowl-block-pipe-dim{
+  opacity:.7!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1!important;
+  transform:translateY(-1px);
+}
+
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --green:#22c55e; --green-dim:#16a34a; --green-bg:rgba(34,197,94,.1);
@@ -4638,7 +4651,7 @@ body.help-tips-on .help-hover-outline{
   position:relative;
   display:inline-flex;
   align-items:center;
-  z-index:2000;
+  z-index:2147483647;
 }
 .topbar-actions .topbar-btn.view-toggle-main{
   width:118px;
@@ -4659,8 +4672,9 @@ body.help-tips-on .help-hover-outline{
   padding:9px;
   border-radius:14px;
   border:1px solid rgba(255,255,255,.12);
-  background:linear-gradient(180deg,rgba(22,27,39,.98),rgba(9,12,19,.99));
-  box-shadow:0 18px 44px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+  background:linear-gradient(180deg,rgba(22,27,39,1),rgba(9,12,19,1));
+  box-shadow:0 18px 44px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+  z-index:2147483647;
 }
 .view-toggle-menu.open .view-toggle-panel{display:flex;}
 .view-toggle-panel::before{
@@ -5660,9 +5674,9 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     if(current) current.textContent=total ? total.toLocaleString() : '';
     var delta=row.querySelector('.bowl-delta');
     if(delta){
-      var capMap={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+      var capMap=window.DWELL_TRACK_CAPS;
       var tc=row.querySelector('.bowl-track');
-      var trackNum=tc?parseInt(tc.textContent.replace(/[^0-9]/g,''),10):0;
+      var trackNum=tc?parseInt(tc.textContent.trim().replace(/^06-/,''),10):0;
       var cap=capMap[trackNum]||0;
       var deltaVal=cap-total;
       delta.textContent=deltaVal.toLocaleString();
@@ -5791,7 +5805,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
           targetCell.innerHTML=srcCell.innerHTML;
           copiedCount++;
         });
-        var capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+        var capMap=window.DWELL_TRACK_CAPS;
         existingTable.querySelectorAll('tbody tr').forEach(function(tr){
           var total=0;
           tr.querySelectorAll('.bowl-segments-cell .bowl-block b').forEach(function(b){
@@ -5800,7 +5814,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
           var cur=tr.querySelector('.bowl-current');
           if(cur) cur.textContent=Math.round(total).toLocaleString();
           var tc=tr.querySelector('.bowl-track');
-          var trackNum=tc?parseInt(tc.textContent.replace(/[^0-9]/g,''),10):0;
+          var trackNum=tc?parseInt(tc.textContent.trim().replace(/^06-/,''),10):0;
           var cap=capMap[trackNum]||0;
           var delta=cap-total;
           var d=tr.querySelector('.bowl-delta');
@@ -5879,7 +5893,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       });
 
       // Recalculate totals/deltas for every row
-      var capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+      var capMap=window.DWELL_TRACK_CAPS;
       target.querySelectorAll('tbody tr').forEach(function(tr){
         var total=0;
         tr.querySelectorAll('.bowl-segments-cell .bowl-block b').forEach(function(b){
@@ -5888,7 +5902,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
         var cur=tr.querySelector('.bowl-current');
         if(cur) cur.textContent=Math.round(total).toLocaleString();
         var tc=tr.querySelector('.bowl-track');
-        var trackNum=tc?parseInt(tc.textContent.replace(/[^0-9]/g,''),10):0;
+        var trackNum=tc?parseInt(tc.textContent.trim().replace(/^06-/,''),10):0;
         var cap=capMap[trackNum]||0;
         var delta=cap-total;
         var d=tr.querySelector('.bowl-delta');
@@ -19151,6 +19165,12 @@ document.addEventListener('click',e=>{
 // ═══════════════════════════════════════
 const ROWS=1000, OVERSCAN=8, ROW_H=24, HDR_H=30, RN_W=48;
 
+// Single source of truth for per-track footage capacity (06-801 … 06-809).
+// Every DELTA calculation in the app must read from this map — do not copy
+// the literal inline (copies drifted in the past: 801/802 were wrongly 1050
+// in three places while the rendered boards used 1750).
+window.DWELL_TRACK_CAPS = Object.freeze({801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500});
+
 const COLS=[
   {k:'yd',        l:'YD',           w:52 },
   {k:'track',     l:'TRACK',        w:72 },
@@ -20638,7 +20658,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   view.innerHTML='';
 
   const tracks=[801,802,803,804,805,806,807,808,809];
-  const caps={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const caps=window.DWELL_TRACK_CAPS;
   const storageTracks=new Set([803,805,806,807]);
   const ihosa=new Set(['FXSI','ICDS','ICTF','KCSM','LATC','LDDS','LTDS','MXFE','PFDS','PHNX','SADS','SANT','SIDS','TSDS','TUDS','WBDS','YTDS']);
   const mhoas=new Set(['ALS','DEDS','DUDS','G4DS','KCDS','MNDS','MQPG','OADS','SCDS','SEDS']);
@@ -20698,22 +20718,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   const wrap=document.createElement('div');
   wrap.style.overflow='auto';
 
-  const table=document.createElement('table');
-  table.className='bowl-board';
-
-  const thead=document.createElement('thead');
-  thead.innerHTML=
-    '<tr>'+
-      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;">TRACK</th>'+
-      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;">CURRENT</th>'+
-      '<th colspan="12" class="bowl-ramp-head" style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;text-align:center;">'+
-        '<span>CURRENT RAMP BLOCKING</span>'+
-      '</th>'+
-      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">Δ</th>'+
-    '</tr>';
-  table.appendChild(thead);
-
-  const tbody=document.createElement('tbody');
+  // (legacy single-table builder removed — boards are built by buildBoard()
+  //  and the dedicated outbound/post-outbound builders below)
 
   const clean=v=>{
     if(v===undefined||v===null) return '';
@@ -21324,11 +21330,22 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
 
       const segmentDisplayHtml = segmentHtml || '';
 
+      // Compute the DELTA/SUM cell class+value at render time so the conditional
+      // good/warn/bad coloring is correct on first paint — no post-render JS pass
+      // needed, eliminating the flash where it briefly shows a different state.
+      const ramCapMap=window.DWELL_TRACK_CAPS;
+      const ramCap=ramCapMap[track]||0;
+      const ramDelta=ramCap-currentFt;
+      const ramDeltaCls=ramDelta>=750?'good':ramDelta>=300?'warn':'bad';
+      const deltaCellHtml=isAfterBoard
+        ? `<td class="bowl-delta sum">${fmtN(currentFt)}</td>`
+        : `<td class="bowl-delta ${ramDeltaCls}">${fmtN(ramDelta)}</td>`;
+
       tr.innerHTML=[
         `<td class="bowl-track">06-${track}${isAfterBoard?`<button class="bowl-track-add-btn" data-bowl-add-track="${track}" title="Add future block to 06-${track}" type="button">+</button>`:''}</td>`,
         `<td class="bowl-current" style="background:linear-gradient(135deg,#1c1a08,#161410) !important;color:#fbbf24 !important;font-weight:800 !important;border-left:2px solid rgba(251,191,36,.5) !important;border-right:2px solid rgba(251,191,36,.5) !important;text-shadow:0 0 10px rgba(251,191,36,.35) !important;">${fmtN(currentFt)}</td>`,
         `<td colspan="12" class="bowl-segments-cell"><div class="bowl-segments-wrap">${segmentDisplayHtml}</div></td>`,
-        `<td class="bowl-delta sum">${fmtN(currentFt)}</td>`
+        deltaCellHtml
       ].join('');
       body.appendChild(tr);
     });
@@ -27678,7 +27695,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   function getAfterOutboundAvailableByTrack(excludeGroupId){
-    const caps={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+    const caps=window.DWELL_TRACK_CAPS;
     const occupied=getAfterOutboundOccupiedByTrack(excludeGroupId);
     const available={};
     Object.keys(caps).forEach(function(t){
@@ -28123,17 +28140,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     // button, mirror the resulting block(s) into that table's matching track row(s)
     // after the Post Outbound Consist re-renders with the new segments.
     const switchingTargetSectionId=modal.dataset.switchingTargetSection || '';
-    console.log('[mirror] save complete. switchingTargetSectionId =', switchingTargetSectionId, 'newBlocks =', newBlocks);
     closeFutureInboundModal();
     try{ if(typeof renderOB==='function') renderOB(); }catch(e){ console.error('renderOB after future inbound save failed', e); }
     if(switchingTargetSectionId){
       setTimeout(function(){
-        console.log('[mirror] firing mirror after delay');
         try{ mirrorFutureInboundBlocksToSwitchingTable(newBlocks, switchingTargetSectionId); }
         catch(err){ console.error('Mirror future inbound to switching failed', err); }
       }, 150);
     } else {
-      console.log('[mirror] no target section recorded — skipping mirror');
     }
     delete modal.dataset.switchingTargetSection;
   }
@@ -28144,11 +28158,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   // no DOM cloning/matching from the Post Outbound Consist board required.
   function mirrorFutureInboundBlocksToSwitchingTable(newBlocks, sectionId){
     const section=document.getElementById(sectionId);
-    if(!section){ console.warn('[mirror] section not found:', sectionId); return; }
+    if(!section) return;
     const table=section.querySelector('table.bowl-board');
-    if(!table){ console.warn('[mirror] no table.bowl-board in section', section); return; }
+    if(!table) return;
     let mirroredCount=0;
-    const caps={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+    const caps=window.DWELL_TRACK_CAPS;
 
     newBlocks.forEach(function(nb){
       const track=String(nb.track||nb.outTrack||'').replace(/^06-/,'');
@@ -28159,7 +28173,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         const cell=tr.querySelector('.bowl-track');
         if(cell && cell.textContent.trim().replace(/^06-/,'')===track) targetRow=tr;
       });
-      if(!targetRow){ console.warn('[mirror] no targetRow for track', track); return; }
+      if(!targetRow) return;
 
       let wrap=targetRow.querySelector('.bowl-segments-wrap');
       if(!wrap){
@@ -28209,7 +28223,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       mirroredCount++;
     });
 
-    console.log('[mirror] done. mirroredCount =', mirroredCount, 'of', newBlocks.length);
     if(mirroredCount>0){
       if(typeof window.toast==='function') window.toast(mirroredCount+' block(s) added to switching table');
     } else {
@@ -28228,10 +28241,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       const modal=ensureFutureInboundModal();
       if(switchingSection && switchingSection.id){
         modal.dataset.switchingTargetSection=switchingSection.id;
-        console.log('[mirror] captured switching target section:', switchingSection.id);
       } else {
         delete modal.dataset.switchingTargetSection;
-        console.log('[mirror] no switching section — opened from post outbound consist');
       }
       window.openFutureInboundModal();
       return false;
@@ -28377,7 +28388,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script>
 (function(){
   const STORE='dwellAfterBoardBlockEditsV2';
-  const CAPS={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const CAPS=window.DWELL_TRACK_CAPS;
   function clean(v){return String(v==null?'':v).trim();}
   function esc(s){return clean(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
   function n(v){const x=parseFloat(clean(v).replace(/,/g,''));return Number.isFinite(x)?x:0;}
@@ -29251,7 +29262,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 (function(){
   // Prevent old builds from keeping future inbound blocks hidden forever.
   try{localStorage.removeItem('dwellHideFutureInboundBlocks');}catch(e){}
-  const CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const CAPS=window.DWELL_TRACK_CAPS;
   const fmt=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:0});
   const clean=s=>String(s==null?'':s).trim();
   const n=s=>{const v=parseFloat(clean(s).replace(/,/g,'')); return Number.isFinite(v)?v:0;};
@@ -29393,7 +29404,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     future:'dwellHideFutureInboundBlocks_v4',
     depart:'dwellHideAfterDepartingBlocks'
   };
-  const CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const CAPS=window.DWELL_TRACK_CAPS;
   const read=k=>{try{return localStorage.getItem(k)==='1';}catch(e){return false;}};
   const write=(k,v)=>{try{localStorage.setItem(k,v?'1':'0');}catch(e){}};
   const clean=s=>String(s==null?'':s).trim();
@@ -29479,7 +29490,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     future:'dwellHideFutureInboundBlocks_v4',
     depart:'dwellHideAfterDepartingBlocks'
   };
-  const CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const CAPS=window.DWELL_TRACK_CAPS;
   const read=k=>{try{return localStorage.getItem(k)==='1';}catch(e){return false;}};
   const write=(k,v)=>{try{localStorage.setItem(k,v?'1':'0');}catch(e){}};
   const clean=v=>String(v==null?'':v).trim();
@@ -29811,7 +29822,7 @@ body.bowl-hide-future-inbound-blocks .bowl-board-after .bowl-block[data-future-i
 (function(){
   const KEY_DEPART='dwellHideAfterDepartingBlocks';
   const KEY_FUTURE='dwellHideFutureInboundBlocks_v4';
-  const CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  const CAPS=window.DWELL_TRACK_CAPS;
   const clean=v=>String(v==null?'':v).trim();
   const norm=v=>clean(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
   const read=k=>{try{return localStorage.getItem(k)==='1';}catch(e){return false;}};
@@ -31191,7 +31202,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const sourceTrain=clean(block.dataset.sourceTrain||block.dataset.currentTrain||'').toUpperCase(); const train=safeTrainValue(sourceTrain, block, txt); const displayLabel=(type==='SS' && isSSLabel(txt)) ? txt : makeLabel(train,type); return {ft:ft,label:displayLabel,train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||'')};}
   function renderBlock(block,ov){const ft=fmt(ov.ft); const liveBefore=parseBlock(block).label; const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); if(!block.dataset.sourceTrain){const src=clean(block.dataset.currentTrain||block.dataset.afterTrain||'').toUpperCase(); if(src && !looksLikeHoldCodeNotTrain(src)) block.dataset.sourceTrain=src;} const train=safeTrainValue(ov.train, block, ov.label); const rawLabel=clean(ov.label); const savedCompound=blockType==='SS'&&isSSLabel(rawLabel)&&rawLabel.toUpperCase()!=='SS'; const liveCompound=blockType==='SS'&&isSSLabel(liveBefore)&&clean(liveBefore).toUpperCase()!=='SS'; const label=savedCompound?rawLabel:(liveCompound?liveBefore:((blockType==='SS'&&isSSLabel(rawLabel))?rawLabel:makeLabel(train,blockType))); let dwell=clean(ov.dwell); if(blockType==='SS' && ov.ssStart){const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}else if(blockType!=='SS' && ov.arrival){const calc=calcArrivalToOutbound(train,blockType,ov.arrival); if(calc!==null) dwell=calc.toFixed(1)+'H NET';}
     const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b> | ${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
-  function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); /* CURRENT RAMP BLOCKING's DELTA/SUM column shows the row total (class "sum"), not a capacity-based delta — leave it untouched here to avoid the colored-background flash on load. */ const d=tr.querySelector('.bowl-delta'); if(d && !d.classList.contains('sum')){const capMap={801:1050,802:1050,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');} else if(d){ d.textContent=fmt(total); }}
+  function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap=window.DWELL_TRACK_CAPS; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">✎</button>');}}); recalcRow(tr);});}
   function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>×</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">—</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS START ENTERED':val.toFixed(1)+'H NET') : 'ENTER SS START';}
@@ -33132,7 +33143,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   if(window.__postOutboundLeftoverFromCurrentAuthorityInstalled) return;
   window.__postOutboundLeftoverFromCurrentAuthorityInstalled=true;
 
-  var CAPS={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500};
+  var CAPS=window.DWELL_TRACK_CAPS;
   var applying=false;
   function clean(v){return String(v==null?'':v).trim();}
   function num(v){var n=parseFloat(clean(v).replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0;}
@@ -40305,7 +40316,10 @@ table.bowl-board td.bowl-delta.good{
     }else if(tab === 'checklist'){
       hydrateChecklist();
     }else if(tab === 'outbound'){
-      try{ if(typeof window.renderOB === 'function') requestAnimationFrame(window.renderOB); }catch(e){}
+      // Render synchronously on activation — requestAnimationFrame here caused
+      // the previous render's stale content to be visible for one frame
+      // (e.g. old DELTA column colors) before refreshing to current data.
+      try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){}
     }else if(tab === 'analytics'){
       try{ if(typeof window.renderAnalytics === 'function') window.renderAnalytics(); }catch(e){}
     }else if(tab === 'switching'){
@@ -41826,7 +41840,7 @@ table.bowl-board td.bowl-delta.good{
 <style id="bowl-options-dropdown-final-owner-css">
   .bowl-control-dropdown{position:relative!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;z-index:2147482000!important;overflow:visible!important;}
   .bowl-options-main{display:inline-flex!important;align-items:center!important;justify-content:center!important;border:1px solid rgba(147,197,253,.50)!important;background:linear-gradient(180deg,rgba(30,64,175,.90),rgba(15,23,42,.98))!important;color:#dbeafe!important;border-radius:8px!important;min-height:30px!important;padding:0 14px!important;font-family:var(--mono,monospace)!important;font-size:11px!important;font-weight:900!important;letter-spacing:1.6px!important;cursor:pointer!important;white-space:nowrap!important;}
-  .bowl-options-panel{position:absolute!important;top:calc(100% + 7px)!important;right:0!important;min-width:210px!important;display:none!important;flex-direction:column!important;gap:7px!important;padding:9px!important;border:1px solid rgba(96,165,250,.52)!important;border-radius:10px!important;background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;box-shadow:0 18px 34px rgba(0,0,0,.42)!important;z-index:2147483000!important;overflow:visible!important;}
+  .bowl-options-panel{position:absolute!important;top:calc(100% + 7px)!important;right:0!important;min-width:210px!important;display:none!important;flex-direction:column!important;gap:7px!important;padding:9px!important;border:1px solid rgba(96,165,250,.52)!important;border-radius:10px!important;background:linear-gradient(180deg,rgba(15,23,42,1),rgba(2,6,23,1))!important;box-shadow:0 18px 34px rgba(0,0,0,.65)!important;z-index:2147483000!important;overflow:visible!important;}
   .bowl-control-dropdown.open .bowl-options-panel{display:flex!important;}
   .bowl-options-panel button:not([data-bowl-track-suffix-toggle]):not([data-bowl-future-tag-toggle]){display:flex!important;visibility:visible!important;opacity:1!important;width:100%!important;min-width:0!important;max-width:none!important;min-height:31px!important;justify-content:flex-start!important;text-align:left!important;white-space:nowrap!important;font-size:10px!important;letter-spacing:1.1px!important;border-radius:8px!important;}
   .bowl-ramp-head{overflow:visible!important;}
@@ -42271,11 +42285,6 @@ table.bowl-board td.bowl-delta.good{
      The ::after pseudo-element approach was removed — it always rendered after all
      inline content including the dwell, causing the badge to appear in the wrong position. */
 </style>
-<style id="bowl-block-pipe-opacity-css">
-  .bowl-block .bowl-block-pipe-dim{
-    opacity:.7!important;
-  }
-</style>
 <script id="bowl-block-pipe-opacity-js">
 /* Disabled: pipe separators are now emitted pre-wrapped in <span class="bowl-block-pipe-dim">
    directly from the block render templates, so this post-processing pass (which caused a
@@ -42437,14 +42446,6 @@ table.bowl-board td.bowl-delta.good{
     justify-content:flex-end!important;
     line-height:1!important;
     font-variant-numeric:tabular-nums!important;
-  }
-  .bowl-block .bowl-block-pipe-dim{
-    display:inline-flex!important;
-    align-items:center!important;
-    justify-content:center!important;
-    opacity:.7!important;
-    line-height:1!important;
-    transform:translateY(-1px);
   }
   .bowl-block .ss-hours-in-ss,
   .bowl-block [data-ss-hours-in-ss],
@@ -43035,7 +43036,6 @@ function writeManualSelForBlock(block, train){
     }
 
     try{ localStorage.setItem('dwellManualSel', JSON.stringify(window.manualSel)); }catch(e){}
-    console.log('[cramp] writeManualSelForBlock: matched', matched, 'cars →', train, 'sampleId:', sampleId);
   }catch(err){ console.warn('[cramp] writeManualSelForBlock failed', err); }
 }
 
