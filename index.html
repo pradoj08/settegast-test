@@ -6225,11 +6225,6 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       e.stopPropagation();
       copyPostOutboundToTable(document.querySelector('#switching-blank-one table.bowl-board'));
     }
-    if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-post-second]')){
-      e.preventDefault();
-      e.stopPropagation();
-      copyPostOutboundToTable(document.querySelector('#switching-blank-two table.bowl-board'));
-    }
     if(e.target&&e.target.closest&&e.target.closest('[data-switching-copy-from-above]')){
       e.preventDefault();
       e.stopPropagation();
@@ -33291,7 +33286,6 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   html body #tab-switching .switching-table-actions [data-switching-copy-second]{order:2!important;}
   html body #tab-switching .switching-table-actions [data-switching-copy-post],
   html body #tab-switching .switching-table-actions [data-switching-copy-post-above],
-  html body #tab-switching .switching-table-actions [data-switching-copy-post-second],
   html body #tab-switching .switching-table-actions [data-switching-copy-from-above]{order:3!important;}
   html body #tab-switching .switching-table-actions [data-switching-undo]{order:4!important;}
   html body #tab-switching .switching-copy-current-btn:hover{
@@ -42956,37 +42950,8 @@ function doToast(m){
   setTimeout(function(){ t.remove(); }, 2500);
 }
 /* Use setManualCarSelection (the same function the Car Picker uses) to write manualSel.
-   We find matching cars via buildGroups() scoped to this block's train+track+blockLabel. */
-function getBlockIdentity(block){
-  /* Extract train, track, label from the block's DOM attributes */
-  var train = String(block.dataset.currentTrain||block.dataset.sourceTrain||block.dataset.blockInboundSource||'').trim().toUpperCase();
-  var label = String(block.dataset.sourceBlockLabel||'').trim().toUpperCase();
-  var track = '';
-  var tr = block.closest('tr');
-  if(tr){
-    var tc = tr.querySelector('.bowl-track');
-    if(tc) track = String(tc.textContent||'').trim().replace(/^06-/,'').trim();
-  }
-  return { train:train, track:track, label:label };
-}
-
-function matchesBlock(g, id){
-  /* Check if a group from buildGroups() corresponds to the given block identity */
-  var gTrain = String(g.train||'').trim().toUpperCase();
-  var gTrack = String(g.track||'').trim().replace(/^06-/,'').trim();
-  /* Track must match */
-  if(gTrack !== id.track) return false;
-  /* Train must match — always require this to avoid matching all groups on a track */
-  if(!id.train || !gTrain) return false;
-  if(gTrain !== id.train && !gTrain.includes(id.train) && !id.train.includes(gTrain)) return false;
-  /* Label match — only enforce if both sides have a label */
-  if(id.label && id.label !== 'NO_BLOCK'){
-    var gLabel = String(g.blockLabel||g.blockToken||'').trim().toUpperCase();
-    if(gLabel && gLabel !== 'NO_BLOCK' && gLabel !== id.label) return false;
-  }
-  return true;
-}
-
+   Blocks are matched to buildGroups() groups primarily via data-sample-equip-id
+   (the first car's equip ID, unique per block), with a grouped-edit-key fallback. */
 function writeManualSelForBlock(block, train){
   try{
     if(typeof window.buildGroups !== 'function' || typeof window.setManualCarSelection !== 'function') return;
@@ -43678,7 +43643,6 @@ var _patchInterval = setInterval(function(){
 /* COPY POST button — teal, same specificity as the muted override so it wins */
 html body #tab-switching .switching-table-actions [data-switching-copy-post],
 html body #tab-switching .switching-table-actions [data-switching-copy-post-above],
-html body #tab-switching .switching-table-actions [data-switching-copy-post-second],
 html body #tab-switching .switching-copy-post-btn {
   border-color: rgba(20,184,166,.65) !important;
   background: linear-gradient(180deg,rgba(20,184,166,.22),rgba(15,118,110,.28)) !important;
@@ -43687,7 +43651,6 @@ html body #tab-switching .switching-copy-post-btn {
 }
 html body #tab-switching .switching-table-actions [data-switching-copy-post]:hover,
 html body #tab-switching .switching-table-actions [data-switching-copy-post-above]:hover,
-html body #tab-switching .switching-table-actions [data-switching-copy-post-second]:hover,
 html body #tab-switching .switching-copy-post-btn:hover {
   border-color: rgba(20,184,166,.90) !important;
   background: linear-gradient(180deg,rgba(20,184,166,.34),rgba(15,118,110,.42)) !important;
