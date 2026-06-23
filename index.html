@@ -3304,7 +3304,7 @@ td.bowl-current,
   min-width:58px!important;
   height:38px!important;
   padding:0 8px!important;
-  font-size:9px!important;
+  font-size:11px!important;
   letter-spacing:.75px!important;
 }
 #topbar .spacer{
@@ -3344,7 +3344,7 @@ td.bowl-current,
 }
 #topbar .size-ctrl .size-val{
   min-width:34px!important;
-  font-size:9px!important;
+  font-size:11px!important;
 }
 #topbar .topbar-actions{
   flex:1 1 500px!important;
@@ -8454,7 +8454,7 @@ h1{
   try{
     document.addEventListener('DOMContentLoaded', function(){
       var slider=document.getElementById('sizeSlider');
-      if(slider){ slider.min='0.55'; slider.max='1.15'; }
+      if(slider){ slider.min='50'; slider.max='150'; slider.step='5'; }
     });
   }catch(e){}
 })();
@@ -9260,7 +9260,6 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       <button class="topbar-btn" id="btn-ss-banner" title="Toggle SS warning banners">SS Banners ON</button>
       <button class="topbar-btn freeze-blue" id="btn-freeze-ob" title="Toggle locked metric cards">Unfreeze</button>
       <button class="topbar-btn" id="btn-projected-dwell" title="Toggle IHOSA/MHOAS projected dwell cards">Projected Dwell</button>
-      <button class="topbar-btn" id="toggle-bowl-turnover">Hide Bowl Turnover</button>
     </div>
   </div>
 </div>
@@ -9591,6 +9590,32 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       font-size:16px;
     }
     .rollup-table .inbound-cell{min-width:max-content; text-align:center;}
+    .rollup-inbound-name{
+      display:inline-block;
+      position:relative;
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+    .rollup-ups-pill{
+      display:inline-flex;
+      position:absolute;
+      left:calc(100% + 7px);
+      top:50%;
+      transform:translateY(-50%);
+      align-items:center;
+      justify-content:center;
+      min-width:32px;
+      height:20px;
+      padding:0 8px;
+      border-radius:999px;
+      border:1px solid rgba(216,180,254,.72);
+      background:linear-gradient(180deg,#7c3aed,#4c1d95);
+      color:#f5e8ff;
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:.04em;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 0 8px rgba(147,51,234,.28);
+    }
     .rollup-table .arrival-cell{min-width:max-content; text-align:center;}
     .rollup-table .shift-cell{min-width:max-content; text-align:center;}
     .rollup-table .ft-cell-rollup{text-align:center; min-width:max-content;}
@@ -10767,7 +10792,7 @@ h1{
   try{
     document.addEventListener('DOMContentLoaded', function(){
       var slider=document.getElementById('sizeSlider');
-      if(slider){ slider.min='0.55'; slider.max='1.15'; }
+      if(slider){ slider.min='50'; slider.max='150'; slider.step='5'; }
     });
   }catch(e){}
 })();
@@ -11363,13 +11388,13 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       <div class="actions">
         <div class="size-control" title="Change table size">
           <span>Size</span>
-          <input id="sizeSlider" type="range" min="0.55" max="1.15" step="0.05" value="0.65" />
-          <span class="size-value" id="sizeValue">100%</span>
+          <input id="sizeSlider" type="range" min="50" max="150" step="5" value="80" />
+          <span class="size-value" id="sizeValue">80%</span>
         </div>
         <div class="size-control width-control" title="Change inbound table width">
           <span>Width</span>
-          <input id="widthSlider" type="range" min="620" max="2600" step="20" value="2600" />
-          <span class="width-value" id="widthValue">MAX</span>
+          <input id="widthSlider" type="range" min="620" max="2600" step="20" value="920" />
+          <span class="width-value" id="widthValue">920PX</span>
         </div>
         <button class="btn gold" id="archiveBankBtn" title="Open the archived inbound bank page">Archive Page</button>
         <button class="btn primary" id="addTrainBtn">+ Add Inbound</button>
@@ -11380,7 +11405,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     <section class="grid">
       <div class="summary-stack">
         <section class="rollup-card" aria-label="Daily inbound rollup table">
-          <div class="rollup-title">Daily Inbound Rollup <small>today / tomorrow / 2 days out only</small></div>
+          <div class="rollup-title">72 Hour Inbound Outlook <small>today / tomorrow / 2 days out only</small></div>
           <div class="rollup-wrap" id="rollupPanel"></div>
         </section>
         <section class="archive-bank-panel" id="archiveBankPanel" aria-label="Archived inbound bank">
@@ -11464,16 +11489,29 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     const STORAGE_KEY = 'inbound-summary-app-v1';
     const SIZE_KEY = 'inbound-summary-table-size-v1';
     const WIDTH_KEY = 'inbound-summary-table-width-v1';
+    const WIDTH_TOUCHED_KEY = 'inbound-summary-table-width-touched-v1';
+    const WIDTH_920_MIGRATION_KEY = 'inbound-summary-table-width-920-defaulted-v1';
     const ARCHIVE_KEY = 'inbound-summary-archive-bank-v1';
     let inboundSortMode = 'date';
     let archiveBankOpen = false;
     let inboundArchiveBank = loadArchiveBank();
     let pendingArchiveState = null;
 
+    try{
+      if(localStorage.getItem(WIDTH_920_MIGRATION_KEY) !== '1'){
+        const savedWidth = Number(localStorage.getItem(WIDTH_KEY));
+        if(!Number.isFinite(savedWidth) || savedWidth < 920 || savedWidth === 2600){
+          localStorage.setItem(WIDTH_KEY, '920');
+          localStorage.removeItem(WIDTH_TOUCHED_KEY);
+        }
+        localStorage.setItem(WIDTH_920_MIGRATION_KEY, '1');
+      }
+    }catch(err){}
+
 
     function getInboundVisualScale(){
       const rootStyle = getComputedStyle(document.documentElement);
-      const scale = Math.min(1.35, Math.max(0.55, Number(rootStyle.getPropertyValue('--table-scale')) || 0.65));
+      const scale = Math.min(2.2, Math.max(0.55, Number(rootStyle.getPropertyValue('--table-scale')) || 1.15));
       const density = Math.min(1.25, Math.max(0.5, Number(rootStyle.getPropertyValue('--inbound-density')) || 0.72));
       return Math.max(0.25, scale * density);
     }
@@ -11500,23 +11538,46 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       return syncInboundFullWidth();
     }
 
+    function normalizeSizeSliderValue(value){
+      const raw = Number(value);
+      if(!Number.isFinite(raw) || raw <= 0) return 80;
+      // Older saved values were CSS scale factors, where 1.15 was the old max/current size.
+      if(raw <= 2) return Math.min(150, Math.max(50, Math.round((raw / 1.15) * 80 / 5) * 5));
+      return Math.min(150, Math.max(50, raw));
+    }
+
+    function sizeSliderValueToScale(value){
+      const uiPercent = normalizeSizeSliderValue(value);
+      return (uiPercent / 80) * 1.15;
+    }
+
     function applyTableSize(value){
-      const safe = Math.min(1.15, Math.max(0.55, Number(value) || 0.65));
-      document.documentElement.style.setProperty('--table-scale', String(safe));
+      const safe = normalizeSizeSliderValue(value);
+      const scale = sizeSliderValueToScale(safe);
+      document.documentElement.style.setProperty('--table-scale', String(scale));
       syncInboundFullWidth();
       const slider = document.getElementById('sizeSlider');
       const label = document.getElementById('sizeValue');
       if(slider) slider.value = String(safe);
-      if(label) label.textContent = `${Math.round(safe * 100)}%`;
+      if(label) label.textContent = `${Math.round(safe)}%`;
       localStorage.setItem(SIZE_KEY, String(safe));
-      localStorage.setItem(WIDTH_KEY, '2600'); applyTableWidth('2600');
+      applyTableWidth(savedTableWidth());
+    }
+
+    function savedTableWidth(){
+      const saved = localStorage.getItem(WIDTH_KEY);
+      const touched = localStorage.getItem(WIDTH_TOUCHED_KEY) === '1';
+      const savedNum = Number(saved);
+      if(touched && Number.isFinite(savedNum) && savedNum > 0) return saved;
+      if(Number.isFinite(savedNum) && savedNum >= 920 && savedNum !== 2600) return saved;
+      return '920';
     }
 
     function applyTableWidth(value){
-      const maxWidth = getInboundTableMaxWidth();
-      const minWidth = Math.min(620, maxWidth);
+      const maxWidth = Math.max(920, getInboundTableMaxWidth());
+      const minWidth = 620;
       const raw = Number(value);
-      const requested = Number.isFinite(raw) && raw > 0 ? raw : 2600;
+      const requested = Number.isFinite(raw) && raw > 0 ? raw : 920;
       // safe is the width the user sees. --table-width is the internal layout width
       // needed to produce that visible width after the Size/Density zoom is applied.
       const safe = Math.min(maxWidth, Math.max(minWidth, requested));
@@ -11651,6 +11712,12 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     function formatInboundDateForDay(baseDay, minutesFromMidnight){
       const d = startOfDay(baseDay);
       d.setMinutes(Number(minutesFromMidnight) || 0);
+      return formatInboundDateTimeDisplay(d);
+    }
+
+    function formatInboundDateTimeDisplay(value){
+      const d = value instanceof Date ? value : parseInboundDate(value);
+      if(!d || Number.isNaN(d.getTime())) return String(value || '').trim();
       const month = d.getMonth() + 1;
       const day = d.getDate();
       const year = String(d.getFullYear()).slice(-2);
@@ -11659,7 +11726,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       const ampm = hour >= 12 ? 'PM' : 'AM';
       hour = hour % 12;
       if(hour === 0) hour = 12;
-      return `${month}/${day}/${year} ${hour}:${minute} ${ampm}`;
+      return `${month}/${day}/${year}, ${hour}:${minute} ${ampm}`;
     }
 
     function averageZpbhoForecastSources(targetDate){
@@ -11789,7 +11856,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       if(!Number.isNaN(direct.getTime())) return direct;
 
       // Supports compact Excel-style dates like 5/25/26 2:15.
-      const match = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
+      const match = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,)?(?:\s+(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
       if(!match) return null;
       let [, month, day, year, hour='0', minute='0', ampm=''] = match;
       let y = Number(year);
@@ -11802,6 +11869,20 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       }
       const parsed = new Date(y, Number(month) - 1, Number(day), h, Number(minute));
       return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function formatInboundArrival(value){
+      const d = parseInboundDate(value);
+      if(!d) return String(value || '').trim();
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const year = String(d.getFullYear()).slice(-2);
+      let hour = d.getHours();
+      const minute = String(d.getMinutes()).padStart(2,'0');
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12;
+      if(hour === 0) hour = 12;
+      return `${month}/${day}/${year}, ${hour}:${minute} ${ampm}`;
     }
 
     function startOfDay(date){
@@ -11847,9 +11928,8 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     function guessShift(value){
       const parsed = parseInboundDate(value);
       if(!parsed) return 'DAY SHIFT';
-      const hour = parsed.getHours();
-      if(hour >= 18 || hour < 4) return 'NIGHT SHIFT';
-      return 'DAY SHIFT';
+      const mins = parsed.getHours() * 60 + parsed.getMinutes();
+      return mins < (14 * 60 + 30) ? 'DAY SHIFT' : 'NIGHT SHIFT';
     }
 
     function totalFtRule(total){
@@ -11867,10 +11947,10 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       return name.includes('ZPBHO') && dayKey(train) === 'TODAY';
     }
 
-    function formatUps(train){
+    function upsPill(train){
       const value = String(train?.ups ?? '').trim();
       if(value === '') return '';
-      return `${escapeHtml(value)} UPS`;
+      return `<span class="rollup-ups-pill">${escapeHtml(value)} UPS</span>`;
     }
 
     function renderRollup(){
@@ -11914,19 +11994,18 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
           const ft = trainTotalFt(train);
           return `<tr class="${first ? 'group-start' : ''}">
             ${first ? `<td class="day-cell ${dayTone}" rowspan="${group.trains.length}">${escapeHtml(group.label)}</td>` : ''}
-            <td class="inbound-cell ${dayTone}">${escapeHtml(train.train || '')}</td>
-            <td class="arrival-cell ${dayTone}">${escapeHtml(train.dateTime || '')}</td>
-            <td class="shift-cell ${dayTone}">${escapeHtml(train.shift || guessShift(train.dateTime))}</td>
+            <td class="inbound-cell ${dayTone}"><span class="rollup-inbound-name"><span class="rollup-train-symbol">${escapeHtml(train.train || '')}</span>${upsPill(train)}</span></td>
+            <td class="arrival-cell ${dayTone}">${escapeHtml(formatInboundArrival(train.dateTime || ''))}</td>
+            <td class="shift-cell ${dayTone}">${escapeHtml(guessShift(train.dateTime))}</td>
             <td class="ft-cell-rollup ${dayTone}">${fmt(ft)}</td>
             <td class="units-cell-rollup ${dayTone}">${escapeHtml(trainTotalUnits(train) || '')}</td>
-            <td class="ups-cell-rollup ${dayTone}">${formatUps(train)}</td>
             ${first ? `<td class="total-cell" rowspan="${group.trains.length}"><div class="total-box ${totalClass}"><div class="total-tag">${totalTag}</div><div class="total-value">${fmt(total)}</div><div class="total-units">${totalUnits ? fmt(totalUnits) + ' UNITS' : 'UNITS —'}</div></div></td>` : ''}
           </tr>`;
         }).join('');
       }).join('');
 
       panel.innerHTML = `<table class="rollup-table">
-        <thead><tr><th>Day</th><th>Inbound</th><th>Arrival</th><th>Shift</th><th>FT</th><th>Units</th><th>UPS</th><th>Total FT</th></tr></thead>
+        <thead><tr><th>Day</th><th>Inbound</th><th>Arrival</th><th>Shift</th><th>FT</th><th>Units</th><th>Total FT</th></tr></thead>
         <tbody>${body}</tbody>
       </table>`;
     }
@@ -12426,7 +12505,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       const upsMetric = showUpsMetric ? `<div><span>UPS</span>${escapeHtml(String(train?.ups || '').trim() || '—')}</div>` : '';
       return `<div class="archive-preview-meta">
         <div><span>Inbound</span>${escapeHtml(train?.train || '')}</div>
-        <div><span>Arrival</span>${escapeHtml(train?.dateTime || '')}</div>
+        <div><span>Arrival</span>${escapeHtml(formatInboundDateTimeDisplay(train?.dateTime || ''))}</div>
         <div><span>Units</span>${escapeHtml(trainTotalUnits(train || {rows:[]}) || '—')}</div>
         ${upsMetric}
         <div><span>Total FT</span>${fmt(trainTotalFt(train || {rows:[]}))}</div>
@@ -12667,7 +12746,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
             </div>
             <div class="head-field train-date-field">
               <div class="head-label">Date / Time</div>
-              <input class="head-input" value="${escapeHtml(train.dateTime)}" data-action="train-field" data-index="${tIndex}" data-field="dateTime" />
+              <input class="head-input" value="${escapeHtml(formatInboundDateTimeDisplay(train.dateTime))}" data-action="train-field" data-index="${tIndex}" data-field="dateTime" />
             </div>
             <div class="inbound-action-total" title="Total footage for this inbound"><span class="k">Total FT</span><span class="v" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
             ${train.autoZpbhoPlus2 ? `<div class="auto-note"><span>AUTO ZPBHO +2: avg of last two morning ZPBHOs</span><span>${escapeHtml(train.autoNote || '')}</span></div>` : ''}
@@ -12704,7 +12783,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
               <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
             </div>
             <div class="footer-total footer-total-units"><span>Units</span><input class="total-pill units-pill units-pill-input" inputmode="numeric" value="${escapeHtml(trainTotalUnits(train) || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" data-units-display placeholder="—" aria-label="Edit units" /></div>
-            <div class="footer-total footer-total-ft"><span>Total FT</span><span class="total-pill" data-total-display data-index="${tIndex}">${fmt(trainTotalFt(train))}</span></div>
+            <div class="footer-total footer-total-ft footer-total-ups"><span>UPS</span><input class="total-pill units-pill units-pill-input ups-pill-input" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" aria-label="Edit UPS units" /></div>
           </div>
           <div class="inbound-bottom-actions inbound-card-actions">
             <div class="inbound-archive-row">
@@ -12971,10 +13050,11 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     });
 
     document.getElementById('widthSlider')?.addEventListener('input', (e) => {
+      localStorage.setItem(WIDTH_TOUCHED_KEY, '1');
       applyTableWidth(e.target.value);
     });
     window.addEventListener('resize', () => {
-      localStorage.setItem(WIDTH_KEY, '2600'); applyTableWidth('2600');
+      applyTableWidth(savedTableWidth());
     });
 
 
@@ -13019,7 +13099,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     });
 
     function defaultInboundDateTime(){
-      return new Date().toLocaleString([], {month:'numeric', day:'numeric', year:'2-digit', hour:'numeric', minute:'2-digit'});
+      return formatInboundDateTimeDisplay(new Date());
     }
 
     function openAddInboundConfirm(){
@@ -13103,8 +13183,8 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       }
     });
 
-    applyTableSize(localStorage.getItem(SIZE_KEY) || '0.65');
-    localStorage.setItem(WIDTH_KEY, '2600'); applyTableWidth('2600');
+    applyTableSize(localStorage.getItem(SIZE_KEY) || '80');
+    applyTableWidth(savedTableWidth());
     render();
   </script>
 
@@ -14326,6 +14406,79 @@ table[aria-label="Inbound summary table"] .ft-cell input{text-align:right!import
 }
 </style>
 
+<style id="inbound-bottom-actions-corner-color-final-css">
+/* Align the bottom action strip with the train card corners and card color. */
+#trainStack .train-card{
+  border-radius:16px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,#f4ecdc 0%,#ead9bb 100%)!important;
+}
+#trainStack .train-card .inbound-bottom-actions{
+  width:100%!important;
+  box-sizing:border-box!important;
+  margin:0!important;
+  padding:1px 8px 2px!important;
+  border-radius:0 0 16px 16px!important;
+  background:linear-gradient(180deg,#d9c9ad 0%,#d9c9ad 100%)!important;
+  border-top:1px solid rgba(108,78,35,.18)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24)!important;
+  overflow:hidden!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  align-items:center!important;
+  margin:0!important;
+}
+#trainStack .train-card .train-name-field > .head-label,
+#trainStack .train-card .train-date-field > .head-label{
+  display:none!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-label{
+  grid-column:2!important;
+  grid-row:1!important;
+  align-self:center!important;
+  text-align:right!important;
+  margin:0!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  letter-spacing:0!important;
+  line-height:1!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field{
+  display:grid!important;
+  grid-template-columns:60px auto!important;
+  grid-template-rows:36px!important;
+  align-items:center!important;
+  gap:5px!important;
+  width:94px!important;
+  min-width:94px!important;
+  flex:0 0 94px!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-input{
+  grid-column:1!important;
+  grid-row:1!important;
+  width:60px!important;
+  min-width:60px!important;
+  max-width:60px!important;
+}
+#trainStack .train-card .inbound-action-total{
+  min-width:108px!important;
+  width:108px!important;
+  height:50px!important;
+  min-height:50px!important;
+}
+#trainStack .train-card .inbound-action-total .k{
+  font-size:9px!important;
+  letter-spacing:.12em!important;
+}
+#trainStack .train-card .inbound-action-total .v{
+  font-size:19px!important;
+  line-height:1.05!important;
+}
+.rollup-card[aria-label="Daily inbound rollup table"] .rollup-title small{
+  display:none!important;
+}
+</style>
+
 
 
 <!-- FINAL PATCH: remove native PAGE select permanently to stop browser dropdown glitch -->
@@ -14373,6 +14526,48 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
 @media (max-width:900px){
   #trainStack .train-card .train-header .head-input{font-size:15px!important;}
   #trainStack .train-card .train-header .train-date-field .head-input{font-size:14px!important;}
+}
+</style>
+
+<style id="inbound-header-three-controls-same-height-final-css">
+#trainStack .train-card .train-header .train-name-field,
+#trainStack .train-card .train-header .train-date-field{
+  align-self:center!important;
+}
+#trainStack .train-card .train-header .train-name-field .head-input,
+#trainStack .train-card .train-header .train-date-field .head-input,
+#trainStack .train-card .inbound-action-total{
+  height:50px!important;
+  min-height:50px!important;
+  max-height:50px!important;
+  box-sizing:border-box!important;
+}
+#trainStack .train-card .train-header .train-name-field .head-input,
+#trainStack .train-card .train-header .train-date-field .head-input{
+  padding-top:0!important;
+  padding-bottom:0!important;
+  line-height:50px!important;
+}
+</style>
+
+<style id="archive-button-flush-right-when-x-hidden-final-css">
+#trainStack .train-card .inbound-bottom-actions{
+  justify-content:flex-end!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  margin-left:auto!important;
+  justify-content:flex-end!important;
+}
+#trainStack .train-card:not(.inbound-delete-controls-visible) .inbound-bottom-actions .archive-delete-x{
+  display:none!important;
+  width:0!important;
+  min-width:0!important;
+  max-width:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+#trainStack .train-card.inbound-delete-controls-visible .inbound-bottom-actions .archive-delete-x{
+  display:inline-grid!important;
 }
 </style>
 
@@ -14892,6 +15087,101 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     padding-bottom:120px!important;
   }
 </style>
+<style id="swap-inbound-units-total-ft-frame-final-css">
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-ups-field{
+  display:none!important;
+}
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ft{
+  order:3!important;
+  margin-left:auto!important;
+  margin-right:2px!important;
+}
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ups span:first-child{
+  margin-right:0!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  letter-spacing:0!important;
+  line-height:1!important;
+}
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ups .ups-pill-input{
+  width:44px!important;
+  min-width:44px!important;
+  max-width:44px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding-left:5px!important;
+  padding-right:5px!important;
+  border-radius:999px!important;
+  border:1px solid #bda373!important;
+  background:#fff8eb!important;
+  color:#111!important;
+  font-family:var(--mono,'JetBrains Mono',monospace)!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  text-align:center!important;
+  line-height:32px!important;
+  outline:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important;
+  appearance:textfield!important;
+  -webkit-appearance:none!important;
+}
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ups .ups-pill-input::-webkit-outer-spin-button,
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ups .ups-pill-input::-webkit-inner-spin-button{
+  -webkit-appearance:none!important;
+  margin:0!important;
+}
+#trainStack .train-card .table-footer.inbound-footer-controls .footer-total-units{
+  order:4!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+#trainStack .same-day-inbound-row>.train-card .footer-total-ft,
+.same-day-inbound-row .train-card .footer-total-ft{
+  margin-left:auto!important;
+}
+#trainStack .same-day-inbound-row>.train-card .footer-total-units,
+.same-day-inbound-row .train-card .footer-total-units{
+  margin-left:0!important;
+}
+</style>
+<script id="swap-inbound-units-total-ft-frame-final-js">
+(function(){
+  'use strict';
+  if(window.__swapInboundUnitsTotalFtFrameFinalInstalled) return;
+  window.__swapInboundUnitsTotalFtFrameFinalInstalled = true;
+
+  function swapInboundUnitsTotalFt(){
+    document.querySelectorAll('#trainStack .train-card .table-footer.inbound-footer-controls').forEach(function(footer){
+      var ft = footer.querySelector('.footer-total-ft');
+      var units = footer.querySelector('.footer-total-units');
+      if(!ft || !units) return;
+
+      if(ft.nextElementSibling !== units){
+        footer.insertBefore(ft, units);
+        footer.insertBefore(units, ft.nextSibling);
+      }
+
+      ft.style.setProperty('order','3','important');
+      ft.style.setProperty('margin-left','auto','important');
+      ft.style.setProperty('margin-right','2px','important');
+      units.style.setProperty('order','4','important');
+      units.style.setProperty('margin-left','0','important');
+      units.style.setProperty('margin-right','0','important');
+    });
+  }
+
+  swapInboundUnitsTotalFt();
+  document.addEventListener('DOMContentLoaded', swapInboundUnitsTotalFt);
+  window.addEventListener('load', swapInboundUnitsTotalFt);
+  setTimeout(swapInboundUnitsTotalFt, 50);
+  setTimeout(swapInboundUnitsTotalFt, 250);
+
+  try{
+    new MutationObserver(function(){ swapInboundUnitsTotalFt(); })
+      .observe(document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+})();
+</script>
 </body>
 
 
@@ -15228,6 +15518,166 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     text-shadow:none!important;
   }
 </style>
+<style id="inbound-compact-width-after-add-final-css">
+  /* Keep Add Inbound rerenders from reverting cards/groups to full-screen width. */
+  html body main.app section.grid .summary-stack,
+  html body main.app section.grid .summary-stack #trainStack{
+    align-items:flex-start!important;
+    justify-items:start!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:12px!important;
+    width:auto!important;
+    max-width:none!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack section.same-day-inbound-group{
+    width:auto!important;
+    max-width:none!important;
+    justify-self:start!important;
+    align-self:flex-start!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack section.same-day-inbound-group > .same-day-inbound-row{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:wrap!important;
+    align-items:flex-start!important;
+    justify-content:flex-start!important;
+    gap:12px!important;
+    width:auto!important;
+    max-width:none!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack .same-day-inbound-row > .train-card,
+  html body main.app section.grid .summary-stack #trainStack .train-card{
+    flex:0 0 523px!important;
+    width:523px!important;
+    min-width:523px!important;
+    max-width:523px!important;
+    align-self:flex-start!important;
+    margin:0!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] td.block-cell-with-remove{
+    padding-left:6px!important;
+    padding-right:6px!important;
+    vertical-align:middle!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .block-remove-wrap{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 28px!important;
+    align-items:center!important;
+    column-gap:6px!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    white-space:nowrap!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .block-remove-wrap .block-input{
+    grid-column:1!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    box-sizing:border-box!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .cell-input{
+    background:transparent!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+    border-radius:0!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .number-input{
+    font-size:17px!important;
+    font-weight:1000!important;
+    font-family:Arial, Helvetica, sans-serif!important;
+    -webkit-text-stroke:.25px #111!important;
+    text-shadow:.2px 0 0 #111!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .cell-input:focus{
+    background:rgba(255,255,255,.28)!important;
+    border-color:rgba(130,91,30,.22)!important;
+    border-radius:6px!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .block-remove-wrap .inline-remove-btn,
+  html body main.app section.grid .summary-stack #trainStack table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
+    grid-column:2!important;
+    justify-self:end!important;
+    align-self:center!important;
+    width:28px!important;
+    min-width:28px!important;
+    max-width:28px!important;
+    height:28px!important;
+    min-height:28px!important;
+    max-height:28px!important;
+    padding:0!important;
+    margin:0!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    line-height:1!important;
+    flex:0 0 28px!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack .train-card:not(.inbound-delete-controls-visible) table[aria-label="Inbound summary table"] .block-remove-wrap{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack .train-card:not(.inbound-delete-controls-visible) .inline-remove-btn,
+  html body main.app section.grid .summary-stack #trainStack .train-card:not(.inbound-delete-controls-visible) .row-remove-btn,
+  html body main.app section.grid .summary-stack #trainStack .train-card:not(.inbound-delete-controls-visible) .archive-delete-x{
+    opacity:0!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+  }
+  html body main.app section.grid .summary-stack #trainStack .train-card.inbound-delete-controls-visible .inline-remove-btn,
+  html body main.app section.grid .summary-stack #trainStack .train-card.inbound-delete-controls-visible .row-remove-btn,
+  html body main.app section.grid .summary-stack #trainStack .train-card.inbound-delete-controls-visible .archive-delete-x{
+    opacity:1!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+  }
+  @media(max-width:620px){
+    html body main.app section.grid .summary-stack #trainStack .same-day-inbound-row > .train-card,
+    html body main.app section.grid .summary-stack #trainStack .train-card{
+      flex-basis:calc(100vw - 24px)!important;
+      width:calc(100vw - 24px)!important;
+      min-width:0!important;
+      max-width:calc(100vw - 24px)!important;
+    }
+  }
+</style>
+<script id="inbound-delete-controls-activate-on-table-click-js">
+(function(){
+  'use strict';
+  if(window.__inboundDeleteControlsActivateInstalled) return;
+  window.__inboundDeleteControlsActivateInstalled = true;
+
+  function clearActive(except){
+    document.querySelectorAll('#trainStack .train-card.inbound-delete-controls-visible').forEach(function(card){
+      if(card !== except) card.classList.remove('inbound-delete-controls-visible');
+    });
+  }
+
+  function activate(card){
+    if(!card) return;
+    clearActive(card);
+    card.classList.add('inbound-delete-controls-visible');
+  }
+
+  document.addEventListener('pointerdown', function(e){
+    var card = e.target && e.target.closest && e.target.closest('#trainStack .train-card');
+    if(!card){
+      clearActive(null);
+      return;
+    }
+    if(e.target.closest('table[aria-label="Inbound summary table"], .inbound-bottom-actions, .train-header')){
+      activate(card);
+    }
+  }, true);
+
+  document.addEventListener('focusin', function(e){
+    var card = e.target && e.target.closest && e.target.closest('#trainStack .train-card');
+    if(card) activate(card);
+  }, true);
+})();
+</script>
 </html>
 </template>
 
@@ -26050,7 +26500,7 @@ btnTop.addEventListener('click',()=>{
   setSel(0,0);
 });
 
-let bowlTurnoverHidden = false;
+const bowlTurnoverHidden = false;
 
 // ═══════════════════════════════════════
 //  INIT
@@ -26080,30 +26530,6 @@ window.addEventListener('load', bindFontSlider);
 
 document.addEventListener('DOMContentLoaded', () => {
   bindFontSlider();
-
-  const bowlBtn = document.getElementById('toggle-bowl-turnover');
-  if (!bowlBtn) return;
-
-  const setLabel = () => {
-    bowlBtn.textContent = bowlTurnoverHidden ? 'Show Bowl Turnover' : 'Hide Bowl Turnover';
-    bowlBtn.classList.toggle('active-toggle', bowlTurnoverHidden);
-  };
-
-  const applyToggle = () => {
-    bowlTurnoverHidden = !bowlTurnoverHidden;
-    const bowl = document.getElementById('ob-standalone-bowl');
-    if (bowl) bowl.style.display = bowlTurnoverHidden ? 'none' : '';
-    setLabel();
-  };
-
-  bowlBtn.addEventListener('click', applyToggle);
-
-  // Ensure the button label matches the current bowl state when the page is ready.
-  setTimeout(() => {
-    const bowl = document.getElementById('ob-standalone-bowl');
-    if (bowl) bowl.style.display = bowlTurnoverHidden ? 'none' : '';
-    setLabel();
-  }, 250);
 });
 
 
@@ -32445,6 +32871,101 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
 }
 </style>
 
+<style id="inbound-bottom-actions-corner-color-outer-final-css">
+/* Align the bottom action strip with the train card corners and card color. */
+#trainStack .train-card{
+  border-radius:16px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,#f4ecdc 0%,#ead9bb 100%)!important;
+}
+#trainStack .train-card .inbound-bottom-actions{
+  width:100%!important;
+  box-sizing:border-box!important;
+  margin:0!important;
+  padding:1px 8px 2px!important;
+  border-radius:0 0 16px 16px!important;
+  background:linear-gradient(180deg,#d9c9ad 0%,#d9c9ad 100%)!important;
+  border-top:1px solid rgba(108,78,35,.18)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24)!important;
+  overflow:hidden!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  align-items:center!important;
+  margin:0!important;
+}
+#trainStack .train-card .train-name-field > .head-label,
+#trainStack .train-card .train-date-field > .head-label{
+  display:none!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-label{
+  grid-column:2!important;
+  grid-row:1!important;
+  align-self:center!important;
+  text-align:right!important;
+  margin:0!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  letter-spacing:0!important;
+  line-height:1!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field{
+  display:grid!important;
+  grid-template-columns:60px auto!important;
+  grid-template-rows:36px!important;
+  align-items:center!important;
+  gap:5px!important;
+  width:94px!important;
+  min-width:94px!important;
+  flex:0 0 94px!important;
+}
+.table-footer.inbound-footer-controls .footer-ups-field .footer-input{
+  grid-column:1!important;
+  grid-row:1!important;
+  width:60px!important;
+  min-width:60px!important;
+  max-width:60px!important;
+}
+#trainStack .train-card .inbound-action-total{
+  min-width:108px!important;
+  width:108px!important;
+  height:50px!important;
+  min-height:50px!important;
+}
+#trainStack .train-card .inbound-action-total .k{
+  font-size:9px!important;
+  letter-spacing:.12em!important;
+}
+#trainStack .train-card .inbound-action-total .v{
+  font-size:19px!important;
+  line-height:1.05!important;
+}
+.rollup-card[aria-label="Daily inbound rollup table"] .rollup-title small,
+#daily-inbound-rollup .rollup-title small{
+  display:none!important;
+}
+</style>
+
+<style id="archive-button-flush-right-when-x-hidden-outer-final-css">
+#trainStack .train-card .inbound-bottom-actions{
+  justify-content:flex-end!important;
+}
+#trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  margin-left:auto!important;
+  justify-content:flex-end!important;
+}
+#trainStack .train-card:not(.inbound-delete-controls-visible) .inbound-bottom-actions .archive-delete-x{
+  display:none!important;
+  width:0!important;
+  min-width:0!important;
+  max-width:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+#trainStack .train-card.inbound-delete-controls-visible .inbound-bottom-actions .archive-delete-x{
+  display:inline-grid!important;
+}
+</style>
+
 
 
 <!-- FINAL PATCH: remove native PAGE select permanently to stop browser dropdown glitch -->
@@ -32806,6 +33327,32 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   width:auto!important;
   text-align:center!important;
 }
+#daily-inbound-rollup .rollup-inbound-name{
+  display:inline-block!important;
+  position:relative!important;
+  white-space:nowrap!important;
+  vertical-align:middle!important;
+}
+#daily-inbound-rollup .rollup-ups-pill{
+  display:inline-flex!important;
+  position:absolute!important;
+  left:calc(100% + 7px)!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:32px!important;
+  height:20px!important;
+  padding:0 8px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(216,180,254,.72)!important;
+  background:linear-gradient(180deg,#7c3aed,#4c1d95)!important;
+  color:#f5e8ff!important;
+  font-size:11px!important;
+  font-weight:950!important;
+  letter-spacing:.04em!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 0 8px rgba(147,51,234,.28)!important;
+}
 #daily-inbound-rollup .rollup-table .total-cell{
   width:150px!important;
   text-align:center!important;
@@ -32942,6 +33489,19 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     var date = new Date(year, Number(m[1])-1, Number(m[2]), hour, minute);
     return Number.isNaN(date.getTime()) ? null : date;
   }
+  function formatInboundArrival(value){
+    var d = parseInboundDate(value);
+    if(!d) return String(value || '').trim();
+    var month = d.getMonth() + 1;
+    var day = d.getDate();
+    var year = String(d.getFullYear()).slice(-2);
+    var hour = d.getHours();
+    var minute = String(d.getMinutes()).padStart(2,'0');
+    var ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if(hour === 0) hour = 12;
+    return month + '/' + day + '/' + year + ', ' + hour + ':' + minute + ' ' + ampm;
+  }
   function startOfDay(date){ return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); }
   function dayOffset(train){
     var parsed = parseInboundDate(train && train.dateTime);
@@ -32972,8 +33532,8 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   function guessShift(value){
     var d = parseInboundDate(value);
     if(!d) return '';
-    var h = d.getHours();
-    return (h >= 18 || h < 4) ? 'NIGHT SHIFT' : 'DAY SHIFT';
+    var mins = d.getHours() * 60 + d.getMinutes();
+    return mins < (14 * 60 + 30) ? 'DAY SHIFT' : 'NIGHT SHIFT';
   }
   function sortValue(train){
     var d = parseInboundDate(train && train.dateTime);
@@ -32995,10 +33555,10 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
     if(total > 7000) return {className:'light', tag:'LIGHT'};
     return {className:'low', tag:'LOW'};
   }
-  function formatUps(train){
+  function upsPill(train){
     var ups = train && train.ups;
     if(ups === null || ups === undefined || String(ups).trim() === '') return '';
-    return esc(ups) + ' UPS';
+    return '<span class="rollup-ups-pill">'+esc(ups)+' UPS</span>';
   }
   function loadTrains(){
     try{
@@ -33011,7 +33571,7 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
   function rollupHtml(){
     var rollupTrains = loadTrains().filter(shouldIncludeInRollup);
     if(!rollupTrains.length){
-      return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-wrap"><div class="rollup-empty">No inbound tables for Today, Tomorrow, or 2 Days Out.</div></div></section>';
+      return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-title">72 Hour Inbound Outlook</div><div class="rollup-wrap"><div class="rollup-empty">No inbound tables for Today, Tomorrow, or 2 Days Out.</div></div></section>';
     }
     var sorted = rollupTrains.slice().sort(function(a,b){
       var ad = daySortBucket(a), bd = daySortBucket(b);
@@ -33038,17 +33598,16 @@ body.df-edit-modal-open .bowl-board .bowl-delta{
         var ft = trainTotalFt(train);
         return '<tr class="'+(first ? 'group-start' : '')+'">'
           + (first ? '<td class="day-cell '+dayTone+'" rowspan="'+group.trains.length+'">'+esc(group.label)+'</td>' : '')
-          + '<td class="inbound-cell '+dayTone+'">'+esc(train && train.train || '')+'</td>'
-          + '<td class="arrival-cell '+dayTone+'">'+esc(train && train.dateTime || '')+'</td>'
-          + '<td class="shift-cell '+dayTone+'">'+esc((train && train.shift) || guessShift(train && train.dateTime))+'</td>'
+          + '<td class="inbound-cell '+dayTone+'"><span class="rollup-inbound-name"><span class="rollup-train-symbol">'+esc(train && train.train || '')+'</span>'+upsPill(train)+'</span></td>'
+          + '<td class="arrival-cell '+dayTone+'">'+esc(formatInboundArrival(train && train.dateTime || ''))+'</td>'
+          + '<td class="shift-cell '+dayTone+'">'+esc(guessShift(train && train.dateTime))+'</td>'
           + '<td class="ft-cell-rollup '+dayTone+'">'+fmt(ft)+'</td>'
           + '<td class="units-cell-rollup '+dayTone+'">'+esc(trainTotalUnits(train) || '')+'</td>'
-          + '<td class="ups-cell-rollup '+dayTone+'">'+formatUps(train)+'</td>'
           + (first ? '<td class="total-cell" rowspan="'+group.trains.length+'"><div class="total-box '+rule.className+'"><div class="total-tag">'+rule.tag+'</div><div class="total-value">'+fmt(total)+'</div><div class="total-units">'+(totalUnits ? fmt(totalUnits) + ' UNITS' : 'UNITS —')+'</div></div></td>' : '')
           + '</tr>';
       }).join('');
     }).join('');
-    return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-wrap"><table class="rollup-table"><thead><tr><th>Day</th><th>Inbound</th><th>Arrival</th><th>Shift</th><th>FT</th><th>Units</th><th>UPS</th><th>Total FT</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
+    return '<section class="rollup-card top-rollup-table-only" aria-label="Daily inbound rollup table"><div class="rollup-title">72 Hour Inbound Outlook</div><div class="rollup-wrap"><table class="rollup-table"><thead><tr><th>Day</th><th>Inbound</th><th>Arrival</th><th>Shift</th><th>FT</th><th>Units</th><th>Total FT</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
   }
   function ensureHost(){
     var host = document.getElementById(HOST_ID);
@@ -35575,6 +36134,72 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
 .rollup-title,
 .rollup-title small{
   white-space:nowrap!important;
+}
+</style>
+
+<style id="daily-rollup-slider-width-lock-final-css">
+/* Default the Daily Inbound Rollup to the Width slider value (920px until changed). */
+.summary-stack > .rollup-card[aria-label="Daily inbound rollup table"]{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+}
+.summary-stack > .rollup-card[aria-label="Daily inbound rollup table"] .rollup-wrap{
+  width:100%!important;
+  max-width:100%!important;
+}
+.summary-stack > .rollup-card[aria-label="Daily inbound rollup table"] .rollup-table{
+  width:100%!important;
+  min-width:100%!important;
+  table-layout:fixed!important;
+}
+#daily-inbound-rollup{
+  width:var(--table-visible-width, 920px)!important;
+  max-width:var(--table-visible-width, 920px)!important;
+  min-width:920px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+#daily-inbound-rollup .rollup-card,
+#daily-inbound-rollup .top-rollup-table-only,
+#daily-inbound-rollup .rollup-wrap,
+#daily-inbound-rollup .rollup-table{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:100%!important;
+  table-layout:fixed!important;
+}
+</style>
+
+<style id="rollup-ups-pill-below-train-final-css">
+.rollup-table .inbound-cell,
+#daily-inbound-rollup .rollup-table .inbound-cell{
+  text-align:center!important;
+  vertical-align:middle!important;
+}
+.rollup-inbound-name,
+#daily-inbound-rollup .rollup-inbound-name{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:3px!important;
+  position:relative!important;
+  white-space:nowrap!important;
+  vertical-align:middle!important;
+}
+.rollup-train-symbol,
+#daily-inbound-rollup .rollup-train-symbol{
+  display:block!important;
+  line-height:1.05!important;
+}
+.rollup-ups-pill,
+#daily-inbound-rollup .rollup-ups-pill{
+  position:static!important;
+  left:auto!important;
+  top:auto!important;
+  transform:none!important;
+  margin:0!important;
 }
 </style>
 
@@ -39690,6 +40315,27 @@ table.bowl-board td.bowl-delta.good{
     box-sizing:border-box !important;
   }
 
+  .train-card table[aria-label="Inbound summary table"] .cell-input{
+    background:transparent !important;
+    border-color:transparent !important;
+    box-shadow:none !important;
+    border-radius:0 !important;
+  }
+
+  .train-card table[aria-label="Inbound summary table"] .number-input{
+    font-size:17px !important;
+    font-weight:1000 !important;
+    font-family:Arial, Helvetica, sans-serif !important;
+    -webkit-text-stroke:.25px #111 !important;
+    text-shadow:.2px 0 0 #111 !important;
+  }
+
+  .train-card table[aria-label="Inbound summary table"] .cell-input:focus{
+    background:rgba(255,255,255,.28) !important;
+    border-color:rgba(130,91,30,.22) !important;
+    border-radius:6px !important;
+  }
+
   .train-card .inline-remove-btn{
     width:22px !important;
     height:22px !important;
@@ -39788,6 +40434,13 @@ table.bowl-board td.bowl-delta.good{
       stack.style.setProperty('max-width','none','important');
     }
 
+    doc.querySelectorAll('.same-day-inbound-group').forEach(function(group){
+      group.style.setProperty('width','auto','important');
+      group.style.setProperty('max-width','none','important');
+      group.style.setProperty('justify-self','start','important');
+      group.style.setProperty('align-self','flex-start','important');
+    });
+
     doc.querySelectorAll('.same-day-inbound-row').forEach(function(row){
       row.style.setProperty('display','flex','important');
       row.style.setProperty('flex-direction','row','important');
@@ -39808,6 +40461,55 @@ table.bowl-board td.bowl-delta.good{
       card.style.setProperty('margin','0','important');
     });
 
+    doc.querySelectorAll('table[aria-label="Inbound summary table"] .block-remove-wrap').forEach(function(wrap){
+      const card = wrap.closest('#trainStack .train-card');
+      const active = !!(card && card.classList.contains('inbound-delete-controls-visible'));
+      wrap.style.setProperty('display','grid','important');
+      wrap.style.setProperty('grid-template-columns', active ? 'minmax(0, 1fr) 28px' : 'minmax(0, 1fr)', 'important');
+      wrap.style.setProperty('align-items','center','important');
+      wrap.style.setProperty('column-gap','6px','important');
+      wrap.style.setProperty('width','100%','important');
+      wrap.style.setProperty('min-width','0','important');
+      wrap.style.setProperty('max-width','100%','important');
+      wrap.style.setProperty('white-space','nowrap','important');
+    });
+
+    doc.querySelectorAll('table[aria-label="Inbound summary table"] .block-remove-wrap .block-input').forEach(function(input){
+      input.style.setProperty('grid-column','1','important');
+      input.style.setProperty('width','100%','important');
+      input.style.setProperty('min-width','0','important');
+      input.style.setProperty('max-width','100%','important');
+      input.style.setProperty('box-sizing','border-box','important');
+    });
+
+    doc.querySelectorAll('table[aria-label="Inbound summary table"] .block-remove-wrap .inline-remove-btn, table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn').forEach(function(btn){
+      btn.style.setProperty('grid-column','2','important');
+      btn.style.setProperty('justify-self','end','important');
+      btn.style.setProperty('align-self','center','important');
+      btn.style.setProperty('width','28px','important');
+      btn.style.setProperty('min-width','28px','important');
+      btn.style.setProperty('max-width','28px','important');
+      btn.style.setProperty('height','28px','important');
+      btn.style.setProperty('min-height','28px','important');
+      btn.style.setProperty('max-height','28px','important');
+      btn.style.setProperty('padding','0','important');
+      btn.style.setProperty('margin','0','important');
+      btn.style.setProperty('display','inline-flex','important');
+      btn.style.setProperty('align-items','center','important');
+      btn.style.setProperty('justify-content','center','important');
+      btn.style.setProperty('line-height','1','important');
+      btn.style.setProperty('flex','0 0 28px','important');
+    });
+
+    doc.querySelectorAll('#trainStack .train-card').forEach(function(card){
+      const active = card.classList.contains('inbound-delete-controls-visible');
+      card.querySelectorAll('.inline-remove-btn,.row-remove-btn,.archive-delete-x').forEach(function(btn){
+        btn.style.setProperty('opacity', active ? '1' : '0', 'important');
+        btn.style.setProperty('visibility', active ? 'visible' : 'hidden', 'important');
+        btn.style.setProperty('pointer-events', active ? 'auto' : 'none', 'important');
+      });
+    });
+
     doc.querySelectorAll('table[aria-label="Inbound summary table"]').forEach(function(tbl){
       tbl.style.setProperty('width','100%','important');
       tbl.style.setProperty('table-layout','fixed','important');
@@ -39823,6 +40525,48 @@ table.bowl-board td.bowl-delta.good{
         });
       });
     });
+
+    bindDoc(doc);
+  }
+
+  function bindDoc(doc){
+    if(!doc || doc.__inboundCardProportionsFixedBound) return;
+    doc.__inboundCardProportionsFixedBound = true;
+
+    doc.addEventListener('click', function(){
+      setTimeout(function(){ patchDoc(doc); }, 0);
+      setTimeout(function(){ patchDoc(doc); }, 120);
+    }, true);
+
+    doc.addEventListener('pointerdown', function(e){
+      const card = e.target && e.target.closest && e.target.closest('#trainStack .train-card');
+      doc.querySelectorAll('#trainStack .train-card.inbound-delete-controls-visible').forEach(function(other){
+        if(other !== card) other.classList.remove('inbound-delete-controls-visible');
+      });
+      if(card && e.target.closest('table[aria-label="Inbound summary table"], .inbound-bottom-actions, .train-header')){
+        card.classList.add('inbound-delete-controls-visible');
+      }
+      setTimeout(function(){ patchDoc(doc); }, 0);
+    }, true);
+
+    doc.addEventListener('focusin', function(e){
+      const card = e.target && e.target.closest && e.target.closest('#trainStack .train-card');
+      if(card){
+        doc.querySelectorAll('#trainStack .train-card.inbound-delete-controls-visible').forEach(function(other){
+          if(other !== card) other.classList.remove('inbound-delete-controls-visible');
+        });
+        card.classList.add('inbound-delete-controls-visible');
+        setTimeout(function(){ patchDoc(doc); }, 0);
+      }
+    }, true);
+
+    try{
+      const mo = new MutationObserver(function(){
+        clearTimeout(doc.__inboundCardProportionsFixedTimer);
+        doc.__inboundCardProportionsFixedTimer = setTimeout(function(){ patchDoc(doc); }, 40);
+      });
+      mo.observe(doc.documentElement, {childList:true, subtree:true});
+    }catch(e){}
   }
 
   function patchAll(){
@@ -43670,3 +44414,95 @@ html body #tab-switching .switching-copy-post-btn:hover {
   display: none !important;
 }
 </style>
+<style id="inbound-bottom-actions-tightest-final-css">
+/* Final compact lock for the inbound archive footer strip. */
+html body #trainStack .train-card .inbound-bottom-actions{
+  min-height:0!important;
+  padding:1px 6px!important;
+  gap:4px!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+}
+html body #trainStack .train-card .inbound-bottom-actions .inbound-archive-row{
+  min-height:0!important;
+  padding:0!important;
+  margin:0 0 0 auto!important;
+  gap:4px!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+}
+html body #trainStack button[data-action="add-train-archive"]{
+  height:26px!important;
+  min-height:26px!important;
+  max-height:26px!important;
+  padding:0 10px!important;
+  line-height:1!important;
+}
+html body #trainStack .train-card .inbound-bottom-actions .archive-delete-x{
+  width:26px!important;
+  min-width:26px!important;
+  max-width:26px!important;
+  height:26px!important;
+  min-height:26px!important;
+  max-height:26px!important;
+}
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-ups-field .footer-label{
+  font-weight:1000!important;
+  -webkit-text-stroke:.15px currentColor!important;
+  text-shadow:.15px 0 currentColor!important;
+}
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-add-row{
+  order:1!important;
+}
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-ups-field{
+  order:2!important;
+}
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-total-ft{
+  order:3!important;
+  margin-left:auto!important;
+  margin-right:2px!important;
+}
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-total-units{
+  order:4!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+</style>
+<script id="swap-inbound-units-total-ft-final-js">
+(function(){
+  'use strict';
+  if(window.__swapInboundUnitsTotalFtFinalInstalled) return;
+  window.__swapInboundUnitsTotalFtFinalInstalled = true;
+
+  function swapInboundUnitsTotalFt(){
+    document.querySelectorAll('#trainStack .train-card .table-footer.inbound-footer-controls').forEach(function(footer){
+      var ft = footer.querySelector('.footer-total-ft');
+      var units = footer.querySelector('.footer-total-units');
+      if(!ft || !units) return;
+
+      if(ft.nextElementSibling !== units){
+        footer.insertBefore(ft, units);
+        footer.insertBefore(units, ft.nextSibling);
+      }
+
+      ft.style.setProperty('order','3','important');
+      ft.style.setProperty('margin-left','auto','important');
+      ft.style.setProperty('margin-right','2px','important');
+      units.style.setProperty('order','4','important');
+      units.style.setProperty('margin-left','0','important');
+      units.style.setProperty('margin-right','0','important');
+    });
+  }
+
+  swapInboundUnitsTotalFt();
+  document.addEventListener('DOMContentLoaded', swapInboundUnitsTotalFt);
+  window.addEventListener('load', swapInboundUnitsTotalFt);
+  setTimeout(swapInboundUnitsTotalFt, 50);
+  setTimeout(swapInboundUnitsTotalFt, 250);
+
+  try{
+    new MutationObserver(function(){ swapInboundUnitsTotalFt(); })
+      .observe(document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+})();
+</script>
