@@ -12199,6 +12199,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       <button class="topbar-btn freeze-blue" id="btn-freeze-ob" title="Toggle locked metric cards">Unfreeze</button>
       <button class="topbar-btn" id="btn-projected-dwell" title="Toggle IHOSA/MHOAS projected dwell cards">Projected Dwell</button>
       <button class="topbar-btn" id="toggle-bowl-turnover">Hide Bowl Turnover</button>
+      <button class="topbar-btn" id="btn-light-view" title="Toggle light background on Outbound page">Light View</button>
     </div>
   </div>
 </div>
@@ -22717,6 +22718,9 @@ document.addEventListener('click',e=>{
       <div id="tb-missing-banner"></div>
       <div id="tb-list"></div>
     </div>
+    <div id="tb-footer">
+      <button id="tb-clear-times-btn" class="tb-clear-idle">CLEAR ALL SAVED TIMES</button>
+    </div>
   </div>
 </div>
 
@@ -25309,7 +25313,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(!onlyCurrent && !omitAfter){
     const afterTitle=document.createElement('div');
     afterTitle.className='bowl-after-title';
-    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-btn bowl-head-btn" data-bowl-dwell-toggle type="button">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+(hideTrackSuffix?'SHOW [TRACK]':'HIDE [TRACK]')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+(hideFutureInboundTag?'SHOW FUTURE TAG':'HIDE FUTURE TAG')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+(hideFutureInboundBlocks?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+(hidePreviousDepartingBlocks?'SHOW PREV IHOSA/MHOAS':'HIDE PREV IHOSA/MHOAS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+(hideTomorrowDepartingBlocks?'SHOW TOMORROW IHOSA/MHOAS':'HIDE TOMORROW IHOSA/MHOAS')+'</button>'+        '</div>'+      '</div>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
+    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+(hideTrackSuffix?'SHOW [TRACK]':'HIDE [TRACK]')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+(hideFutureInboundTag?'SHOW FUTURE TAG':'HIDE FUTURE TAG')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+(hideFutureInboundBlocks?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+(hidePreviousDepartingBlocks?'SHOW PREV IHOSA/MHOAS':'HIDE PREV IHOSA/MHOAS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+(hideTomorrowDepartingBlocks?'SHOW TOMORROW IHOSA/MHOAS':'HIDE TOMORROW IHOSA/MHOAS')+'</button>'+        '</div>'+      '</div>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
     wrap.appendChild(afterTitle);
 
     wrap.appendChild(buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds));
@@ -25596,6 +25600,13 @@ if(projectedDwellBtn){
 //  TRAIN BANK
 // ═══════════════════════════════════════
 function saveTB(){localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));}
+window.clearTrainBankTimes=function(){
+  Object.keys(trainBank).forEach(function(k){ trainBank[k]=''; });
+  saveTB();
+  if(typeof renderTBList==='function') renderTBList();
+  try{ if(typeof renderOB==='function') renderOB(); }catch(e){}
+  if(typeof toast==='function') toast('All saved times cleared');
+};
 // Parse compact numeric date: 5190648 → 5/19 06:48, 10151423 → 10/15 14:23
 function parseCompactDate(raw){
   const s=String(raw).trim().replace(/\D/g,'');
@@ -50965,5 +50976,795 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
   /* ── keyboard: Escape does NOT close this modal (must use × or Cancel) ── */
 
   window.openDwellQuickEdit = openModal;
+})();
+</script>
+
+<style id="remove-block-borders-except-ss-ihosa-mhoas-css">
+/* Remove borders/shadows from ALL blocks — match the specificity of .bowl-board .bowl-block rules */
+.bowl-board .bowl-block,
+.bowl-board .bowl-block.normal,
+.bowl-board .bowl-block.ssmtp,
+.bowl-board .bowl-block.slblue,
+.bowl-board .bowl-block.bo-black,
+.bowl-board .bowl-block.inbound-gold,
+.bowl-board .bowl-block.rampcu,
+.bowl-board .bowl-block.future-inbound{
+  border:none!important;
+  box-shadow:none!important;
+  outline:none!important;
+}
+
+/* Restore purple glow for missing SS start */
+.bowl-page-shell:not(.bowl-hide-current-missing-ss-flair)
+  .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)
+  .bowl-block.missing-ss-start{
+  border:1px solid #e879f9!important;
+  outline:2px solid #d946ef!important;
+  outline-offset:1px!important;
+  box-shadow:0 0 0 1px rgba(250,232,255,.72),0 0 9px rgba(217,70,239,.92),0 0 18px rgba(192,38,211,.58)!important;
+}
+
+/* Restore green glow for IHOSA-assigned */
+.bowl-board .bowl-block.assignment-ihosa-border,
+.bowl-board .bowl-block[data-assignment-depart="IHOSA"],
+.bowl-board .bowl-block[data-outbound-departure="IHOSA"],
+.bowl-board .bowl-block[data-after-depart="IHOSA"],
+.bowl-board .bowl-block.depart-ihosa,
+.bowl-board .bowl-block.ihosa,
+.bowl-board .bowl-block:has(.after-depart-badge.ihosa){
+  border:1.5px solid rgba(74,222,128,.86)!important;
+  box-shadow:inset 0 0 0 1px rgba(220,252,231,.90),0 0 0 2px rgba(34,197,94,.98),0 0 12px rgba(34,197,94,.78),0 0 22px rgba(34,197,94,.42)!important;
+  outline:none!important;
+}
+
+/* Restore blue glow for MHOAS-assigned */
+.bowl-board .bowl-block.assignment-mhoas-border,
+.bowl-board .bowl-block[data-assignment-depart="MHOAS"],
+.bowl-board .bowl-block[data-outbound-departure="MHOAS"],
+.bowl-board .bowl-block[data-after-depart="MHOAS"],
+.bowl-board .bowl-block.depart-mhoas,
+.bowl-board .bowl-block.mhoas,
+.bowl-board .bowl-block:has(.after-depart-badge.mhoas){
+  border:1.5px solid rgba(147,197,253,.88)!important;
+  box-shadow:inset 0 0 0 1px rgba(219,234,254,.90),0 0 0 2px rgba(56,189,248,.98),0 0 12px rgba(56,189,248,.78),0 0 22px rgba(59,130,246,.42)!important;
+  outline:none!important;
+}
+</style>
+<style id="hide-dwell-toggle-dropdown-css">
+[data-bowl-dwell-toggle],[data-bowl-options-panel] [data-bowl-dwell-toggle]{display:none!important;}
+</style>
+
+<style id="outbound-light-view-css">
+/* ── LIGHT VIEW: applied when #tab-outbound has .ob-light-mode ── */
+
+/* Page background */
+#tab-outbound.ob-light-mode,
+#tab-outbound.ob-light-mode #ob-view,
+#tab-outbound.ob-light-mode #ob-frozen{
+  background:#f0f2f5!important;
+  color:#111827!important;
+}
+
+/* Panels */
+#tab-outbound.ob-light-mode .ob-panel{
+  background:#ffffff!important;
+  border-color:rgba(0,0,0,.10)!important;
+  box-shadow:0 2px 12px rgba(0,0,0,.08)!important;
+}
+
+/* Table headers */
+#tab-outbound.ob-light-mode .ob-tbl thead tr,
+#tab-outbound.ob-light-mode .ob-tbl th,
+#tab-outbound.ob-light-mode .bowl-board thead tr,
+#tab-outbound.ob-light-mode .bowl-board thead th{
+  background:#e2e8f0!important;
+  color:#374151!important;
+  border-color:rgba(0,0,0,.12)!important;
+}
+
+/* Table rows and cells */
+#tab-outbound.ob-light-mode .ob-tbl tbody tr,
+#tab-outbound.ob-light-mode .ob-tbl td{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:rgba(0,0,0,.07)!important;
+}
+#tab-outbound.ob-light-mode .ob-tbl tbody tr:hover td{
+  background:#f1f5f9!important;
+}
+#tab-outbound.ob-light-mode .ob-tbl td.td-train{color:#111827!important;}
+#tab-outbound.ob-light-mode .ob-tbl td.td-arr{color:#374151!important;}
+#tab-outbound.ob-light-mode .ob-tbl td.td-dep{color:#6b7280!important;}
+#tab-outbound.ob-light-mode .ob-tbl td.td-ft{color:#374151!important;}
+
+/* Bowl board rows */
+#tab-outbound.ob-light-mode .bowl-board tbody tr{
+  background:#ffffff!important;
+}
+#tab-outbound.ob-light-mode .bowl-board tbody td{
+  background:#ffffff!important;
+  border-color:rgba(0,0,0,.07)!important;
+  color:#111827!important;
+}
+
+/* Bowl track column */
+#tab-outbound.ob-light-mode .bowl-board .bowl-track{
+  background:#e2e8f0!important;
+  color:#111827!important;
+  border-color:rgba(0,0,0,.12)!important;
+}
+
+/* Bowl ramp head (section headers like CURRENT RAMP BLOCKING) */
+#tab-outbound.ob-light-mode .bowl-ramp-head{
+  background:#cbd5e1!important;
+  color:#111827!important;
+  border-color:rgba(0,0,0,.12)!important;
+}
+
+/* After/post title bars */
+#tab-outbound.ob-light-mode .bowl-after-title,
+#tab-outbound.ob-light-mode .bowl-next-day-title{
+  background:#cbd5e1!important;
+  color:#111827!important;
+}
+
+/* Projected dwell cards */
+#tab-outbound.ob-light-mode .projected-dwell-card{
+  background:#ffffff!important;
+  border-color:rgba(0,0,0,.10)!important;
+  color:#111827!important;
+}
+
+/* Scrollbar */
+#tab-outbound.ob-light-mode #ob-view::-webkit-scrollbar-track{background:#e2e8f0!important;}
+#tab-outbound.ob-light-mode #ob-view::-webkit-scrollbar-thumb{background:#94a3b8!important;}
+
+/* Options menu buttons */
+#tab-outbound.ob-light-mode .bowl-options-main,
+#tab-outbound.ob-light-mode .bowl-ramp-head button{
+  background:rgba(0,0,0,.06)!important;
+  color:#1e293b!important;
+  border-color:rgba(0,0,0,.15)!important;
+}
+
+/* Active toggle indicator */
+#btn-light-view.light-view-active{
+  background:linear-gradient(180deg,rgba(59,130,246,.32),rgba(30,64,175,.26))!important;
+  border-color:rgba(59,130,246,.62)!important;
+  color:#dbeafe!important;
+}
+
+/* Delta column — force dark cell background so RGBA colors render same as dark mode */
+#tab-outbound.ob-light-mode table.bowl-board td.bowl-delta,
+#tab-outbound.ob-light-mode .bowl-board td.bowl-delta{
+  background:#1a1f2e!important;
+}
+#tab-outbound.ob-light-mode table.bowl-board td.bowl-delta.good,
+#tab-outbound.ob-light-mode .bowl-board td.bowl-delta.good{
+  background:rgba(22,163,74,.18)!important;
+  color:#86efac!important;
+  border-color:rgba(34,197,94,.35)!important;
+}
+#tab-outbound.ob-light-mode table.bowl-board td.bowl-delta.warn,
+#tab-outbound.ob-light-mode .bowl-board td.bowl-delta.warn{
+  background:rgba(245,158,11,.18)!important;
+  color:#facc15!important;
+  border-color:rgba(245,158,11,.38)!important;
+}
+#tab-outbound.ob-light-mode table.bowl-board td.bowl-delta.bad,
+#tab-outbound.ob-light-mode .bowl-board td.bowl-delta.bad{
+  background:rgba(185,28,28,.22)!important;
+  color:#fca5a5!important;
+  border-color:rgba(239,68,68,.42)!important;
+}
+</style>
+
+<script id="outbound-light-view-js">
+(function(){
+  'use strict';
+  var KEY = 'dwellObLightView';
+  function read(){ try{ return localStorage.getItem(KEY)==='1'; }catch(e){ return false; } }
+  function write(v){ try{ localStorage.setItem(KEY,v?'1':'0'); }catch(e){} }
+
+  function apply(on){
+    var tab = document.getElementById('tab-outbound');
+    var btn = document.getElementById('btn-light-view');
+    if(tab) tab.classList.toggle('ob-light-mode', on);
+    if(btn){
+      btn.classList.toggle('light-view-active', on);
+      btn.textContent = on ? 'Dark View' : 'Light View';
+    }
+  }
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    if(!e.target.closest('#btn-light-view')) return;
+    var next = !read();
+    write(next);
+    apply(next);
+  }, true);
+
+  // Init on load
+  [0, 200, 600].forEach(function(d){
+    setTimeout(function(){ apply(read()); }, d);
+  });
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ apply(read()); });
+  }
+})();
+</script>
+
+<style id="tb-clear-times-css">
+#tb-footer{
+  padding:10px 16px 14px;
+  border-top:1px solid rgba(255,255,255,.07);
+  display:flex;
+  justify-content:flex-end;
+}
+#tb-clear-times-btn{
+  font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;
+  padding:8px 16px;border-radius:9px;cursor:pointer;transition:all .15s;
+}
+#tb-clear-times-btn.tb-clear-idle{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  color:#94a3b8;
+}
+#tb-clear-times-btn.tb-clear-idle:hover{
+  background:rgba(239,68,68,.10);
+  border-color:rgba(239,68,68,.30);
+  color:#fca5a5;
+}
+#tb-clear-times-btn.tb-clear-confirm{
+  background:rgba(239,68,68,.22);
+  border:1px solid rgba(239,68,68,.55);
+  color:#fca5a5;
+  box-shadow:0 0 12px rgba(239,68,68,.25);
+  animation:tb-confirm-pulse .5s ease;
+}
+@keyframes tb-confirm-pulse{
+  0%{transform:scale(1);}
+  50%{transform:scale(1.04);}
+  100%{transform:scale(1);}
+}
+</style>
+
+<script id="tb-clear-times-js">
+(function(){
+  'use strict';
+  var btn = document.getElementById('tb-clear-times-btn');
+  if(!btn) return;
+
+  var confirmTimer = null;
+
+  function reset(){
+    clearTimeout(confirmTimer);
+    btn.textContent = 'CLEAR ALL SAVED TIMES';
+    btn.classList.remove('tb-clear-confirm');
+    btn.classList.add('tb-clear-idle');
+  }
+
+  btn.addEventListener('click', function(){
+    if(btn.classList.contains('tb-clear-confirm')){
+      // Confirmed — call the exposed clear function
+      clearTimeout(confirmTimer);
+      if(typeof window.clearTrainBankTimes === 'function'){
+        window.clearTrainBankTimes();
+      } else {
+        // Fallback: wipe localStorage directly and re-init
+        try{
+          var raw = localStorage.getItem('dwellTrainBank');
+          if(raw){
+            var bank = JSON.parse(raw)||{};
+            Object.keys(bank).forEach(function(k){ bank[k]=''; });
+            localStorage.setItem('dwellTrainBank', JSON.stringify(bank));
+          }
+        }catch(e){}
+        if(typeof window.renderTBList==='function') window.renderTBList();
+        if(typeof toast==='function') toast('All saved times cleared');
+      }
+      reset();
+    } else {
+      // First click — switch to confirm state
+      btn.textContent = 'CONFIRM CLEAR ALL TIMES?';
+      btn.classList.remove('tb-clear-idle');
+      btn.classList.add('tb-clear-confirm');
+      // Auto-reset after 4 seconds if not confirmed
+      confirmTimer = setTimeout(reset, 4000);
+    }
+  });
+
+  // Reset when modal closes
+  var closeBtn = document.getElementById('tb-close');
+  if(closeBtn) closeBtn.addEventListener('click', reset);
+  var modal = document.getElementById('tb-modal');
+  if(modal) modal.addEventListener('click', function(e){ if(e.target === modal) reset(); });
+})();
+</script>
+
+<style id="resolve-ss-queue-css">
+/* Resolve SS ramp head button */
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+  display:inline-flex;align-items:center;justify-content:center;
+  height:34px;padding:0 14px;border-radius:10px;
+  border:1px solid rgba(217,70,239,.45);
+  background:rgba(88,28,135,.28);color:#e879f9;
+  font-family:var(--mono,monospace);font-size:10px;font-weight:700;letter-spacing:.8px;
+  cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;
+  vertical-align:middle;gap:6px;
+}
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]:hover{
+  background:rgba(88,28,135,.50);border-color:rgba(217,70,239,.75);
+}
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn][data-count="0"]{
+  opacity:.38;pointer-events:none;
+}
+
+/* Modal overlay */
+#resolve-ss-modal{
+  position:fixed;inset:0;z-index:100015;display:none;
+  align-items:center;justify-content:center;
+  background:rgba(2,6,23,.92);
+}
+#resolve-ss-modal.open{display:flex;}
+.rss-card{
+  width:min(540px,calc(100vw - 28px));
+  border:1px solid rgba(217,70,239,.38);border-radius:18px;
+  background:linear-gradient(180deg,#111827,#070b12);
+  box-shadow:0 24px 70px rgba(0,0,0,.60),inset 0 1px 0 rgba(255,255,255,.05),0 0 40px rgba(139,92,246,.08);
+  overflow:hidden;
+}
+.rss-head{
+  padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(135deg,rgba(88,28,135,.42),rgba(15,23,42,.98));
+}
+.rss-title{font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:2px;color:#e879f9;}
+.rss-counter{font-family:var(--mono);font-size:10px;color:#a78bfa;letter-spacing:1px;}
+.rss-close{width:28px;height:28px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#cbd5e1;cursor:pointer;font-weight:900;font-size:14px;}
+.rss-body{padding:14px 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.rss-field{display:flex;flex-direction:column;gap:5px;}
+.rss-field.full{grid-column:1/-1;}
+.rss-field label{font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;}
+.rss-field input{
+  width:100%;padding:9px 11px;border-radius:10px;
+  border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.92);
+  color:#f8fafc;font-family:var(--mono);font-size:12px;outline:none;color-scheme:dark;box-sizing:border-box;
+}
+.rss-field input:focus{border-color:rgba(167,139,250,.55);}
+.rss-field input[readonly]{color:#93c5fd;background:rgba(15,23,42,.70);border-color:rgba(59,130,246,.30);}
+.rss-help{
+  grid-column:1/-1;font-family:var(--mono);font-size:10px;color:#64748b;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+  border-radius:8px;padding:8px 10px;line-height:1.5;
+}
+.rss-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:2px;}
+.rss-btn{
+  padding:9px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);color:#cbd5e1;
+  font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:1px;cursor:pointer;
+}
+.rss-btn.next{border-color:rgba(167,139,250,.45);color:#c4b5fd;background:rgba(88,28,135,.22);}
+.rss-btn.next:hover{background:rgba(88,28,135,.42);}
+.rss-btn.save{background:linear-gradient(180deg,#0284c7,#075985);border-color:#38bdf8;color:#fff;box-shadow:0 0 14px rgba(56,189,248,.18);}
+.rss-copy-btn{padding:4px 9px;border-radius:7px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.80);color:#94a3b8;font-family:var(--mono);font-size:9px;font-weight:900;letter-spacing:.8px;cursor:pointer;}
+.rss-copy-btn:active{background:rgba(56,189,248,.18);color:#bae6fd;}
+.rss-progress{
+  height:3px;background:rgba(255,255,255,.06);
+}
+.rss-progress-bar{
+  height:100%;background:linear-gradient(90deg,#7c3aed,#e879f9);
+  transition:width .3s ease;
+}
+</style>
+
+<script id="resolve-ss-queue-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsQueueInstalled) return;
+  window.__resolveSsQueueInstalled = true;
+
+  /* ── helpers ── */
+  function cl(v){ return String(v==null?'':v).trim(); }
+  function parseAnyDate(raw){
+    raw=cl(raw); if(!raw) return null;
+    var m=raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
+    m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s+(\d{1,2}):(\d{2})/);
+    if(m) return new Date(+m[3],+m[1]-1,+m[2],+m[4],+m[5]);
+    var d=new Date(raw); return isNaN(d)?null:d;
+  }
+  function fmtDisplay(raw){
+    var d=parseAnyDate(raw); if(!d) return raw||'';
+    var p=function(n){return String(n).padStart(2,'0');};
+    return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  function toLocalInput(raw){
+    var d=parseAnyDate(raw); if(!d) return '';
+    var p=function(n){return String(n).padStart(2,'0');};
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  function hoursBetween(a,b){
+    var da=parseAnyDate(a),db=parseAnyDate(b);
+    if(!da||!db) return null;
+    var h=(db-da)/3600000; return isFinite(h)?Math.max(0,h):null;
+  }
+  function dwellClass(h){ return h<7?'good':h<11?'warn':'bad'; }
+
+  /* ── find blocks that need SS resolution ── */
+  function getMissingSSBlocks(){
+    var blocks = Array.prototype.slice.call(
+      document.querySelectorAll(
+        '.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-block.missing-ss-start'
+      )
+    );
+    // Also pick up blocks with current-ss-start-missing class
+    var extra = Array.prototype.slice.call(
+      document.querySelectorAll(
+        '.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-block.current-ss-start-missing'
+      )
+    );
+    extra.forEach(function(b){ if(blocks.indexOf(b)<0) blocks.push(b); });
+    return blocks;
+  }
+
+  function getBlockInfo(block){
+    var ds = block.dataset||{};
+    var bTag = block.querySelector('b');
+    var ft = bTag ? cl(bTag.textContent).replace(/,/g,'') : '';
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,.bowl-dwell,.bowl-block-pipe-dim,[data-ss-hours-in-ss],.bowl-inbound-source-tag,.bowl-oldest-flag,b').forEach(function(el){el.remove();});
+    var label = cl(clone.textContent).replace(/\s+/g,' ');
+    var train = cl(ds.currentTrain||ds.sourceTrain||ds.afterTrain||'').toUpperCase();
+    var track = '';
+    var tr = block.closest('tr');
+    if(tr){ var tc=tr.querySelector('.bowl-track'); if(tc) track=cl(tc.textContent).replace(/[^0-9]/g,''); }
+    var arrival = cl(ds.currentArrival||ds.afterArrival||ds.arrival||'');
+    if(!arrival && train && typeof window.getArrival==='function'){
+      try{ var arrDt=window.getArrival(train); if(arrDt){ var p=function(n){return String(n).padStart(2,'0');}; arrival=arrDt.getFullYear()+'-'+p(arrDt.getMonth()+1)+'-'+p(arrDt.getDate())+'T'+p(arrDt.getHours())+':'+p(arrDt.getMinutes()); } }catch(e){}
+    }
+    var ssStart = cl(ds.currentSsStart||ds.afterSsStart||'');
+    var ssEnd   = cl(ds.currentSsEnd||ds.afterSsEnd||'');
+    var sampleCar = cl(ds.sampleCar||ds.sampleEquipId||'');
+    // Check stored edits
+    var editKey = cl(ds.currentEditKey||'');
+    if(editKey){ try{ var stored=JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')[editKey]||{}; if(!ssStart&&stored.ssStart) ssStart=cl(stored.ssStart); if(!ssEnd&&stored.ssEnd) ssEnd=cl(stored.ssEnd); if(!arrival&&stored.arrival) arrival=cl(stored.arrival); if(!sampleCar&&stored.sampleCar) sampleCar=cl(stored.sampleCar); }catch(e){} }
+    return {ft,label,train,track,arrival,ssStart,ssEnd,sampleCar,editKey};
+  }
+
+  /* ── state ── */
+  var queue = [];
+  var idx   = 0;
+
+  /* ── build modal ── */
+  function ensureModal(){
+    var m = document.getElementById('resolve-ss-modal');
+    if(m) return m;
+    m = document.createElement('div');
+    m.id = 'resolve-ss-modal';
+    m.innerHTML = [
+      '<div class="rss-card">',
+        '<div class="rss-progress"><div class="rss-progress-bar" id="rss-progress-bar"></div></div>',
+        '<div class="rss-head">',
+          '<span class="rss-title" id="rss-title">RESOLVE SS</span>',
+          '<span class="rss-counter" id="rss-counter"></span>',
+          '<button class="rss-close" id="rss-close" type="button">×</button>',
+        '</div>',
+        '<div class="rss-body">',
+          '<div class="rss-help" id="rss-help"></div>',
+          '<div class="rss-field full"><label>IMPORTED ARRIVAL</label><input id="rss-arrival" readonly></div>',
+          '<div class="rss-field full"><label>SS START</label><input id="rss-ss-start" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+          '<div class="rss-field full"><label>SS END</label><input id="rss-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+          '<div class="rss-field full"><label>CALCULATED NET DWELL</label><input id="rss-net" readonly></div>',
+          '<div class="rss-field full" style="flex-direction:row;align-items:center;gap:8px;">',
+            '<label style="margin:0;white-space:nowrap;">EXAMPLE CAR</label>',
+            '<input id="rss-sample-car" style="flex:1;" placeholder="">',
+            '<button class="rss-copy-btn" id="rss-copy-btn" type="button">COPY</button>',
+          '</div>',
+          '<div class="rss-field full" id="rss-preview-wrap">',
+            '<div style="display:flex;gap:16px;align-items:flex-start;">',
+              '<div style="flex:1;">',
+                '<label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">CURRENT</label>',
+                '<div id="rss-before-block" style="display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 7px rgba(0,0,0,.24);pointer-events:none;"></div>',
+              '</div>',
+              '<div style="padding-top:20px;color:#64748b;font-size:18px;">→</div>',
+              '<div style="flex:1;">',
+                '<label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">NEW</label>',
+                '<div id="rss-after-block" style="display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 7px rgba(0,0,0,.24);pointer-events:none;"></div>',
+              '</div>',
+            '</div>',
+          '</div>',
+          '<div class="rss-actions">',
+            '<button class="rss-btn" id="rss-cancel" type="button">CANCEL</button>',
+            '<button class="rss-btn next" id="rss-next" type="button">NEXT →</button>',
+            '<button class="rss-btn save" id="rss-save" type="button">SAVE CHANGES</button>',
+          '</div>',
+        '</div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(m);
+
+    document.getElementById('rss-close').addEventListener('click', closeModal);
+    document.getElementById('rss-cancel').addEventListener('click', closeModal);
+    document.getElementById('rss-save').addEventListener('click', saveAndAdvance.bind(null, false));
+    document.getElementById('rss-next').addEventListener('click', saveAndAdvance.bind(null, true));
+    document.getElementById('rss-copy-btn').addEventListener('click', function(){
+      var val = cl(document.getElementById('rss-sample-car').value);
+      if(!val) return;
+      try{ navigator.clipboard.writeText(val).catch(function(){}); }catch(e){}
+      var btn = document.getElementById('rss-copy-btn');
+      if(btn){ btn.textContent='✓'; setTimeout(function(){ btn.textContent='COPY'; },1200); }
+    });
+
+    ['rss-ss-start','rss-ss-end'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      el.addEventListener('input', updateNet);
+      el.addEventListener('change', updateNet);
+      el.addEventListener('blur', function(){
+        var d = parseAnyDate(el.value);
+        if(d) el.value = fmtDisplay(el.value);
+        updateNet();
+      });
+    });
+
+    return m;
+  }
+
+  function updateProgress(){
+    var bar = document.getElementById('rss-progress-bar');
+    if(bar) bar.style.width = queue.length ? Math.round((idx/queue.length)*100)+'%' : '0%';
+  }
+
+  var COLOR_MAP = {
+    'normal':       {bg:'linear-gradient(180deg,#243044,#172033)',border:'1px solid rgba(148,163,184,.55)',color:'#f8fafc'},
+    'ssmtp':        {bg:'linear-gradient(180deg,#1f3b58,#172a42)',border:'1px solid rgba(125,211,252,.72)',color:'#e0f2fe'},
+    'slblue':       {bg:'linear-gradient(180deg,#1f3b58,#172a42)',border:'1px solid rgba(125,211,252,.72)',color:'#e0f2fe'},
+    'bo-black':     {bg:'linear-gradient(180deg,#111827,#020617)',border:'1.5px solid rgba(255,255,255,.82)',color:'#ffffff'},
+    'rampcu':       {bg:'linear-gradient(180deg,#5a3b10,#2b1b06)',border:'1.5px solid rgba(251,191,36,.88)',color:'#fff7d6'},
+    'inbound-gold': {bg:'linear-gradient(180deg,#5a3b10,#2b1b06)',border:'1.5px solid rgba(251,191,36,.88)',color:'#fff7d6'},
+    'ihosa':        {bg:'linear-gradient(180deg,#166534,#064e3b)',border:'1.5px solid rgba(74,222,128,.86)',color:'#ecfdf5'},
+    'depart-ihosa': {bg:'linear-gradient(180deg,#166534,#064e3b)',border:'1.5px solid rgba(74,222,128,.86)',color:'#ecfdf5'},
+    'mhoas':        {bg:'linear-gradient(180deg,#1d4ed8,#1e3a8a)',border:'1.5px solid rgba(147,197,253,.88)',color:'#eff6ff'},
+    'depart-mhoas': {bg:'linear-gradient(180deg,#1d4ed8,#1e3a8a)',border:'1.5px solid rgba(147,197,253,.88)',color:'#eff6ff'},
+    'missing-ss-start':{bg:'linear-gradient(180deg,#2d1b4e,#1a0a36)',border:'1px solid rgba(217,70,239,.72)',color:'#f3e8ff'},
+  };
+
+  function applyBlockStyle(el, colorClass){
+    var c = COLOR_MAP[colorClass] || COLOR_MAP['normal'];
+    el.style.background = c.bg;
+    el.style.border = c.border;
+    el.style.color = c.color;
+  }
+
+  function dwellBadgeHtml(h){
+    if(!Number.isFinite(h)) return '';
+    var cls = h<7?'dw-green':h<11?'dw-gold':'dw-red';
+    var styles = {
+      'dw-green':'background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.38);color:#86efac;',
+      'dw-gold': 'background:rgba(245,158,11,.20);border:1px solid rgba(245,158,11,.42);color:#fde68a;',
+      'dw-red':  'background:rgba(239,68,68,.20);border:1px solid rgba(239,68,68,.42);color:#fecaca;',
+    };
+    return '<span style="'+styles[cls]+'border-radius:4px;padding:1px 5px;font-size:9px;font-weight:900;letter-spacing:.5px;display:inline-flex;align-items:center;">'+Math.round(h)+'H NET</span>';
+  }
+
+  function updatePreviews(){
+    var info = queue[idx];
+    var before = document.getElementById('rss-before-block');
+    var after  = document.getElementById('rss-after-block');
+    if(!info || !before || !after) return;
+
+    var ssStart = cl(document.getElementById('rss-ss-start').value);
+    var arrToSS = hoursBetween(info.arrival, ssStart);
+
+    // BEFORE: current block state (no dwell badge if missing)
+    applyBlockStyle(before, info.colorClass);
+    before.innerHTML = '<b style="font-weight:900;">'+esc(info.ft)+'</b>'+(info.label?'<span>'+esc(info.label)+'</span>':'');
+
+    // AFTER: new block with dwell badge
+    applyBlockStyle(after, info.colorClass);
+    var badge = arrToSS!==null ? dwellBadgeHtml(arrToSS) : '';
+    after.innerHTML = '<b style="font-weight:900;">'+esc(info.ft)+'</b>'+(info.label?'<span>'+esc(info.label)+'</span>':'')+badge;
+  }
+
+  function esc(s){ return cl(s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+
+  function updateNet(){
+    var info = queue[idx];
+    if(!info) return;
+    var ssStart = cl(document.getElementById('rss-ss-start').value);
+    var ssEnd   = cl(document.getElementById('rss-ss-end').value);
+    var netEl   = document.getElementById('rss-net');
+    var arrival = info.arrival;
+    var arrToSS = hoursBetween(arrival, ssStart);
+    var ssTotal = hoursBetween(ssStart, ssEnd);
+    var txt = 'ENTER SS START';
+    if(arrToSS!==null){
+      txt = Math.round(arrToSS)+'H NET';
+      if(ssTotal!==null) txt += ' / SS '+Math.round(ssTotal)+'H';
+    }
+    if(netEl) netEl.value = txt;
+    updatePreviews();
+  }
+
+  function loadEntry(){
+    var info = queue[idx];
+    if(!info) return;
+    var total = queue.length;
+
+    document.getElementById('rss-title').textContent = 'RESOLVE SS — 06-'+info.track;
+    document.getElementById('rss-counter').textContent = (idx+1)+' OF '+total;
+    document.getElementById('rss-help').textContent =
+      'Block: '+info.ft+(info.ft?' FT ':'')+(info.label||'')+' · Train: '+(info.train||'—');
+    document.getElementById('rss-arrival').value = info.arrival ? fmtDisplay(info.arrival) : '';
+    document.getElementById('rss-ss-start').value = info.ssStart ? fmtDisplay(info.ssStart) : '';
+    document.getElementById('rss-ss-end').value   = info.ssEnd   ? fmtDisplay(info.ssEnd)   : '';
+    document.getElementById('rss-sample-car').value = info.sampleCar;
+
+    // NEXT button: hide on last item
+    var nextBtn = document.getElementById('rss-next');
+    if(nextBtn) nextBtn.style.display = (idx < total-1) ? '' : 'none';
+
+    updateProgress();
+    updateNet(); // also calls updatePreviews
+
+    // Focus SS start
+    setTimeout(function(){ var el=document.getElementById('rss-ss-start'); if(el) el.focus(); }, 60);
+  }
+
+  function saveEntry(){
+    var info = queue[idx];
+    if(!info) return;
+    var block = info.block;
+    var ssStart = cl(document.getElementById('rss-ss-start').value);
+    var ssEnd   = cl(document.getElementById('rss-ss-end').value);
+    var sampleCar = cl(document.getElementById('rss-sample-car').value);
+
+    // Compute dwell
+    var arrToSS = hoursBetween(info.arrival, ssStart);
+    var dwell = arrToSS!==null ? Math.round(arrToSS)+'H NET' : '';
+
+    // Update block dataset
+    if(block){
+      block.dataset.currentSsStart = ssStart;
+      block.dataset.currentSsEnd   = ssEnd;
+      if(sampleCar) block.dataset.sampleCar = sampleCar;
+    }
+
+    // Save to dwellCurrentBoardBlockEditsV2
+    var STORE = 'dwellCurrentBoardBlockEditsV2';
+    try{
+      var edits = JSON.parse(localStorage.getItem(STORE)||'{}')||{};
+      var key = info.editKey;
+      if(!key && block){
+        var tr = block.closest('tr');
+        var trackNum = '';
+        if(tr){ var tc=tr.querySelector('.bowl-track'); if(tc) trackNum=cl(tc.textContent).replace(/[^0-9]/g,''); }
+        var bIdx = tr ? Array.prototype.indexOf.call(tr.querySelectorAll('.bowl-block'),block) : 0;
+        key = trackNum+'||'+bIdx+'||'+cl(block.textContent).replace(/[✎×]/g,'').replace(/\s+/g,' ').slice(0,140);
+        if(block) block.dataset.currentEditKey = key;
+      }
+      var existing = edits[key]||{};
+      existing.ssStart    = ssStart;
+      existing.ssEnd      = ssEnd;
+      existing.sampleCar  = sampleCar;
+      existing.dwell      = dwell;
+      existing.updatedAt  = new Date().toISOString();
+      edits[key] = existing;
+      localStorage.setItem(STORE, JSON.stringify(edits));
+    }catch(e){}
+
+    // Preserve in SS times store
+    if(typeof window.preserveSsTimes==='function' && info.train)
+      window.preserveSsTimes(info.train, info.track, ssStart, ssEnd);
+
+    // Update dwell badge on block
+    if(block && dwell && arrToSS!==null){
+      var badge = block.querySelector('.bowl-dwell');
+      var dc = dwellClass(arrToSS);
+      var badgeText = Math.round(arrToSS)+'H NET';
+      if(badge){ badge.className='bowl-dwell '+dc; badge.textContent=badgeText; }
+      else{ var btn=block.querySelector('button'); var nb=document.createElement('span'); nb.className='bowl-dwell '+dc; nb.textContent=badgeText; if(btn) btn.before(nb); else block.appendChild(nb); }
+    }
+
+    // Remove missing-ss class if filled
+    if(block && ssStart){
+      block.classList.remove('missing-ss-start','current-ss-start-missing');
+      var eb=block.querySelector('.current-block-edit-btn');
+      if(eb){ eb.classList.remove('current-ss-start-missing-flag','current-bo-ss-start-missing-flag'); eb.textContent='✎'; eb.title='Edit block'; }
+    }
+
+    // Sync to post outbound
+    try{ if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+
+    return true;
+  }
+
+  function saveAndAdvance(skipSave){
+    if(!skipSave) saveEntry();
+    else saveEntry(); // always save even on NEXT
+
+    if(idx < queue.length-1){
+      idx++;
+      loadEntry();
+    } else {
+      closeModal();
+      try{ if(typeof window.renderOB==='function') window.renderOB(); }catch(e){}
+      if(typeof toast==='function') toast('All '+queue.length+' SS blocks resolved');
+    }
+  }
+
+  function openResolveModal(){
+    var blocks = getMissingSSBlocks();
+    if(!blocks.length){
+      if(typeof toast==='function') toast('No blocks missing SS start');
+      return;
+    }
+    queue = blocks.map(function(block){
+      var info = getBlockInfo(block);
+      info.block = block;
+      return info;
+    });
+    idx = 0;
+    var m = ensureModal();
+    m.classList.add('open');
+    loadEntry();
+  }
+
+  function closeModal(){
+    var m = document.getElementById('resolve-ss-modal');
+    if(m){ m.classList.remove('open'); }
+    queue = []; idx = 0;
+  }
+
+  /* ── RESOLVE SS button in ramp head ── */
+  function ensureResolveBtn(){
+    var head = document.querySelector('#tab-outbound .bowl-ramp-head');
+    if(!head) return;
+    var purpleBtn = head.querySelector(':scope > [data-current-purple-ss-head-toggle]');
+    if(!purpleBtn) return;
+
+    var existing = head.querySelector(':scope > [data-resolve-ss-btn]');
+    if(!existing){
+      existing = document.createElement('button');
+      existing.type = 'button';
+      existing.dataset.resolveSsBtn = '1';
+      existing.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+        openResolveModal();
+      });
+      purpleBtn.insertAdjacentElement('afterend', existing);
+    }
+
+    // Update count
+    var count = getMissingSSBlocks().length;
+    existing.textContent = count ? 'RESOLVE SS ('+count+')' : 'RESOLVE SS';
+    existing.dataset.count = count;
+  }
+
+  // Keyboard close
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){
+      var m = document.getElementById('resolve-ss-modal');
+      if(m && m.classList.contains('open')) closeModal();
+    }
+  });
+
+  // Wire into render cycle
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn!=='function'||fn.__resolveSsWrapped) return;
+    var wrapped = function(){ var r=fn.apply(this,arguments); setTimeout(ensureResolveBtn,200); return r; };
+    wrapped.__resolveSsWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){ ['renderOB','renderBowlTurnover'].forEach(wrap); }
+
+  wrapAll();
+  [0,300,800,2000].forEach(function(d){ setTimeout(function(){ wrapAll(); ensureResolveBtn(); }, d); });
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ ensureResolveBtn(); wrapAll(); });
+
+  window.openResolveSsQueue = openResolveModal;
 })();
 </script>
