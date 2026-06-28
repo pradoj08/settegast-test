@@ -33,6 +33,81 @@
     document.documentElement.style.setProperty('--boot-content-zoom', String(pct / 100));
   })();
 </script>
+<style id="remove-switching-page-final-css">
+  html body [data-page-tab="switching"],
+  html body #tab-switching{
+    display:none!important;
+  }
+</style>
+<script id="remove-switching-page-final-js">
+(function(){
+  'use strict';
+  if(window.__removeSwitchingPageFinalInstalled) return;
+  window.__removeSwitchingPageFinalInstalled = true;
+
+  function cleanStoredPage(){
+    try{
+      ['dwell_current_page_tab_v2','dwell_current_page_tab'].forEach(function(key){
+        if(localStorage.getItem(key) === 'switching') localStorage.setItem(key, 'input');
+        if(sessionStorage.getItem(key) === 'switching') sessionStorage.setItem(key, 'input');
+      });
+    }catch(e){}
+  }
+
+  function removeSwitchingPage(){
+    cleanStoredPage();
+    document.querySelectorAll('[data-page-tab="switching"]').forEach(function(btn){ btn.remove(); });
+    document.querySelectorAll('#tab-switching').forEach(function(tab){
+      tab.classList.remove('active');
+      tab.remove();
+    });
+    var picker = document.getElementById('page-switcher');
+    if(picker && picker.value === 'switching') picker.value = 'input';
+    var current = document.querySelector('#page-menu-shell .page-menu-current');
+    var active = document.querySelector('#page-menu-shell .page-menu-option.active');
+    if(current && current.textContent.trim().toUpperCase() === 'SWITCHING'){
+      current.textContent = active ? active.textContent.trim() : 'DATA';
+    }
+  }
+
+  function wrapActivate(){
+    var fn = window.activateAppTab;
+    if(typeof fn !== 'function' || fn.__removeSwitchingPageWrapped) return;
+    window.activateAppTab = function(tab){
+      if(tab === 'switching') tab = 'input';
+      var result = fn.apply(this, arguments.length ? [tab].concat(Array.prototype.slice.call(arguments, 1)) : arguments);
+      removeSwitchingPage();
+      return result;
+    };
+    window.activateAppTab.__removeSwitchingPageWrapped = true;
+  }
+
+  function schedule(){
+    removeSwitchingPage();
+    wrapActivate();
+    clearTimeout(window.__removeSwitchingPageFinalTimer);
+    window.__removeSwitchingPageFinalTimer = setTimeout(function(){
+      removeSwitchingPage();
+      wrapActivate();
+    }, 120);
+  }
+
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){
+    var opt = e.target && e.target.closest && e.target.closest('[data-page-tab="switching"]');
+    if(!opt) return;
+    e.preventDefault();
+    e.stopPropagation();
+    schedule();
+    if(typeof window.activateAppTab === 'function') window.activateAppTab('input');
+  }, true);
+  if(window.MutationObserver){
+    new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true});
+  }
+  schedule();
+})();
+</script>
 <style id="topbar-spaced-open-controls-final-css">
   html body #topbar{
     height:74px!important;
@@ -7079,7 +7154,7 @@ body.help-tips-on .help-hover-outline{
   justify-content:center!important;
   padding:3px 7px!important;
   border-radius:999px!important;
-  margin-left:4px!important;
+  margin-left:0!important;
   background:rgba(59,130,246,.13)!important;
   border:1px solid rgba(59,130,246,.25)!important;
   color:#93c5fd!important;
@@ -12228,7 +12303,6 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
         <button type="button" class="page-menu-option" data-page-tab="inbound">INBOUND</button>
         <button type="button" class="page-menu-option" data-page-tab="analytics">ANALYTICS</button>
         <button type="button" class="page-menu-option" data-page-tab="checklist">CHECKLIST</button>
-        <button type="button" class="page-menu-option" data-page-tab="switching">SWITCHING</button>
       </div>
     </div>
   </div>
@@ -12347,11 +12421,6 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
   <div class="tab-view" id="tab-outbound" style="background:var(--surface);">
     <div id="ob-frozen"></div>
     <div id="ob-view" style="flex:1;min-height:0;overflow-y:auto;"><div id="ob-inner"></div></div>
-  </div>
-
-  <!-- SWITCHING TAB -->
-  <div class="tab-view" id="tab-switching" style="background:var(--surface);overflow-y:auto;">
-    <div id="switching-page-content"></div>
   </div>
 
   <!-- ── ANALYTICS TAB ── -->
@@ -13826,7 +13895,7 @@ h1{
   grid-template-columns:max-content max-content max-content max-content max-content max-content!important;
   justify-content:space-between!important;
   align-items:end!important;
-  column-gap:14px!important;
+  column-gap:24px!important;
   row-gap:8px!important;
   flex-wrap:nowrap!important;
 }
@@ -24370,6 +24439,7 @@ window.addEventListener('resize',()=>{
 // ═══════════════════════════════════════
 function activateAppTab(tab){
   tab = tab || 'input';
+  if(tab === 'switching') tab = 'input';
   document.querySelectorAll('.tab-pill').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tab-view').forEach(x=>x.classList.remove('active'));
   const legacyBtn=document.querySelector('.tab-pill[data-tab="'+tab+'"]');
@@ -24481,6 +24551,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   const shell=document.createElement('div');
   shell.className='bowl-page-shell';
   const hideDwellValues = (()=>{try{return localStorage.getItem('dwellHideBowlDwell')==='1';}catch{return false;}})();
+  const showCurrentDisplayTrack = (()=>{try{return localStorage.getItem('dwellShowCurrentDisplayTrack')==='1';}catch{return false;}})();
   const hideTrackSuffix = (()=>{try{return localStorage.getItem('dwellHideBowlTrackSuffix')==='1';}catch{return false;}})();
   const hideFutureInboundTag = (()=>{try{return localStorage.getItem('dwellHideFutureInboundTag')==='1';}catch{return false;}})();
   const hideFutureInboundBlocks = (()=>{try{return localStorage.getItem('dwellHideFutureInboundBlocks_v4')==='1';}catch{return false;}})();
@@ -24543,6 +24614,11 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;">CURRENT</th>'+
       '<th colspan="12" class="bowl-ramp-head" style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;text-align:center;">'+
         '<span>CURRENT RAMP BLOCKING</span>'+
+        '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>'+
+        '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button>'+
+        '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'SHOW DISPLAY TRACK')+'</button>'+
+        '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'SHOW PURPLE SS':'HIDE PURPLE SS')+'</button>'+
+        '<button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>'+
       '</th>'+
       '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">Δ</th>'+
     '</tr>';
@@ -24969,7 +25045,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         '<th style="'+headBg+'">'+currentLabel+'</th>'+ 
         '<th colspan="12" class="bowl-ramp-head" style="'+headBg+'text-align:center;">'+ 
           '<span>'+title+'</span>'+
-          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>' : '')+
+          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'SHOW DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'SHOW PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
           ''+
         '</th>'+ 
         '<th style="'+headBg+'font-weight:800;text-align:center;">SUM</th>'+ 
@@ -34072,7 +34148,7 @@ body.bowl-hide-future-inbound-blocks .bowl-board-after .bowl-block[data-future-i
   height:18px!important;
   min-height:18px!important;
   max-height:18px!important;
-  margin-left:4px!important;
+  margin-left:0!important;
   padding:0!important;
   line-height:18px!important;
   box-sizing:border-box!important;
@@ -44832,8 +44908,8 @@ table.bowl-board td.bowl-delta.good{
   if(window.__checklistPageAddInstalled) return;
   window.__checklistPageAddInstalled = true;
 
-  const TABS = ['input','outbound','inbound','analytics','checklist','switching'];
-  const LABELS = {input:'DATA', inbound:'INBOUND', checklist:'CHECKLIST', outbound:'OUTBOUND', analytics:'ANALYTICS', switching:'SWITCHING'};
+  const TABS = ['input','outbound','inbound','analytics','checklist'];
+  const LABELS = {input:'DATA', inbound:'INBOUND', checklist:'CHECKLIST', outbound:'OUTBOUND', analytics:'ANALYTICS'};
 
   function valid(tab){ return TABS.includes(tab) ? tab : 'inbound'; }
 
@@ -44928,8 +45004,6 @@ table.bowl-board td.bowl-delta.good{
       try{ if(typeof window.renderOB === 'function') requestAnimationFrame(window.renderOB); }catch(e){}
     }else if(tab === 'analytics'){
       try{ if(typeof window.renderAnalytics === 'function') window.renderAnalytics(); }catch(e){}
-    }else if(tab === 'switching'){
-      try{ if(typeof window.renderSwitchingPage === 'function') requestAnimationFrame(window.renderSwitchingPage); }catch(e){}
     }
   }
 
@@ -52130,6 +52204,8 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
   border-color:rgba(226,232,240,.55)!important;
   background:linear-gradient(180deg,rgba(226,232,240,.22),rgba(148,163,184,.16))!important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 0 14px rgba(226,232,240,.10)!important;
+  text-align:left!important;
+  justify-content:flex-start!important;
 }
 #topbar .topbar-actions #btn-light-view:hover{
   color:#fff!important;
@@ -52143,6 +52219,8 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
   border-color:rgba(20,184,166,.62)!important;
   background:linear-gradient(180deg,rgba(20,184,166,.32),rgba(15,118,110,.34))!important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 0 16px rgba(20,184,166,.14)!important;
+  text-align:left!important;
+  justify-content:flex-start!important;
 }
 #topbar .topbar-actions #btn-consist-toggle:hover{
   color:#fff!important;
@@ -52501,6 +52579,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
 
 <!-- PATCH: Post Outbound block spacing authority — prevent pills from touching -->
 <style id="post-outbound-block-spacing-authority-css">
+  /* post-outbound-tight-spacing-stabilized: old wide spacing owner now uses 5px gutter. */
   /*
     Older compact-board patches were applying global 26px block sizing plus
     zeroed margins to the Post Outbound Consist board. When the second dwell
@@ -52525,9 +52604,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     align-content:flex-start!important;
     justify-content:flex-start!important;
     flex-wrap:wrap!important;
-    gap:8px 14px!important;
-    column-gap:14px!important;
-    row-gap:8px!important;
+    gap:5px 5px!important;
+    column-gap:5px!important;
+    row-gap:5px!important;
     padding:2px 0!important;
     overflow:visible!important;
     white-space:normal!important;
@@ -52544,7 +52623,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     height:auto!important;
     min-height:26px!important;
     max-height:none!important;
-    margin:0 10px 5px 0!important;
+    margin:0 5px 5px 0!important;
     vertical-align:middle!important;
   }
 
@@ -52552,7 +52631,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
   .bowl-segments-wrap > .bowl-block + .bowl-block,
   html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
   .bowl-segments-cell > .bowl-block + .bowl-block{
-    margin-left:4px!important;
+    margin-left:0!important;
   }
 
   html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
@@ -52582,6 +52661,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
 <script id="post-outbound-block-spacing-authority-js">
 (function(){
   'use strict';
+  // post-outbound-tight-spacing-stabilized: old wide spacing owner now uses 5px gutter.
   if(window.__postOutboundBlockSpacingAuthorityInstalled) return;
   window.__postOutboundBlockSpacingAuthorityInstalled = true;
 
@@ -52604,7 +52684,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     block.style.setProperty('height','auto','important');
     block.style.setProperty('min-height','26px','important');
     block.style.setProperty('max-height','none','important');
-    block.style.setProperty('margin','0 10px 5px 0','important');
+    block.style.setProperty('margin','0 5px 5px 0','important');
     block.style.setProperty('vertical-align','middle','important');
     var span = block.querySelector(':scope > span') || block.querySelector('span');
     if(span){
@@ -52634,9 +52714,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
         wrap.style.setProperty('align-items','center','important');
         wrap.style.setProperty('align-content','flex-start','important');
         wrap.style.setProperty('justify-content','flex-start','important');
-        wrap.style.setProperty('gap','8px 14px','important');
-        wrap.style.setProperty('column-gap','14px','important');
-        wrap.style.setProperty('row-gap','8px','important');
+        wrap.style.setProperty('gap','5px 5px','important');
+        wrap.style.setProperty('column-gap','5px','important');
+        wrap.style.setProperty('row-gap','5px','important');
         wrap.style.setProperty('padding','2px 0','important');
         wrap.style.setProperty('overflow','visible','important');
         wrap.style.setProperty('white-space','normal','important');
@@ -53116,3 +53196,969 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
 </script>
 
 <!-- PATCH APPLIED: ON-HAND/WITH 803 parenthetical colors now follow positive/negative remaining value. -->
+
+
+<!-- FINAL PATCH: Post Outbound spacing matches Current Ramp visual gutter -->
+<style id="post-outbound-current-ramp-spacing-match-final-css">
+  /* post-outbound-tight-spacing-stabilized: old wide spacing owner now uses 5px gutter. */
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell{
+    padding-left:8px!important;
+    padding-right:8px!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+    gap:5px 5px!important;
+    column-gap:5px!important;
+    row-gap:5px!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block{
+    margin:0 5px 5px 0!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block + .bowl-block,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block + .bowl-block{
+    margin-left:0!important;
+  }
+</style>
+<script id="post-outbound-current-ramp-spacing-match-final-js">
+(function(){
+  'use strict';
+  // post-outbound-tight-spacing-stabilized: old wide spacing owner now uses 5px gutter.
+  if(window.__postOutboundCurrentRampSpacingMatchInstalled) return;
+  window.__postOutboundCurrentRampSpacingMatchInstalled = true;
+
+  function boards(root){
+    var scope = root && root.querySelectorAll ? root : document;
+    var out = [];
+    if(scope.matches && scope.matches('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)') && !scope.closest('.future-inbound-post-body')) out.push(scope);
+    scope.querySelectorAll('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)').forEach(function(board){
+      if(!board.closest('.future-inbound-post-body')) out.push(board);
+    });
+    return Array.from(new Set(out));
+  }
+  function setBlock(block, isLast){
+    if(!block || !block.style) return;
+    block.style.setProperty('display','inline-flex','important');
+    block.style.setProperty('flex','0 0 auto','important');
+    block.style.setProperty('width','max-content','important');
+    block.style.setProperty('max-width','max-content','important');
+    block.style.setProperty('min-width','0','important');
+    block.style.setProperty('margin', isLast ? '0 0 5px 0' : '0 5px 5px 0', 'important');
+    block.style.setProperty('vertical-align','middle','important');
+    var span = block.querySelector(':scope > span') || block.querySelector('span');
+    if(span){
+      span.style.setProperty('display','inline-flex','important');
+      span.style.setProperty('align-items','center','important');
+      span.style.setProperty('justify-content','flex-start','important');
+      span.style.setProperty('gap','6px','important');
+      span.style.setProperty('width','max-content','important');
+      span.style.setProperty('max-width','max-content','important');
+      span.style.setProperty('min-width','0','important');
+    }
+  }
+  function run(root){
+    boards(root).forEach(function(board){
+      board.querySelectorAll('.bowl-segments-cell').forEach(function(cell){
+        cell.style.setProperty('padding','6px 8px','important');
+        cell.style.setProperty('overflow','visible','important');
+        cell.style.setProperty('white-space','normal','important');
+      });
+      board.querySelectorAll('.bowl-segments-wrap').forEach(function(wrap){
+        wrap.style.setProperty('display','flex','important');
+        wrap.style.setProperty('flex-wrap','wrap','important');
+        wrap.style.setProperty('align-items','center','important');
+        wrap.style.setProperty('justify-content','flex-start','important');
+        wrap.style.setProperty('gap','5px 5px','important');
+        wrap.style.setProperty('column-gap','5px','important');
+        wrap.style.setProperty('row-gap','5px','important');
+        wrap.style.setProperty('overflow','visible','important');
+        wrap.style.setProperty('white-space','normal','important');
+        var blocks = Array.prototype.filter.call(wrap.children, function(child){ return child.classList && child.classList.contains('bowl-block'); });
+        blocks.forEach(function(block, index){ setBlock(block, index === blocks.length - 1); });
+      });
+      board.querySelectorAll('.bowl-segments-cell > .bowl-block').forEach(function(block, index, list){ setBlock(block, index === list.length - 1); });
+    });
+  }
+  var queued = false;
+  function schedule(root){
+    if(!queued){
+      queued = true;
+      requestAnimationFrame(function(){ queued = false; run(root || document); });
+    }
+    clearTimeout(window.__postOutboundCurrentRampSpacingMatchTimer);
+    window.__postOutboundCurrentRampSpacingMatchTimer = setTimeout(function(){ run(root || document); }, 140);
+    setTimeout(function(){ run(root || document); }, 360);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundCurrentRampSpacingMatchWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule(document);
+      return result;
+    };
+    wrapped.__postOutboundCurrentRampSpacingMatchWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    ['renderOB','renderBowlTurnover','normalizePostOutboundBlockDisplay','normalizePostOutboundSingleDisplayOwner','syncPostOutboundBlockSpacingAuthority'].forEach(wrap);
+  }
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after,.bowl-after-title,[data-current-purple-ss-head-toggle],[data-bowl-options-main]')) schedule(document);
+  }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+  wrapAll();
+  [0,120,450,1000,2200].forEach(function(delay){ setTimeout(function(){ wrapAll(); run(document); }, delay); });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ schedule(document); }, {once:true});
+  else schedule(document);
+  window.addEventListener('load', function(){ wrapAll(); run(document); }, {once:true});
+  window.syncPostOutboundCurrentRampSpacingMatch = function(){ run(document); };
+})();
+</script>
+
+<!-- FINAL PATCH: Post Outbound tight spacing correction — almost touching, not wide -->
+<style id="post-outbound-tight-spacing-correction-final-css">
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell{
+    padding:6px 8px!important;
+    overflow:visible!important;
+    white-space:normal!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+    gap:5px 5px!important;
+    column-gap:5px!important;
+    row-gap:5px!important;
+    padding:2px 0!important;
+    overflow:visible!important;
+    white-space:normal!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block{
+    margin:0 5px 5px 0!important;
+  }
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block:last-child,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block:last-child{
+    margin-right:0!important;
+  }
+</style>
+<script id="post-outbound-tight-spacing-correction-final-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundTightSpacingCorrectionInstalled) return;
+  window.__postOutboundTightSpacingCorrectionInstalled = true;
+
+  var X_GAP = 5;
+  var Y_GAP = 5;
+
+  function boards(root){
+    var scope = root && root.querySelectorAll ? root : document;
+    var out = [];
+    if(scope.matches && scope.matches('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)') && !scope.closest('.future-inbound-post-body')) out.push(scope);
+    scope.querySelectorAll('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)').forEach(function(board){
+      if(!board.closest('.future-inbound-post-body')) out.push(board);
+    });
+    return Array.from(new Set(out));
+  }
+
+  function fixBlock(block, isLast){
+    if(!block || !block.style) return;
+    block.style.setProperty('display','inline-flex','important');
+    block.style.setProperty('flex','0 0 auto','important');
+    block.style.setProperty('width','max-content','important');
+    block.style.setProperty('max-width','max-content','important');
+    block.style.setProperty('min-width','0','important');
+    block.style.setProperty('margin', isLast ? '0 0 '+Y_GAP+'px 0' : '0 '+X_GAP+'px '+Y_GAP+'px 0', 'important');
+    block.style.setProperty('vertical-align','middle','important');
+    var span = block.querySelector(':scope > span') || block.querySelector('span');
+    if(span){
+      span.style.setProperty('display','inline-flex','important');
+      span.style.setProperty('align-items','center','important');
+      span.style.setProperty('justify-content','flex-start','important');
+      span.style.setProperty('gap','6px','important');
+      span.style.setProperty('width','max-content','important');
+      span.style.setProperty('max-width','max-content','important');
+      span.style.setProperty('min-width','0','important');
+    }
+  }
+
+  function apply(root){
+    boards(root).forEach(function(board){
+      board.querySelectorAll('.bowl-segments-cell').forEach(function(cell){
+        cell.style.setProperty('padding','6px 8px','important');
+        cell.style.setProperty('overflow','visible','important');
+        cell.style.setProperty('white-space','normal','important');
+      });
+      board.querySelectorAll('.bowl-segments-wrap').forEach(function(wrap){
+        wrap.style.setProperty('display','flex','important');
+        wrap.style.setProperty('flex-wrap','wrap','important');
+        wrap.style.setProperty('align-items','center','important');
+        wrap.style.setProperty('justify-content','flex-start','important');
+        wrap.style.setProperty('gap',Y_GAP+'px '+X_GAP+'px','important');
+        wrap.style.setProperty('column-gap',X_GAP+'px','important');
+        wrap.style.setProperty('row-gap',Y_GAP+'px','important');
+        wrap.style.setProperty('padding','2px 0','important');
+        wrap.style.setProperty('overflow','visible','important');
+        wrap.style.setProperty('white-space','normal','important');
+        var blocks = Array.prototype.filter.call(wrap.children, function(child){ return child.classList && child.classList.contains('bowl-block'); });
+        blocks.forEach(function(block, idx){ fixBlock(block, idx === blocks.length - 1); });
+      });
+      board.querySelectorAll('.bowl-segments-cell > .bowl-block').forEach(function(block, idx, list){ fixBlock(block, idx === list.length - 1); });
+    });
+  }
+
+  var queued = false;
+  function schedule(root){
+    if(!queued){
+      queued = true;
+      requestAnimationFrame(function(){
+        queued = false;
+        apply(root || document);
+      });
+    }
+    clearTimeout(window.__postOutboundTightSpacingCorrectionTimer);
+    window.__postOutboundTightSpacingCorrectionTimer = setTimeout(function(){ apply(root || document); }, 60);
+    setTimeout(function(){ apply(root || document); }, 180);
+    setTimeout(function(){ apply(root || document); }, 420);
+    setTimeout(function(){ apply(root || document); }, 720);
+  }
+
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundTightSpacingCorrectionWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule(document);
+      return result;
+    };
+    wrapped.__postOutboundTightSpacingCorrectionWrapped = true;
+    window[name] = wrapped;
+  }
+
+  function wrapAll(){
+    [
+      'renderOB',
+      'renderBowlTurnover',
+      'normalizePostOutboundBlockDisplay',
+      'normalizePostOutboundSingleDisplayOwner',
+      'syncPostOutboundBlockSpacingAuthority',
+      'syncPostOutboundCurrentRampSpacingMatch',
+      'syncPostOutboundSingleDwellAuthority'
+    ].forEach(wrap);
+  }
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after,.bowl-after-title,[data-current-purple-ss-head-toggle],[data-bowl-options-main],[data-current-ss-hours-head-toggle],[data-post-future-block-head-toggle],[data-bowl-prev-depart-toggle]')) schedule(document);
+  }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+
+  wrapAll();
+  [0,80,220,500,1000,2200,3600].forEach(function(delay){
+    setTimeout(function(){ wrapAll(); apply(document); }, delay);
+  });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ schedule(document); }, {once:true});
+  else schedule(document);
+  window.addEventListener('load', function(){ wrapAll(); apply(document); setTimeout(function(){ apply(document); }, 900); }, {once:true});
+  window.syncPostOutboundTightSpacingCorrection = function(){ apply(document); };
+})();
+</script>
+
+
+
+<!-- FINAL PATCH: Stable Post Outbound tight spacing owner — prevents late wide-spacing reversion -->
+<style id="post-outbound-tight-spacing-stable-owner-css">
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell{padding:6px 8px!important;overflow:visible!important;white-space:normal!important;}
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap{display:flex!important;align-items:center!important;justify-content:flex-start!important;flex-wrap:wrap!important;gap:5px 5px!important;column-gap:5px!important;row-gap:5px!important;padding:2px 0!important;overflow:visible!important;white-space:normal!important;}
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block{display:inline-flex!important;flex:0 0 auto!important;width:max-content!important;max-width:max-content!important;min-width:0!important;margin:0 5px 5px 0!important;vertical-align:middle!important;}
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap > .bowl-block:last-child,
+  html body table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell > .bowl-block:last-child{margin-right:0!important;}
+</style>
+<script id="post-outbound-tight-spacing-stable-owner-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundTightSpacingStableOwnerInstalled) return;
+  window.__postOutboundTightSpacingStableOwnerInstalled = true;
+  var X_GAP = 5, Y_GAP = 5, applying = false, queued = false;
+  function boards(root){
+    var scope = root && root.querySelectorAll ? root : document, out = [];
+    if(scope.matches && scope.matches('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)') && !scope.closest('.future-inbound-post-body')) out.push(scope);
+    scope.querySelectorAll('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)').forEach(function(board){ if(!board.closest('.future-inbound-post-body')) out.push(board); });
+    return Array.from(new Set(out));
+  }
+  function prop(el,name){ return el && el.style && el.style.getPropertyValue(name); }
+  function setImportant(el,name,value){
+    if(!el || !el.style) return false;
+    if(prop(el,name) === value && el.style.getPropertyPriority(name) === 'important') return false;
+    el.style.setProperty(name,value,'important');
+    return true;
+  }
+  function fixBlock(block,isLast){
+    setImportant(block,'display','inline-flex'); setImportant(block,'flex','0 0 auto'); setImportant(block,'width','max-content'); setImportant(block,'max-width','max-content'); setImportant(block,'min-width','0');
+    setImportant(block,'margin', isLast ? '0 0 '+Y_GAP+'px 0' : '0 '+X_GAP+'px '+Y_GAP+'px 0'); setImportant(block,'vertical-align','middle');
+    var span = block.querySelector(':scope > span') || block.querySelector('span');
+    if(span){ setImportant(span,'display','inline-flex'); setImportant(span,'align-items','center'); setImportant(span,'justify-content','flex-start'); setImportant(span,'gap','6px'); setImportant(span,'width','max-content'); setImportant(span,'max-width','max-content'); setImportant(span,'min-width','0'); }
+  }
+  function apply(root){
+    if(applying) return;
+    applying = true;
+    try{
+      boards(root).forEach(function(board){
+        board.querySelectorAll('.bowl-segments-cell').forEach(function(cell){ setImportant(cell,'padding','6px 8px'); setImportant(cell,'overflow','visible'); setImportant(cell,'white-space','normal'); });
+        board.querySelectorAll('.bowl-segments-wrap').forEach(function(wrap){
+          setImportant(wrap,'display','flex'); setImportant(wrap,'flex-wrap','wrap'); setImportant(wrap,'align-items','center'); setImportant(wrap,'justify-content','flex-start');
+          setImportant(wrap,'gap',Y_GAP+'px '+X_GAP+'px'); setImportant(wrap,'column-gap',X_GAP+'px'); setImportant(wrap,'row-gap',Y_GAP+'px'); setImportant(wrap,'padding','2px 0'); setImportant(wrap,'overflow','visible'); setImportant(wrap,'white-space','normal');
+          var blocks = Array.prototype.filter.call(wrap.children, function(child){ return child.classList && child.classList.contains('bowl-block'); });
+          blocks.forEach(function(block,idx){ fixBlock(block, idx === blocks.length - 1); });
+        });
+        board.querySelectorAll('.bowl-segments-cell > .bowl-block').forEach(function(block,idx,list){ fixBlock(block, idx === list.length - 1); });
+      });
+    }finally{ applying = false; }
+  }
+  function schedule(root){
+    if(!queued){ queued = true; requestAnimationFrame(function(){ queued = false; apply(root || document); }); }
+    clearTimeout(window.__postOutboundTightSpacingStableOwnerTimer);
+    window.__postOutboundTightSpacingStableOwnerTimer = setTimeout(function(){ apply(root || document); }, 70);
+    setTimeout(function(){ apply(root || document); }, 220);
+    setTimeout(function(){ apply(root || document); }, 520);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundTightSpacingStableOwnerWrapped) return;
+    var wrapped = function(){ var result = fn.apply(this, arguments); schedule(document); return result; };
+    wrapped.__postOutboundTightSpacingStableOwnerWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    ['renderOB','renderBowlTurnover','normalizePostOutboundBlockDisplay','normalizePostOutboundSingleDisplayOwner','syncPostOutboundBlockSpacingAuthority','syncPostOutboundCurrentRampSpacingMatch','syncPostOutboundTightSpacingCorrection','syncPostOutboundSingleDwellAuthority','restoreFinalPostOutboundDwell','restoreMissingPostOutboundDwell','syncStableCurrentEditsToPostOutbound','syncCurrentEditsToPostOutbound'].forEach(wrap);
+    window.syncPostOutboundBlockSpacingAuthority = function(){ apply(document); };
+    window.syncPostOutboundCurrentRampSpacingMatch = function(){ apply(document); };
+    window.syncPostOutboundTightSpacingCorrection = function(){ apply(document); };
+    window.syncPostOutboundTightSpacingStableOwner = function(){ apply(document); };
+  }
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after,.bowl-after-title,[data-current-purple-ss-head-toggle],[data-bowl-options-main],[data-current-ss-hours-head-toggle],[data-post-future-block-head-toggle],[data-bowl-prev-depart-toggle]')) schedule(document); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(document); }, true);
+  if(window.MutationObserver){
+    try{
+      var root = document.getElementById('tab-outbound') || document.body || document.documentElement;
+      new MutationObserver(function(mutations){
+        if(applying) return;
+        for(var i=0;i<mutations.length;i++){
+          var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+          if(target && target.closest && target.closest('table.bowl-board.bowl-board-after')){
+            var board = target.closest('table.bowl-board.bowl-board-after'), wrap = target.closest('.bowl-segments-wrap'), block = target.closest('.bowl-block');
+            if(wrap && (prop(wrap,'column-gap') !== X_GAP+'px' || prop(wrap,'gap') !== Y_GAP+'px '+X_GAP+'px')){ schedule(board); return; }
+            if(block && !block.matches(':last-child') && block.style.marginRight !== X_GAP+'px'){ schedule(board); return; }
+          }
+          for(var j=0;j<mutations[i].addedNodes.length;j++){
+            var node = mutations[i].addedNodes[j];
+            if(node && node.nodeType === 1 && node.querySelector && node.querySelector('table.bowl-board.bowl-board-after')){ schedule(node); return; }
+          }
+        }
+      }).observe(root, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
+    }catch(e){}
+  }
+  wrapAll();
+  [0,80,180,360,760,1500,3000,5000].forEach(function(delay){ setTimeout(function(){ wrapAll(); apply(document); }, delay); });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ schedule(document); }, {once:true}); else schedule(document);
+  window.addEventListener('load', function(){ wrapAll(); apply(document); setTimeout(function(){ apply(document); }, 1200); }, {once:true});
+})();
+</script>
+
+<!-- PATCH: Resolve SS final authority — robust queue, full save schema, skip/validate, hidden-purple independent -->
+<style id="resolve-ss-final-authority-css">
+  #resolve-ss-modal .rss-btn.next{
+    border-color:rgba(148,163,184,.34)!important;
+    color:#cbd5e1!important;
+    background:rgba(15,23,42,.42)!important;
+  }
+  #resolve-ss-modal .rss-btn.next:hover{
+    border-color:rgba(203,213,225,.55)!important;
+    background:rgba(30,41,59,.62)!important;
+    color:#fff!important;
+  }
+  #resolve-ss-modal .rss-field input.rss-required-missing{
+    border-color:#f87171!important;
+    box-shadow:0 0 0 3px rgba(239,68,68,.18)!important;
+  }
+</style>
+<script id="resolve-ss-final-authority-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsFinalAuthorityInstalled) return;
+  window.__resolveSsFinalAuthorityInstalled = true;
+
+  var STORE = 'dwellCurrentBoardBlockEditsV2';
+  var queue = [];
+  var idx = 0;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function rawClean(v){ return String(v == null ? '' : v).trim(); }
+  function esc(s){ return clean(s).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function num(v){ var n = parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,'')); return Number.isFinite(n) ? n : 0; }
+  function fmt(n){ return Math.round(num(n)).toLocaleString(); }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function loadEdits(){ try{ return JSON.parse(localStorage.getItem(STORE)||'{}') || {}; }catch(e){ return {}; } }
+  function saveEdits(edits){ try{ localStorage.setItem(STORE, JSON.stringify(edits||{})); }catch(e){ console.warn('Resolve SS save failed', e); } }
+  function sanitizePartialResolveEdits(){
+    var edits = loadEdits();
+    var changed = false;
+    Object.keys(edits).forEach(function(key){
+      var e = edits[key] || {};
+      var looksLikeOldResolveSave = !!(e.ssStart || e.ssEnd || e.dwell || e.sampleCar) && (!e.ft || (!e.label && !e.sourceBlockLabel));
+      if(looksLikeOldResolveSave){ delete edits[key]; changed = true; }
+    });
+    if(changed){
+      saveEdits(edits);
+      try{ if(typeof window.renderOB === 'function') setTimeout(function(){ window.renderOB(); }, 60); }catch(err){}
+    }
+    return changed;
+  }
+  function toastMsg(msg){ try{ if(typeof window.toast === 'function') window.toast(msg); else console.log(msg); }catch(e){ console.log(msg); } }
+
+  function parseCompact(raw){
+    var s = rawClean(raw).replace(/\D/g,'');
+    if(!(s.length === 7 || s.length === 8)) return null;
+    var yr = new Date().getFullYear(), mo, dd, hh, mm;
+    if(s.length === 7){ mo = +s[0]; dd = +s.slice(1,3); hh = +s.slice(3,5); mm = +s.slice(5,7); }
+    else { mo = +s.slice(0,2); dd = +s.slice(2,4); hh = +s.slice(4,6); mm = +s.slice(6,8); }
+    if(mo < 1 || mo > 12 || dd < 1 || dd > 31 || hh > 23 || mm > 59) return null;
+    var d = new Date(yr, mo-1, dd, hh, mm, 0, 0);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function parseAnyDate(raw){
+    var s = rawClean(raw);
+    if(!s) return null;
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})0*T(\d{1,2}):(\d{2})/);
+    if(m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s+(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/i);
+    if(m){
+      var yr = m[3] == null ? new Date().getFullYear() : +m[3];
+      if(yr < 100) yr += 2000;
+      var hr = +m[4], mi = m[5] == null ? 0 : +m[5], ap = (m[6]||'').toUpperCase();
+      if(ap === 'PM' && hr < 12) hr += 12;
+      if(ap === 'AM' && hr === 12) hr = 0;
+      return new Date(yr, +m[1]-1, +m[2], hr, mi, 0, 0);
+    }
+    if(typeof window.parseCompactDate === 'function'){
+      try{ var parsed = window.parseCompactDate(s); if(parsed && Number.isFinite(new Date(parsed).getTime())) return new Date(parsed); }catch(e){}
+    }
+    var compact = parseCompact(s);
+    if(compact) return compact;
+    var d = new Date(s);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function toIso(raw){
+    var d = parseAnyDate(raw);
+    if(!d) return '';
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function fmtDisplay(raw){
+    var d = parseAnyDate(raw);
+    if(!d) return rawClean(raw);
+    return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function hoursBetween(a,b){
+    var da = parseAnyDate(a), db = parseAnyDate(b);
+    if(!da || !db) return null;
+    var h = (db - da) / 3600000;
+    return Number.isFinite(h) ? Math.max(0,h) : null;
+  }
+  function dwellClassFromHours(h){ return h < 7 ? 'dw-green' : (h < 11 ? 'dw-gold' : 'dw-red'); }
+
+  function trackFromRow(row){
+    var txt = clean(row && row.querySelector ? (row.querySelector('.bowl-track')||{}).textContent : '');
+    var m = txt.match(/(\d{3})/);
+    return m ? m[1] : '';
+  }
+  function normalizeKeyText(txt){
+    return clean(txt).replace(/[✎×]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);
+  }
+  function blockKey(block){ return [trackFromRow(block && block.closest ? block.closest('tr') : null), normalizeKeyText(block ? block.textContent : '')].join('||'); }
+  function hasCuRamp(v){ return /(^|[^A-Z0-9])(CU|RAMP)([^A-Z0-9]|$)/.test(clean(v).toUpperCase()); }
+  function hasSsToken(v){ return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(v).toUpperCase()) || clean(v).toUpperCase() === 'SS' || clean(v).toUpperCase().indexOf('_SS') >= 0; }
+  function looksLikeHoldCodeNotTrain(v){
+    var s = clean(v).toUpperCase();
+    if(!s) return true;
+    if(/^,/.test(s) || s.indexOf(',') >= 0 || /^_/.test(s)) return true;
+    return ['SS','DB','CU','RAMP','SL','MTP','MTP1','BO','BAD ORDER','IHOSA','MHOAS','SADS','SIDS','ICTF','LTDS','DADS','YTDS','FXSI','MXFE','OTHER'].indexOf(s) >= 0;
+  }
+  function safeTrain(candidates){
+    for(var i=0;i<candidates.length;i++){
+      var v = clean(candidates[i]).toUpperCase();
+      if(v && !looksLikeHoldCodeNotTrain(v)) return v;
+    }
+    return '';
+  }
+  function stripUi(block){
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge,.ss-hours-in-ss,[data-ss-hours-in-ss],[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent).replace(/^\|\s*/,'').replace(/\s*\[\d{3}\]\s*$/,'');
+  }
+  function labelFromBlock(block){
+    var ds = block.dataset || {};
+    var explicit = clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterBlockType || ds.postOutboundBlockType || ds.afterStatus || '');
+    if(explicit && !/^(IHOSA|MHOAS)$/i.test(explicit)) return explicit;
+    var text = stripUi(block).replace(/^\s*[\d,]+\s*\|\s*/, '');
+    var parts = text.split('|').map(clean).filter(Boolean);
+    return clean(parts.length > 1 ? parts[1] : text);
+  }
+  function existingEditFor(block, key){
+    var edits = loadEdits();
+    return edits[key] || {};
+  }
+  function hasSsStart(block, key){
+    var ds = block.dataset || {};
+    var existing = existingEditFor(block, key || ds.currentEditKey || blockKey(block));
+    return !!clean(ds.currentSsStart || ds.afterSsStart || ds.ssStart || ds.ssHoursLabel || existing.ssStart || existing.currentSsStart || '');
+  }
+  function shouldResolveBlock(block){
+    if(!block || !block.closest) return false;
+    if(!block.closest('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell')) return false;
+    if(block.classList.contains('future-inbound') || block.classList.contains('manual-future')) return false;
+    if(block.querySelector('.future-inbound-tag,.future-shove-badge,.manual-tag')) return false;
+    var label = labelFromBlock(block);
+    var ds = block.dataset || {};
+    if(hasCuRamp(label) || hasCuRamp(ds.currentBlockType || ds.afterBlockType || ds.afterStatus || '')) return false;
+    return !hasSsStart(block, ds.currentEditKey || blockKey(block));
+  }
+  function getResolveBlocks(){
+    var found = [];
+    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(shouldResolveBlock(block)) found.push(block);
+    });
+    return found;
+  }
+  function arrivalForTrain(train){
+    train = clean(train).toUpperCase();
+    if(!train) return '';
+    try{ if(typeof window.getArrivalInfo === 'function'){ var info = window.getArrivalInfo(train); if(info && info.dt) return toIso(info.dt) || rawClean(info.dt); } }catch(e){}
+    try{ if(typeof window.getArrival === 'function'){ var d = window.getArrival(train); if(d) return toIso(d) || rawClean(d); } }catch(e){}
+    try{ if(window.arrOverrides && window.arrOverrides[train]) return toIso(window.arrOverrides[train]) || rawClean(window.arrOverrides[train]); }catch(e){}
+    return '';
+  }
+  function getBlockInfo(block){
+    var ds = block.dataset || {};
+    var key = clean(ds.currentEditKey || blockKey(block));
+    if(key) block.dataset.currentEditKey = key;
+    var existing = existingEditFor(block, key);
+    var bTag = block.querySelector('b');
+    var ft = clean(existing.ft || ds.ft || (bTag ? bTag.textContent : '')).replace(/,/g,'');
+    var label = clean(existing.sourceBlockLabel || existing.label || labelFromBlock(block));
+    var train = safeTrain([existing.train, ds.sourceTrain, ds.currentTrain, ds.afterTrain, ds.blockInboundSource]);
+    var track = trackFromRow(block.closest('tr'));
+    var arrival = clean(existing.arrival || ds.currentArrival || ds.afterArrival || ds.arrival || '');
+    if(!arrival) arrival = arrivalForTrain(train);
+    var ssStart = clean(existing.ssStart || ds.currentSsStart || ds.afterSsStart || ds.ssStart || '');
+    var ssEnd = clean(existing.ssEnd || ds.currentSsEnd || ds.afterSsEnd || '');
+    var sampleCar = clean(existing.sampleCar || ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || '');
+    var blockType = clean(existing.blockType || ds.currentBlockType || '');
+    if(!/^(SS|IHOSA|MHOAS)$/i.test(blockType)) blockType = hasSsToken(label) ? 'SS' : '';
+    var colorClass = 'normal';
+    ['missing-ss-start','ssmtp','slblue','bo-black','rampcu','inbound-gold','depart-ihosa','ihosa','depart-mhoas','mhoas','normal'].some(function(cls){ if(block.classList.contains(cls)){ colorClass = cls; return true; } return false; });
+    return {block:block,key:key,existing:existing,ft:ft,label:label,sourceBlockLabel:label,train:train,track:track,arrival:arrival,ssStart:ssStart,ssEnd:ssEnd,sampleCar:sampleCar,blockType:blockType,colorClass:colorClass};
+  }
+
+  var COLOR_MAP = {
+    normal:{bg:'#101827',border:'1px solid #64748b',color:'#f8fafc'},
+    ssmtp:{bg:'#082f49',border:'1px solid #38bdf8',color:'#e0f2fe'},
+    slblue:{bg:'#082f49',border:'1px solid #38bdf8',color:'#e0f2fe'},
+    'bo-black':{bg:'#020617',border:'1.5px solid #f8fafc',color:'#fff'},
+    rampcu:{bg:'#3b2606',border:'1.5px solid #facc15',color:'#fef9c3'},
+    'inbound-gold':{bg:'#3b2606',border:'1.5px solid #facc15',color:'#fef9c3'},
+    ihosa:{bg:'#052e16',border:'1.5px solid #22c55e',color:'#dcfce7'},
+    'depart-ihosa':{bg:'#052e16',border:'1.5px solid #22c55e',color:'#dcfce7'},
+    mhoas:{bg:'#0f2a5f',border:'1.5px solid #60a5fa',color:'#dbeafe'},
+    'depart-mhoas':{bg:'#0f2a5f',border:'1.5px solid #60a5fa',color:'#dbeafe'},
+    'missing-ss-start':{bg:'#2d1b4e',border:'1px solid rgba(217,70,239,.72)',color:'#f3e8ff'}
+  };
+  function applyPreviewStyle(el, cls){
+    var c = COLOR_MAP[cls] || COLOR_MAP.normal;
+    el.style.background = c.bg;
+    el.style.border = c.border;
+    el.style.color = c.color;
+  }
+  function dwellBadgeHtml(h){
+    if(!Number.isFinite(h)) return '';
+    var cls = dwellClassFromHours(h), style = 'border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:.5px;display:inline-flex;align-items:center;white-space:nowrap;';
+    if(cls === 'dw-green') style += 'background:#052e16;border:1px solid #22c55e;color:#bbf7d0;';
+    else if(cls === 'dw-gold') style += 'background:#422006;border:1px solid #f59e0b;color:#fde68a;';
+    else style += 'background:#450a0a;border:1px solid #ef4444;color:#fecaca;';
+    return '<span style="'+style+'">'+Math.round(h)+'H NET</span>';
+  }
+
+  function ensureModal(){
+    var m = document.getElementById('resolve-ss-modal');
+    if(!m){
+      m = document.createElement('div');
+      m.id = 'resolve-ss-modal';
+      m.innerHTML = [
+        '<div class="rss-card">',
+          '<div class="rss-progress"><div class="rss-progress-bar" id="rss-progress-bar"></div></div>',
+          '<div class="rss-head"><span class="rss-title" id="rss-title">RESOLVE SS</span><span class="rss-counter" id="rss-counter"></span><button class="rss-close" id="rss-close" type="button">×</button></div>',
+          '<div class="rss-body">',
+            '<div class="rss-help" id="rss-help"></div>',
+            '<div class="rss-field full"><label>IMPORTED ARRIVAL</label><input id="rss-arrival" readonly></div>',
+            '<div class="rss-field full"><label>SS START</label><input id="rss-ss-start" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+            '<div class="rss-field full"><label>SS END</label><input id="rss-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+            '<div class="rss-field full"><label>CALCULATED NET DWELL</label><input id="rss-net" readonly></div>',
+            '<div class="rss-field full" style="flex-direction:row;align-items:center;gap:8px;"><label style="margin:0;white-space:nowrap;">EXAMPLE CAR</label><input id="rss-sample-car" style="flex:1;" placeholder=""><button class="rss-copy-btn" id="rss-copy-btn" type="button">COPY</button></div>',
+            '<div class="rss-field full" id="rss-preview-wrap"><div style="display:flex;gap:16px;align-items:flex-start;"><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">CURRENT</label><div id="rss-before-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div><div style="padding-top:20px;color:#64748b;font-size:18px;">→</div><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">NEW</label><div id="rss-after-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div></div></div>',
+            '<div class="rss-actions"><button class="rss-btn" id="rss-cancel" type="button">CANCEL</button><button class="rss-btn next" id="rss-next" type="button">SKIP →</button><button class="rss-btn save" id="rss-save" type="button">SAVE CHANGES</button></div>',
+          '</div>',
+        '</div>'
+      ].join('');
+      document.body.appendChild(m);
+    }
+    if(m.dataset.resolveSsFinalWired !== '1'){
+      m.dataset.resolveSsFinalWired = '1';
+      ['rss-ss-start','rss-ss-end'].forEach(function(id){
+        var input = document.getElementById(id);
+        if(!input) return;
+        input.addEventListener('input', function(){ input.classList.remove('rss-required-missing'); updateNet(); }, true);
+        input.addEventListener('change', function(){ input.classList.remove('rss-required-missing'); updateNet(); }, true);
+        input.addEventListener('blur', function(){ var iso = toIso(input.value); if(iso) input.value = fmtDisplay(iso); updateNet(); }, true);
+      });
+    }
+    return m;
+  }
+  function currentInfo(){ return queue[idx] || null; }
+  function updateProgress(){
+    var bar = document.getElementById('rss-progress-bar');
+    if(bar) bar.style.width = queue.length ? Math.round(((idx+1)/queue.length)*100)+'%' : '0%';
+  }
+  function updatePreviews(){
+    var info = currentInfo();
+    var before = document.getElementById('rss-before-block'), after = document.getElementById('rss-after-block');
+    if(!info || !before || !after) return;
+    var start = rawClean((document.getElementById('rss-ss-start')||{}).value);
+    var arrToSS = hoursBetween(info.arrival, start);
+    applyPreviewStyle(before, info.colorClass);
+    applyPreviewStyle(after, info.colorClass);
+    before.innerHTML = '<b style="font-weight:900;">'+esc(fmt(info.ft))+'</b>'+(info.label?'<span>'+esc(info.label)+'</span>':'');
+    after.innerHTML = '<b style="font-weight:900;">'+esc(fmt(info.ft))+'</b>'+(info.label?'<span>'+esc(info.label)+'</span>':'')+(arrToSS !== null ? dwellBadgeHtml(arrToSS) : '');
+  }
+  function updateNet(){
+    var info = currentInfo();
+    if(!info) return;
+    var start = rawClean((document.getElementById('rss-ss-start')||{}).value);
+    var end = rawClean((document.getElementById('rss-ss-end')||{}).value);
+    var arrToSS = hoursBetween(info.arrival, start);
+    var ssTotal = hoursBetween(start, end);
+    var txt = 'ENTER SS START';
+    if(arrToSS !== null){
+      txt = Math.round(arrToSS)+'H NET';
+      if(ssTotal !== null) txt += ' / SS '+Math.round(ssTotal)+'H';
+    }else if(start && !info.arrival){
+      txt = 'MISSING ARRIVAL';
+    }else if(start){
+      txt = 'SS START ENTERED';
+    }
+    var net = document.getElementById('rss-net');
+    if(net) net.value = txt;
+    updatePreviews();
+  }
+  function loadEntry(){
+    var info = currentInfo();
+    if(!info) return;
+    ensureModal();
+    var title = document.getElementById('rss-title');
+    var counter = document.getElementById('rss-counter');
+    var help = document.getElementById('rss-help');
+    var arrival = document.getElementById('rss-arrival');
+    var start = document.getElementById('rss-ss-start');
+    var end = document.getElementById('rss-ss-end');
+    var sample = document.getElementById('rss-sample-car');
+    var next = document.getElementById('rss-next');
+    if(title) title.textContent = 'RESOLVE SS — 06-'+(info.track || '');
+    if(counter) counter.textContent = (idx+1)+' OF '+queue.length;
+    if(help) help.textContent = 'Block: '+fmt(info.ft)+(info.ft?' FT ':'')+(info.label||'')+' · Train: '+(info.train||'—');
+    if(arrival) arrival.value = info.arrival ? fmtDisplay(info.arrival) : '';
+    if(start){ start.classList.remove('rss-required-missing'); start.value = info.ssStart ? fmtDisplay(info.ssStart) : ''; }
+    if(end){ end.value = info.ssEnd ? fmtDisplay(info.ssEnd) : ''; }
+    if(sample) sample.value = info.sampleCar || '';
+    if(next) next.style.display = (idx < queue.length-1) ? '' : 'none';
+    updateProgress();
+    updateNet();
+    setTimeout(function(){ var el = document.getElementById('rss-ss-start'); if(el) el.focus(); }, 60);
+  }
+  function saveCurrentEntry(){
+    var info = currentInfo();
+    if(!info) return false;
+    var startInput = document.getElementById('rss-ss-start');
+    var rawStart = rawClean(startInput && startInput.value);
+    var ssStart = toIso(rawStart);
+    if(!ssStart){
+      if(startInput){ startInput.classList.add('rss-required-missing'); startInput.focus(); }
+      toastMsg('Enter SS start, or use SKIP to leave this block unchanged');
+      return false;
+    }
+    var ssEnd = toIso(rawClean((document.getElementById('rss-ss-end')||{}).value));
+    var sampleCar = clean((document.getElementById('rss-sample-car')||{}).value);
+    var arrToSS = hoursBetween(info.arrival, ssStart);
+    var dwell = arrToSS !== null ? Math.round(arrToSS)+'H NET' : '';
+    var edits = loadEdits();
+    var existing = edits[info.key] || info.existing || {};
+    var label = clean(existing.sourceBlockLabel || existing.label || info.sourceBlockLabel || info.label || '');
+    var blockType = clean(existing.blockType || info.blockType || (hasSsToken(label) ? 'SS' : ''));
+    if(!/^(SS|IHOSA|MHOAS)$/i.test(blockType)) blockType = hasSsToken(label) ? 'SS' : '';
+    var full = {
+      ft: num(existing.ft || info.ft),
+      train: clean(existing.train || info.train),
+      blockType: blockType,
+      label: clean(existing.label || label || blockType || info.train),
+      sourceBlockLabel: clean(existing.sourceBlockLabel || label || blockType || info.train),
+      dwell: dwell,
+      arrival: clean(existing.arrival || info.arrival),
+      ssStart: ssStart,
+      ssEnd: ssEnd,
+      sampleCar: sampleCar || clean(existing.sampleCar || info.sampleCar),
+      updatedAt: new Date().toISOString()
+    };
+    edits[info.key] = full;
+    saveEdits(edits);
+
+    var block = info.block;
+    if(block){
+      block.dataset.currentEditKey = info.key;
+      block.dataset.currentSsStart = ssStart;
+      block.dataset.currentSsEnd = ssEnd;
+      block.dataset.currentArrival = full.arrival;
+      block.dataset.currentTrain = full.train;
+      block.dataset.sourceTrain = full.train;
+      block.dataset.currentBlockType = full.blockType;
+      block.dataset.sourceBlockLabel = full.sourceBlockLabel;
+      if(full.sampleCar) block.dataset.sampleCar = full.sampleCar;
+      block.classList.remove('missing-ss-start','current-ss-start-missing');
+      delete block.dataset.missingSsStart;
+      block.dataset.missingSsStartAuthority = '0';
+    }
+
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    scheduleButtonSync();
+    return true;
+  }
+  function advance(){
+    if(idx < queue.length-1){ idx++; loadEntry(); }
+    else { closeModal(); try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){} toastMsg('Resolve SS complete'); }
+  }
+  function openResolveModal(){
+    var blocks = getResolveBlocks();
+    if(!blocks.length){ toastMsg('No blocks missing SS start'); syncResolveButton(); return; }
+    queue = blocks.map(getBlockInfo);
+    idx = 0;
+    var m = ensureModal();
+    m.classList.add('open');
+    loadEntry();
+    try{ document.body.classList.add('modal-open'); }catch(e){}
+  }
+  function closeModal(){
+    var m = document.getElementById('resolve-ss-modal');
+    if(m) m.classList.remove('open');
+    queue = [];
+    idx = 0;
+    try{ document.body.classList.remove('modal-open'); }catch(e){}
+    scheduleButtonSync();
+  }
+  function skipCurrent(){ advance(); }
+  function copySample(){
+    var val = rawClean((document.getElementById('rss-sample-car')||{}).value);
+    if(!val) return;
+    try{ navigator.clipboard && navigator.clipboard.writeText(val).catch(function(){}); }catch(e){}
+    var btn = document.getElementById('rss-copy-btn');
+    if(btn){ btn.textContent = '✓'; setTimeout(function(){ btn.textContent = 'COPY'; }, 1000); }
+  }
+
+  function findRampHead(){ return document.querySelector('#tab-outbound .bowl-ramp-head'); }
+  function syncResolveButton(){
+    var head = findRampHead();
+    if(!head) return;
+    var anchor = head.querySelector(':scope > [data-resolve-ss-btn]') || head.querySelector(':scope > [data-current-purple-ss-head-toggle]') || head.querySelector(':scope > [data-current-ss-hours-head-toggle]') || head.querySelector(':scope > [data-current-display-track-head-toggle]') || head.querySelector(':scope > [data-current-dwell-head-toggle]') || head.querySelector(':scope > .bowl-current-options-menu');
+    var btn = head.querySelector(':scope > [data-resolve-ss-btn]');
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.resolveSsBtn = '1';
+      btn.className = 'resolve-ss-final-btn';
+      if(anchor) anchor.insertAdjacentElement('afterend', btn); else head.appendChild(btn);
+    }
+    var count = getResolveBlocks().length;
+    btn.textContent = count ? 'RESOLVE SS ('+count+')' : 'RESOLVE SS';
+    btn.dataset.count = String(count);
+    btn.disabled = count === 0;
+    btn.style.pointerEvents = count === 0 ? 'none' : 'auto';
+  }
+  var syncTimer = null;
+  function scheduleButtonSync(){
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncResolveButton, 40);
+    setTimeout(syncResolveButton, 180);
+    setTimeout(syncResolveButton, 500);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__resolveSsFinalAuthorityWrapped) return;
+    var wrapped = function(){ var result = fn.apply(this, arguments); scheduleButtonSync(); return result; };
+    wrapped.__resolveSsFinalAuthorityWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){ ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound'].forEach(wrap); }
+
+  window.openResolveSsQueue = openResolveModal;
+  window.syncResolveSsButtonFinalAuthority = syncResolveButton;
+
+  window.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-resolve-ss-btn]');
+    if(!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    openResolveModal();
+  }, true);
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    if(e.target.closest('#rss-save')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); if(saveCurrentEntry()) advance(); return; }
+    if(e.target.closest('#rss-next')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); skipCurrent(); return; }
+    if(e.target.closest('#rss-cancel,#rss-close')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); closeModal(); return; }
+    if(e.target.closest('#rss-copy-btn')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); copySample(); return; }
+    if(e.target.id === 'resolve-ss-modal') closeModal();
+  }, true);
+  document.addEventListener('input', function(e){ if(e.target && (e.target.id === 'rss-ss-start' || e.target.id === 'rss-ss-end')) updateNet(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && (e.target.id === 'rss-ss-start' || e.target.id === 'rss-ss-end')) updateNet(); }, true);
+  document.addEventListener('keydown', function(e){ var m = document.getElementById('resolve-ss-modal'); if(e.key === 'Escape' && m && m.classList.contains('open')) closeModal(); }, true);
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell,[data-current-purple-ss-head-toggle],[data-bowl-missing-ss-flair-toggle]')) scheduleButtonSync(); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell')) scheduleButtonSync(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell')) scheduleButtonSync(); }, true);
+
+  sanitizePartialResolveEdits();
+  wrapAll();
+  [0,80,200,500,1000,2200,4200].forEach(function(delay){ setTimeout(function(){ sanitizePartialResolveEdits(); wrapAll(); syncResolveButton(); }, delay); });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ wrapAll(); syncResolveButton(); }, {once:true}); else syncResolveButton();
+  window.addEventListener('load', function(){ wrapAll(); syncResolveButton(); }, {once:true});
+})();
+</script>
+<script id="current-ramp-header-first-paint-authority-js">
+(function(){
+  'use strict';
+  if(window.__currentRampHeaderFirstPaintAuthorityInstalled) return;
+  window.__currentRampHeaderFirstPaintAuthorityInstalled = true;
+
+  function readBool(key){
+    try{ return localStorage.getItem(key) === '1'; }catch(e){ return false; }
+  }
+
+  function makeButton(selector, cls, datasetName){
+    var head = document.querySelector('#tab-outbound .bowl-ramp-head');
+    if(!head) return null;
+    var list = Array.prototype.slice.call(head.querySelectorAll(':scope > ' + selector));
+    var btn = list[0];
+    list.slice(1).forEach(function(extra){ extra.remove(); });
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset[datasetName] = '1';
+    }
+    btn.type = 'button';
+    btn.className = cls;
+    btn.dataset[datasetName] = '1';
+    return btn;
+  }
+
+  function ensureOptions(head){
+    var menu = head.querySelector(':scope > .bowl-current-options-menu');
+    if(menu) return menu;
+    menu = document.createElement('div');
+    menu.className = 'bowl-control-dropdown bowl-current-options-menu';
+    menu.dataset.bowlOptionsMenu = '1';
+    menu.innerHTML = '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">SHOW ONLY IHOSA/MHOAS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">SHOW OUTBOUND TRACKS</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">SHOW INBOUND</button></div>';
+    var title = head.querySelector(':scope > span');
+    if(title) title.insertAdjacentElement('afterend', menu);
+    else head.appendChild(menu);
+    return menu;
+  }
+
+  function syncHeader(){
+    var head = document.querySelector('#tab-outbound .bowl-ramp-head');
+    if(!head) return;
+    var menu = ensureOptions(head);
+
+    var dwellHidden = readBool('dwellHideBowlDwell');
+    var displayShown = readBool('dwellShowCurrentDisplayTrack');
+    var purpleHidden = readBool('dwellHideCurrentMissingSsFlair');
+
+    var dwell = makeButton('[data-current-dwell-head-toggle]', 'bowl-current-dwell-head-toggle', 'currentDwellHeadToggle');
+    var display = makeButton('[data-current-display-track-head-toggle]', 'bowl-current-display-track-head-toggle' + (displayShown ? ' is-showing' : ''), 'currentDisplayTrackHeadToggle');
+    var purple = makeButton('[data-current-purple-ss-head-toggle]', 'bowl-current-purple-ss-head-toggle' + (purpleHidden ? ' is-hiding' : ''), 'currentPurpleSsHeadToggle');
+    var resolve = makeButton('[data-resolve-ss-btn]', 'resolve-ss-final-btn', 'resolveSsBtn');
+
+    if(dwell){
+      dwell.textContent = dwellHidden ? 'SHOW DWELL' : 'HIDE DWELL';
+      dwell.setAttribute('aria-pressed', dwellHidden ? 'true' : 'false');
+    }
+    if(display){
+      display.textContent = displayShown ? 'HIDE DISPLAY TRACK' : 'SHOW DISPLAY TRACK';
+      display.setAttribute('aria-pressed', displayShown ? 'true' : 'false');
+    }
+    if(purple){
+      purple.textContent = purpleHidden ? 'SHOW PURPLE SS' : 'HIDE PURPLE SS';
+      purple.setAttribute('aria-pressed', purpleHidden ? 'true' : 'false');
+    }
+    if(resolve && !resolve.textContent.trim()){
+      resolve.textContent = 'RESOLVE SS';
+      resolve.dataset.count = resolve.dataset.count || '0';
+    }
+
+    [dwell, display, purple, resolve].forEach(function(btn){
+      if(!btn) return;
+      btn.removeAttribute('data-bowl-fixed-action');
+      btn.removeAttribute('data-bowl-dwell-toggle');
+    });
+
+    if(menu && menu.nextElementSibling !== dwell) menu.insertAdjacentElement('afterend', dwell);
+    if(dwell && dwell.nextElementSibling !== display) dwell.insertAdjacentElement('afterend', display);
+    if(display && display.nextElementSibling !== purple) display.insertAdjacentElement('afterend', purple);
+    if(purple && purple.nextElementSibling !== resolve) purple.insertAdjacentElement('afterend', resolve);
+
+    try{
+      if(typeof window.syncResolveSsButtonFinalAuthority === 'function') window.syncResolveSsButtonFinalAuthority();
+    }catch(e){}
+  }
+
+  function schedule(){
+    clearTimeout(window.__currentRampHeaderFirstPaintAuthorityTimer);
+    syncHeader();
+    window.__currentRampHeaderFirstPaintAuthorityTimer = setTimeout(syncHeader, 80);
+    setTimeout(syncHeader, 250);
+  }
+
+  ['renderOB','renderBowlTurnover','pasteText','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__currentRampHeaderFirstPaintAuthorityWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__currentRampHeaderFirstPaintAuthorityWrapped = true;
+    window[name] = wrapped;
+  });
+
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-ramp-head,[data-bowl-options-main],[data-current-dwell-head-toggle],[data-current-display-track-head-toggle],[data-current-purple-ss-head-toggle],[data-resolve-ss-btn]')) schedule();
+  }, true);
+  schedule();
+})();
+</script>
