@@ -1605,6 +1605,46 @@
 })();
 </script>
 
+<style id="remove-inbound-footer-onhand-803-final-css">
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-total-onhand,
+html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-total-803{
+  display:none!important;
+}
+</style>
+<script id="remove-inbound-footer-onhand-803-final-js">
+(function(){
+  'use strict';
+  if(window.__removeInboundFooterOnhand803FinalInstalled) return;
+  window.__removeInboundFooterOnhand803FinalInstalled = true;
+  function removeControls(root){
+    var scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('#trainStack .table-footer.inbound-footer-controls .footer-total-onhand,#trainStack .table-footer.inbound-footer-controls .footer-total-803').forEach(function(el){
+      el.remove();
+    });
+  }
+  function schedule(){
+    clearTimeout(window.__removeInboundFooterOnhand803FinalTimer);
+    removeControls(document);
+    window.__removeInboundFooterOnhand803FinalTimer = setTimeout(function(){ removeControls(document); }, 80);
+  }
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#trainStack,#addTrainBtn,[data-action]')) schedule();
+  }, true);
+  new MutationObserver(function(mutations){
+    for(var i=0;i<mutations.length;i++){
+      var target = mutations[i].target;
+      if(target && target.querySelector && target.querySelector('#trainStack,.footer-total-onhand,.footer-total-803')){
+        schedule();
+        break;
+      }
+    }
+  }).observe(document.documentElement, {childList:true, subtree:true});
+  schedule();
+})();
+</script>
+
 <script type="text/plain" id="post-outbound-display-live-owner-js">
 (function(){
   'use strict';
@@ -13490,8 +13530,36 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       outline:none;
     }
     .add-inbound-input:focus,.add-inbound-select:focus{border-color:#b88a22;box-shadow:0 0 0 3px rgba(255,212,0,.22);}
+    .add-inbound-row-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .add-inbound-row-head label{margin:0;}
+    .add-inbound-row-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 132px 34px;
+      gap:8px;
+      align-items:center;
+    }
+    .add-inbound-row-grid-head{
+      font-size:10px;
+      font-weight:950;
+      text-transform:uppercase;
+      color:#5d5346;
+      letter-spacing:.04em;
+      padding:0 2px;
+    }
+    .add-inbound-rows{display:grid;gap:7px;}
+    .add-inbound-row-remove{
+      width:30px!important;
+      min-width:30px!important;
+      height:30px!important;
+      min-height:30px!important;
+      padding:0!important;
+      justify-self:end;
+    }
     .add-inbound-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding:0 16px 16px;}
-    @media (max-width: 560px){.add-inbound-combo{grid-template-columns:1fr;}}
+    @media (max-width: 560px){
+      .add-inbound-combo{grid-template-columns:1fr;}
+      .add-inbound-row-grid{grid-template-columns:minmax(0,1fr) 96px 30px;}
+    }
 
   </style>
 
@@ -14563,9 +14631,17 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
           <label for="addInboundDateTimeInput">Date / Time</label>
           <input class="add-inbound-input" id="addInboundDateTimeInput" type="text" />
         </div>
-        <div class="add-inbound-field">
-          <label>Action</label>
-          <div style="font-weight:900;color:#5d5346;line-height:1.35;">This train will not be added to the inbound pool until you press Confirm Add.</div>
+        <div class="add-inbound-field add-inbound-rows-field">
+          <div class="add-inbound-row-head">
+            <label>Blocks / Footage</label>
+            <button class="btn small" id="addInboundModalRowBtn" type="button">+ Add Row</button>
+          </div>
+          <div class="add-inbound-row-grid add-inbound-row-grid-head" aria-hidden="true">
+            <span>Block Name</span>
+            <span>Length</span>
+            <span></span>
+          </div>
+          <div class="add-inbound-rows" id="addInboundRows"></div>
         </div>
       </div>
       <div class="add-inbound-actions">
@@ -15935,8 +16011,6 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
               <span class="footer-label">UPS</span>
               <input class="footer-input mini" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" />
             </div>
-            <div class="footer-total footer-total-onhand"><span>On-Hand Free</span><input class="total-pill units-pill units-pill-input onhand-free-pill-input" inputmode="numeric" value="${escapeHtml(train.onHandFree || '')}" data-action="train-field" data-index="${tIndex}" data-field="onHandFree" placeholder="—" aria-label="Edit on-hand free" /></div>
-            <div class="footer-total footer-total-803"><span>With 803</span><input class="total-pill units-pill units-pill-input with-803-pill-input" inputmode="numeric" value="${escapeHtml(train.with803 || '')}" data-action="train-field" data-index="${tIndex}" data-field="with803" placeholder="—" aria-label="Edit with 803" /></div>
             <div class="footer-total footer-total-units"><span>Units</span><input class="total-pill units-pill units-pill-input" inputmode="numeric" value="${escapeHtml(trainTotalUnits(train) || '')}" data-action="train-field" data-index="${tIndex}" data-field="units" data-units-display placeholder="—" aria-label="Edit units" /></div>
             <div class="footer-total footer-total-ft footer-total-ups"><span>UPS</span><input class="total-pill units-pill units-pill-input ups-pill-input" inputmode="numeric" value="${escapeHtml(train.ups || '')}" data-action="train-field" data-index="${tIndex}" data-field="ups" placeholder="#" aria-label="Edit UPS units" /></div>
           </div>
@@ -16257,6 +16331,38 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       return formatInboundDateTimeDisplay(new Date());
     }
 
+    function addInboundModalRow(block = '', ft = ''){
+      const wrap = document.getElementById('addInboundRows');
+      if(!wrap) return;
+      const row = document.createElement('div');
+      row.className = 'add-inbound-row-grid add-inbound-modal-row';
+      row.innerHTML = `
+        <input class="add-inbound-input add-inbound-modal-block" type="text" value="${escapeHtml(block)}" placeholder="Block name" />
+        <input class="add-inbound-input add-inbound-modal-ft" type="text" inputmode="numeric" value="${escapeHtml(ft)}" placeholder="Length" />
+        <button class="btn icon small danger add-inbound-row-remove" type="button" title="Remove row" aria-label="Remove row">x</button>
+      `;
+      wrap.appendChild(row);
+      row.querySelector('.add-inbound-modal-block')?.focus();
+    }
+
+    function resetAddInboundModalRows(){
+      const wrap = document.getElementById('addInboundRows');
+      if(wrap) wrap.innerHTML = '';
+      addInboundModalRow();
+    }
+
+    function collectAddInboundModalRows(){
+      const rows = [];
+      document.querySelectorAll('#addInboundRows .add-inbound-modal-row').forEach(row => {
+        const block = String(row.querySelector('.add-inbound-modal-block')?.value || '').trim().toUpperCase();
+        const ft = String(row.querySelector('.add-inbound-modal-ft')?.value || '').trim();
+        if(block || ft){
+          rows.push({...newRow(), block, ft});
+        }
+      });
+      return rows.length ? rows : [newRow()];
+    }
+
     function openAddInboundConfirm(){
       const modal = document.getElementById('addInboundConfirmModal');
       const input = document.getElementById('addInboundTrainInput');
@@ -16265,6 +16371,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       if(input) input.value = '';
       if(preset) preset.value = '';
       if(dt) dt.value = defaultInboundDateTime();
+      resetAddInboundModalRows();
       updateAddInboundArchiveFlag();
       modal?.classList.add('open');
       modal?.setAttribute('aria-hidden','false');
@@ -16287,6 +16394,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
         return;
       }
       const dateTime = String(dt?.value || defaultInboundDateTime()).trim() || defaultInboundDateTime();
+      const rows = collectAddInboundModalRows();
       const candidate = { train: trainName, dateTime };
       const duplicate = findCurrentInboundDuplicate(candidate);
       if(duplicate){
@@ -16303,7 +16411,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
         ups: '',
         units: '',
         addedAt: Date.now(),
-        rows: [newRow()]
+        rows
       });
       autoPopulateZpbhoPlus2({createMissing:true});
       autoPopulateZg4mqPlus2();
@@ -16316,6 +16424,14 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
 
     document.getElementById('addInboundTrainInput')?.addEventListener('input', updateAddInboundArchiveFlag);
     document.getElementById('addInboundDateTimeInput')?.addEventListener('input', updateAddInboundArchiveFlag);
+    document.getElementById('addInboundModalRowBtn')?.addEventListener('click', () => addInboundModalRow());
+    document.getElementById('addInboundRows')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.add-inbound-row-remove');
+      if(!btn) return;
+      const wrap = document.getElementById('addInboundRows');
+      btn.closest('.add-inbound-modal-row')?.remove();
+      if(wrap && !wrap.querySelector('.add-inbound-modal-row')) addInboundModalRow();
+    });
 
     document.getElementById('addInboundPresetSelect')?.addEventListener('change', (e) => {
       const value = String(e.target.value || '').trim();
