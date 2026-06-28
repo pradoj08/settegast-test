@@ -114,6 +114,8 @@
     display:none!important;
   }
 </style>
+
+
 <script id="remove-inbound-onhand-803-controls-final-js">
 (function(){
   'use strict';
@@ -1653,6 +1655,105 @@
 })();
 </script>
 
+<script id="post-outbound-track-row-gap-true-tail-js">
+(function(){
+  'use strict';
+  function set(el, prop, value){
+    if(el && el.style) el.style.setProperty(prop, value, 'important');
+  }
+  function apply(){
+    document.querySelectorAll('#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)').forEach(function(board){
+      set(board, 'border-collapse', 'collapse');
+      set(board, 'border-spacing', '0');
+      set(board.querySelector('tbody'), 'border-spacing', '0');
+      board.querySelectorAll('tbody tr').forEach(function(row){
+        set(row, 'height', '30px');
+        set(row, 'min-height', '30px');
+        set(row, 'max-height', '30px');
+        set(row, 'margin', '0');
+        set(row, 'border', '0');
+      });
+      board.querySelectorAll('tbody tr > td').forEach(function(cell){
+        set(cell, 'height', '30px');
+        set(cell, 'min-height', '30px');
+        set(cell, 'max-height', '30px');
+        set(cell, 'padding-top', '0');
+        set(cell, 'padding-bottom', '0');
+        set(cell, 'margin-top', '0');
+        set(cell, 'margin-bottom', '0');
+        set(cell, 'border-top', '0');
+        set(cell, 'border-bottom', '0');
+        set(cell, 'line-height', '30px');
+        set(cell, 'vertical-align', 'middle');
+      });
+      board.querySelectorAll('tbody tr > td.bowl-track').forEach(function(cell){
+        set(cell, 'display', 'table-cell');
+        set(cell, 'text-align', 'center');
+        set(cell, 'background', '#1f2937');
+      });
+      board.querySelectorAll('tbody tr.bowl-empty-track-row .bowl-segments-cell').forEach(function(cell){
+        set(cell, 'background', 'transparent');
+        set(cell, 'height', '30px');
+        set(cell, 'min-height', '30px');
+        set(cell, 'max-height', '30px');
+        set(cell, 'padding-top', '0');
+        set(cell, 'padding-bottom', '0');
+      });
+      board.querySelectorAll('tbody tr.bowl-empty-track-row .bowl-segments-wrap').forEach(function(wrap){
+        set(wrap, 'height', '30px');
+        set(wrap, 'min-height', '30px');
+        set(wrap, 'max-height', '30px');
+        set(wrap, 'padding', '0');
+      });
+      board.querySelectorAll('.bowl-track-add-btn').forEach(function(btn){
+        set(btn, 'display', 'inline-flex');
+        set(btn, 'opacity', '1');
+        set(btn, 'visibility', 'visible');
+        set(btn, 'pointer-events', 'auto');
+      });
+    });
+  }
+  function schedule(){
+    clearTimeout(window.__postOutboundTrackRowGapTrueTailTimer);
+    apply();
+    window.__postOutboundTrackRowGapTrueTailTimer = setTimeout(apply, 60);
+    setTimeout(apply, 250);
+    setTimeout(apply, 900);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundTrackRowGapTrueTailWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__postOutboundTrackRowGapTrueTailWrapped = true;
+    window[name] = wrapped;
+  }
+  ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound','normalizePostOutboundBlockDisplay','normalizePostOutboundSingleDisplayOwner'].forEach(wrap);
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after,.bowl-after-title,[data-bowl-options-main]')) schedule(); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(); }, true);
+  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
+  schedule();
+})();
+</script>
+<style id="post-outbound-track-row-gap-absolute-tail-css">
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table){border-collapse:collapse!important;border-spacing:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr:not(.bowl-empty-track-row){height:30px!important;min-height:30px!important;max-height:30px!important;margin:0!important;border:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr > td,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row > td,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr:not(.bowl-empty-track-row) > td{height:30px!important;min-height:30px!important;max-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;border-top:0!important;border-bottom:0!important;line-height:30px!important;vertical-align:middle!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr > td.bowl-track{display:table-cell!important;height:30px!important;min-height:30px!important;max-height:30px!important;background:#1f2937!important;text-align:center!important;vertical-align:middle!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-cell{height:30px!important;min-height:30px!important;max-height:30px!important;padding-top:0!important;padding-bottom:0!important;background:transparent!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-wrap{height:30px!important;min-height:30px!important;max-height:30px!important;padding:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-wrap:empty::after{content:none!important;display:none!important;height:0!important;}
+</style>
 <script type="text/plain" id="post-outbound-display-live-owner-js">
 (function(){
   'use strict';
@@ -27096,7 +27197,7 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
         const d=calcGroupDwell(g,dep);
         rows.push({
           id:String(g.train||'FORECAST'),
-          track:String(g.track||'â€”'),
+          track:String(g.track||'-'),
           ft:parseFloat(g.totalLn)||0,
           block:normalizeOutboundTrain(g.outbound)||'FORECAST',
           net:d
@@ -27104,10 +27205,10 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
         return;
       }
       activeCarsForGroup(g).forEach(car=>{
-        const block=String(car.ydBlock || car.bk2 || car.bk1 || g.blockLabel || '').trim().toUpperCase() || 'â€”';
+        const block=String(car.ydBlock || car.bk2 || car.bk1 || g.blockLabel || '').trim().toUpperCase() || '-';
         rows.push({
           id:String(car.equipId || car.carId || car.id || 'CAR'),
-          track:String(car.track || g.track || 'â€”'),
+          track:String(car.track || g.track || '-'),
           ft:parseFloat(car.ln)||0,
           block,
           net:netDwellForCar(g,car,dep)
@@ -27147,17 +27248,17 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
     const rows=carRowsForCard(x.groups,dep);
     const ft=rows.reduce((a,r)=>a+(parseFloat(r.ft)||0),0);
     const badge=avg===null?'NO DATA':(cls==='good'?'GOAL':'OVER 24');
-    const value=avg===null?'â€”':avg.toFixed(1)+'H';
+    const value=avg===null?'-':avg.toFixed(1)+'H';
     const dayLabel=inboundDayOffset===0?'TODAY':'TOMORROW';
     const carHtml=rows.length ? rows.map(r=>{
-      const net=(r.net===null||!isFinite(r.net))?'â€”':r.net.toFixed(1)+'H';
+      const net=(r.net===null||!isFinite(r.net))?'-':r.net.toFixed(1)+'H';
       return `<div class="pd-car-row"><span class="pd-car-id">${esc(r.id)}</span><span class="pd-car-meta">${esc(r.block)}</span><span class="pd-car-meta">${esc(r.track)}</span><span class="pd-car-net">${net}</span></div>`;
     }).join('') : '<div class="pd-car-empty">NO CARS SELECTED FOR THIS OUTBOUND</div>';
     return `<details class="projected-dwell-card ${cls}">
       <summary>
         <div class="pd-top"><span class="pd-train">${x.train}</span><span class="pd-day">${dayLabel}</span></div>
         <div class="pd-value">${value}</div>
-        <div class="pd-meta"><span class="pd-badge">${badge}</span> Â· WT AVG NET Â· ${fmtN(ft)} FT Â· DEP ${fmtDT(dep)}</div>
+        <div class="pd-meta"><span class="pd-badge">${badge}</span> - WT AVG NET - ${fmtN(ft)} FT - DEP ${fmtDT(dep)}</div>
         <div class="pd-click">CLICK TO SHOW RIDING CARS</div>
       </summary>
       <div class="pd-car-list">${carHtml}</div>
@@ -27201,7 +27302,7 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
       }catch(e){ nd=null; }
       return {
         id:String(b.train||b.id||'FUTURE'),
-        track:String(b.outTrack||b.track||'â€”'),
+        track:String(b.outTrack||b.track||'-'),
         ft:parseFloat(b.ft)||0,
         block:'FUTURE INBOUND',
         net:(nd===null||!isFinite(nd))?null:nd
@@ -27219,16 +27320,16 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
     const cls=projectedDwellStatus(avg);
     const ft=computed.reduce((a,r)=>a+(parseFloat(r.ft)||0),0);
     const badge=avg===null?'NO DATA':(cls==='good'?'GOAL':'OVER 24');
-    const value=avg===null?'â€”':avg.toFixed(1)+'H';
+    const value=avg===null?'-':avg.toFixed(1)+'H';
     const carHtml=computed.length ? computed.map(r=>{
-      const net=(r.net===null||!isFinite(r.net))?'â€”':r.net.toFixed(1)+'H';
+      const net=(r.net===null||!isFinite(r.net))?'-':r.net.toFixed(1)+'H';
       return `<div class="pd-car-row"><span class="pd-car-id">${esc(r.id)}</span><span class="pd-car-meta">${esc(r.block)}</span><span class="pd-car-meta">${esc(r.track)}</span><span class="pd-car-net">${net}</span></div>`;
     }).join('') : `<div class="pd-car-empty">NO ${TRAIN}-TAGGED FUTURE INBOUND BLOCKS ON POST OUTBOUND CONSIST</div>`;
     return `<details class="projected-dwell-card ${cls}">
       <summary>
         <div class="pd-top"><span class="pd-train">${TRAIN}</span><span class="pd-day">TOMORROW</span></div>
         <div class="pd-value">${value}</div>
-        <div class="pd-meta"><span class="pd-badge">${badge}</span> Â· WT AVG NET Â· ${fmtN(ft)} FT Â· DEP ${fmtDT(dep)}</div>
+        <div class="pd-meta"><span class="pd-badge">${badge}</span> - WT AVG NET - ${fmtN(ft)} FT - DEP ${fmtDT(dep)}</div>
         <div class="pd-click">CLICK TO SHOW FUTURE INBOUND BLOCKS</div>
       </summary>
       <div class="pd-car-list">${carHtml}</div>
@@ -27241,11 +27342,11 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
   wrap.innerHTML=`
     <div class="projected-dwell-head">
       <div class="projected-dwell-title">PROJECTED NET DWELL BY OUTBOUND</div>
-      <div class="projected-dwell-sub">TARGET &lt; 24.0 HR Â· WT AVG NET DWELL BY FOOTAGE</div>
+      <div class="projected-dwell-sub">TARGET &lt; 24.0 HR - WT AVG NET DWELL BY FOOTAGE</div>
     </div>
     <div class="projected-dwell-sections">
       <section class="projected-dwell-section">
-        <div class="projected-dwell-section-title"><span>TODAY'S OUTBOUNDS</span><span>IHOSA 20:30 Â· MHOAS +1 03:00</span></div>
+        <div class="projected-dwell-section-title"><span>TODAY'S OUTBOUNDS</span><span>IHOSA 20:30 - MHOAS +1 03:00</span></div>
         <div class="projected-dwell-grid">${todayCards}</div>
       </section>
       <section class="projected-dwell-section">
@@ -54325,4 +54426,105 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   schedule();
 })();
 </script>
+
+<script id="post-outbound-track-row-gap-true-tail-js">
+(function(){
+  'use strict';
+  function set(el, prop, value){
+    if(el && el.style) el.style.setProperty(prop, value, 'important');
+  }
+  function apply(){
+    document.querySelectorAll('#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)').forEach(function(board){
+      set(board, 'border-collapse', 'collapse');
+      set(board, 'border-spacing', '0');
+      set(board.querySelector('tbody'), 'border-spacing', '0');
+      board.querySelectorAll('tbody tr').forEach(function(row){
+        set(row, 'height', '30px');
+        set(row, 'min-height', '30px');
+        set(row, 'max-height', '30px');
+        set(row, 'margin', '0');
+        set(row, 'border', '0');
+      });
+      board.querySelectorAll('tbody tr > td').forEach(function(cell){
+        set(cell, 'height', '30px');
+        set(cell, 'min-height', '30px');
+        set(cell, 'max-height', '30px');
+        set(cell, 'padding-top', '0');
+        set(cell, 'padding-bottom', '0');
+        set(cell, 'margin-top', '0');
+        set(cell, 'margin-bottom', '0');
+        set(cell, 'border-top', '0');
+        set(cell, 'border-bottom', '0');
+        set(cell, 'line-height', '30px');
+        set(cell, 'vertical-align', 'middle');
+      });
+      board.querySelectorAll('tbody tr > td.bowl-track').forEach(function(cell){
+        set(cell, 'display', 'table-cell');
+        set(cell, 'text-align', 'center');
+        set(cell, 'background', '#1f2937');
+      });
+      board.querySelectorAll('tbody tr.bowl-empty-track-row .bowl-segments-cell').forEach(function(cell){
+        set(cell, 'background', 'transparent');
+        set(cell, 'height', '30px');
+        set(cell, 'min-height', '30px');
+        set(cell, 'max-height', '30px');
+        set(cell, 'padding-top', '0');
+        set(cell, 'padding-bottom', '0');
+      });
+      board.querySelectorAll('tbody tr.bowl-empty-track-row .bowl-segments-wrap').forEach(function(wrap){
+        set(wrap, 'height', '30px');
+        set(wrap, 'min-height', '30px');
+        set(wrap, 'max-height', '30px');
+        set(wrap, 'padding', '0');
+      });
+      board.querySelectorAll('.bowl-track-add-btn').forEach(function(btn){
+        set(btn, 'display', 'inline-flex');
+        set(btn, 'opacity', '1');
+        set(btn, 'visibility', 'visible');
+        set(btn, 'pointer-events', 'auto');
+      });
+    });
+  }
+  function schedule(){
+    clearTimeout(window.__postOutboundTrackRowGapTrueTailTimer);
+    apply();
+    window.__postOutboundTrackRowGapTrueTailTimer = setTimeout(apply, 60);
+    setTimeout(apply, 250);
+    setTimeout(apply, 900);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundTrackRowGapTrueTailWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__postOutboundTrackRowGapTrueTailWrapped = true;
+    window[name] = wrapped;
+  }
+  ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound','normalizePostOutboundBlockDisplay','normalizePostOutboundSingleDisplayOwner'].forEach(wrap);
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after,.bowl-after-title,[data-bowl-options-main]')) schedule(); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-board-after')) schedule(); }, true);
+  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
+  schedule();
+})();
+</script>
+<style id="post-outbound-track-row-gap-absolute-tail-css">
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table){border-collapse:collapse!important;border-spacing:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr:not(.bowl-empty-track-row){height:30px!important;min-height:30px!important;max-height:30px!important;margin:0!important;border:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr > td,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row > td,
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr:not(.bowl-empty-track-row) > td{height:30px!important;min-height:30px!important;max-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;border-top:0!important;border-bottom:0!important;line-height:30px!important;vertical-align:middle!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr > td.bowl-track{display:table-cell!important;height:30px!important;min-height:30px!important;max-height:30px!important;background:#1f2937!important;text-align:center!important;vertical-align:middle!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-cell{height:30px!important;min-height:30px!important;max-height:30px!important;padding-top:0!important;padding-bottom:0!important;background:transparent!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-wrap{height:30px!important;min-height:30px!important;max-height:30px!important;padding:0!important;}
+html body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr.bowl-empty-track-row .bowl-segments-wrap:empty::after{content:none!important;display:none!important;height:0!important;}
+</style>
+
 
