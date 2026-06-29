@@ -10673,8 +10673,8 @@ body.bowl-hide-inbound-source .bowl-inbound-source-tag,
 (function(){
   'use strict';
 
-  var SUPABASE_URL = 'https://wjcicllxysvygkeqzqas.supabase.co';
-  var SUPABASE_KEY = 'sb_publishable_2BLd6GJxw5m6gnDL1Ok3nQ_Tf8Uef2-';
+  var SUPABASE_URL = 'https://epthcamzzwegsdggrjgh.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_f5HYn7EM12Z7V2psO_njmQ_w89WOtm1';
   var APP_STATE_TABLE = 'dwell_app_state';
 
   // The Supabase SQL we just set up seeds/uses `global`.
@@ -25673,75 +25673,59 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       }
     };
 
+    const readNextDayDepartingSegments=(trainName)=>{
+      const out=[];
+      let rows=[];
+      try{ rows=JSON.parse(localStorage.getItem('dwellNextDayOutlookRows_v1')||'[]'); }catch{ rows=[]; }
+      rows.forEach(row=>{
+        const sourceTrack=String(row&&row.track||'').replace(/^06-/,'');
+        const holder=document.createElement('div');
+        holder.innerHTML=String(row&&row.html||'');
+        holder.querySelectorAll('.bowl-block').forEach(block=>{
+          const depart=normalizeOutboundTrain(
+            block.dataset.outboundDeparture ||
+            block.dataset.afterDepart ||
+            block.dataset.afterStatus ||
+            ''
+          );
+          if(depart!==trainName) return;
+          const ftText=(block.querySelector('b')&&block.querySelector('b').textContent)||'';
+          const ft=num(ftText);
+          if(!ft) return;
+          const rawLabel=block.dataset.sourceBlockLabel || (block.querySelector('span')&&block.querySelector('span').textContent) || block.textContent || trainName;
+          const label=cleanPostOutboundLabel(String(rawLabel)
+            .replace(/^\s*[\d,]+\s*\|\s*/,'')
+            .replace(/\s+\d+(?:\.\d+)?\s*(?:NET|HR|H)\b/ig,'')
+            .replace(/\s*\[[^\]]+\]\s*/g,' ')
+            .trim());
+          const dwellEl=block.querySelector('.bowl-dwell');
+          const dwellVal=dwellEl ? parseFloat(String(dwellEl.textContent||'').replace(/[^\d.-]/g,'')) : null;
+          out.push({
+            ft,
+            label:label || trainName,
+            sourceTrack:block.dataset.displayTrack || sourceTrack,
+            departureTrain:trainName,
+            cls:block.classList.contains('future-inbound') ? 'future-inbound' : (block.classList.contains('manual-future') ? 'manual-future' : (trainName==='IHOSA'?'depart-ihosa':'depart-mhoas')),
+            dwellVal:Number.isFinite(dwellVal)?dwellVal:null,
+            dwell:dwellEl ? dwellEl.textContent : '',
+            dwellCls:dwellEl ? dwellEl.className.replace(/\bbowl-dwell\b/g,'').trim() : '',
+            manual:block.classList.contains('future-inbound') || block.classList.contains('manual-future'),
+            train:block.dataset.afterTrain || block.dataset.sourceTrain || '',
+            sampleCar:block.dataset.sampleCar || block.dataset.sampleEquipId || '',
+            shoveIndex:(block.querySelector('.future-shove-badge')&&block.querySelector('.future-shove-badge').textContent||'').replace(/[\[\]]/g,'')
+          });
+        });
+      });
+      return out;
+    };
+
     order.forEach(trainName=>{
       let currentFt=0;
       const segments=[];
 
-      // Current data rows that were assigned to depart on IHOSA/MHOAS and are
-      // displayed as departing blocks on the Post Outbound Consist board.
-      tracks.forEach(track=>{
-        for(let r=0;r<data.length;r++){
-          const row=data[r];
-          const tr=parseInt(row[CI.track],10);
-          if(tr!==track) continue;
-          const equip=clean(row[CI.equipId]);
-          const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
-          const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
-          const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
-          if(assignedDepart!==trainName) continue;
-          if(hidePreviousDepartingBlocks) continue;
-          const ln=num(row[CI.ln]);
-          if(!ln) continue;
-          const label=chooseLabel(row);
-          const nd=netAfterOutboundDwellHours(row);
-          currentFt+=ln;
-          const physicalGroup=getBowlGroupForRow(row);
-          const missingSsStart=isMissingSSStartRow(row,physicalGroup);
-          pushSegment(segments,{
-            ft:ln,
-            label,
-            sourceTrack:String(tr),
-            departureTrain:trainName,
-            missingSSStart:missingSsStart,
-            cls:missingSsStart?'missing-ss-start':(trainName==='IHOSA'?'depart-ihosa':'depart-mhoas'),
-            dwellVal:nd,
-            manual:false,
-            train:trainForDwell(row),
-            sampleCar:clean(row[CI.equipId]),
-            ssStartRaw:confirmedSSStartForRow(row,physicalGroup)
-          });
-        }
-      });
-
-      // Manual/future inbound blocks added to the Post Outbound Consist board.
-      tracks.forEach(track=>{
-        const manualBlocks=loadManualAfterBlocks().filter(b=>String(b.track)===String(track));
-        manualBlocks.forEach(b=>{
-          const isFutureInbound=String(b.kind||b.type||'').toLowerCase()==='futureinbound';
-          const futureBlock=isFutureInbound ? normalizeFutureInboundBlockSafe(b.futureBlock || b.block || '') : (normalizeOutboundTrain(b.futureBlock || b.block) || clean(b.block));
-          if(futureBlock!==trainName) return;
-          if(isFutureInbound && hideFutureInboundBlocks) return;
-          if(isFutureInbound && hideTomorrowDepartingBlocks) return;
-          if(!isFutureInbound && hidePreviousDepartingBlocks) return;
-          const ft=num(b.ft);
-          if(!ft) return;
-          const nd=isFutureInbound
-            ? ((futureBlock==='SS') ? afterSsDwellFromArrival(b.arrival) : computeFutureInboundDwellPreview(b.arrival, futureBlock))
-            : ((String(b.departureTrain||b.futureBlock||b.block||'').toUpperCase()==='SS') ? afterSsDwellFromArrival(b.arrival) : ((typeof computeManualFutureNetDwell==='function') ? computeManualFutureNetDwell(b) : normalizeManualNetDwell(b.netDwell)));
-          currentFt+=ft;
-          pushSegment(segments,{
-            ft,
-            label:`${clean(b.train)} ${futureBlock}`.trim() || futureBlock,
-            sourceTrack:clean(b.outTrack)||String(track),
-            departureTrain:trainName,
-            cls:isFutureInbound ? 'future-inbound' : 'manual-future',
-            dwellVal:nd,
-            manual:true,
-            train:clean(b.train),
-            sampleCar:clean(b.sampleCar||b.equipId||b.carId||''),
-            shoveIndex:b.shoveIndex||b.overflowIndex||''
-          });
-        });
+      readNextDayDepartingSegments(trainName).forEach(seg=>{
+        currentFt+=seg.ft;
+        pushSegment(segments,seg);
       });
 
       const cap=targetCaps[trainName]||2500;
