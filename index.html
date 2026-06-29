@@ -14910,6 +14910,15 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     }
 
     let trains = loadState().map((t, index, arr) => normalizeInboundTrain(t, index, arr.length));
+    window.trains = trains;
+    window.inboundSummaryState = window.inboundSummaryState || {};
+    window.inboundSummaryState.trains = trains;
+    try{
+      if(window.parent && window.parent !== window){
+        window.parent.inboundSummaryState = window.parent.inboundSummaryState || {};
+        window.parent.inboundSummaryState.trains = trains;
+      }
+    }catch(err){}
     if(autoPopulateZpbhoPlus2({createMissing:true}) || autoPopulateZg4mqPlus2()) saveState();
 
     function cloneSample(){
@@ -14936,6 +14945,15 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
     }
 
     function saveState(){
+      window.trains = trains;
+      window.inboundSummaryState = window.inboundSummaryState || {};
+      window.inboundSummaryState.trains = trains;
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.inboundSummaryState = window.parent.inboundSummaryState || {};
+          window.parent.inboundSummaryState.trains = trains;
+        }
+      }catch(err){}
       localStorage.setItem(STORAGE_KEY, JSON.stringify(trains));
     }
 
@@ -31994,6 +32012,35 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   function getAfterOutboundOccupiedByTrack(excludeGroupId){
     const occupied={801:0,802:0,803:0,804:0,805:0,806:0,807:0,808:0,809:0};
+    const renderedBoard=document.querySelector('#ob-view table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)') ||
+      document.querySelector('#ob-standalone-bowl table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)') ||
+      document.querySelector('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)');
+    if(renderedBoard && renderedBoard.querySelector('tbody tr')){
+      try{
+        renderedBoard.querySelectorAll('tbody tr').forEach(function(row){
+          const trackCell=row.querySelector('.bowl-track');
+          const currentCell=row.querySelector('.bowl-current');
+          const trackMatch=String(trackCell&&trackCell.textContent||'').match(/(\d{3})/);
+          if(!trackMatch) return;
+          const tr=parseInt(trackMatch[1],10);
+          if(!occupied.hasOwnProperty(tr)) return;
+          occupied[tr]=nManual(currentCell&&currentCell.textContent);
+        });
+        if(excludeGroupId){
+          renderedBoard.querySelectorAll('.bowl-block[data-future-inbound-group="'+String(excludeGroupId).replace(/"/g,'\\"')+'"]').forEach(function(block){
+            const row=block.closest('tr');
+            const trackCell=row&&row.querySelector('.bowl-track');
+            const trackMatch=String(trackCell&&trackCell.textContent||'').match(/(\d{3})/);
+            if(!trackMatch) return;
+            const tr=parseInt(trackMatch[1],10);
+            if(!occupied.hasOwnProperty(tr)) return;
+            const ft=nManual(block.querySelector('b')&&block.querySelector('b').textContent);
+            occupied[tr]=Math.max(0,occupied[tr]-ft);
+          });
+        }
+        return occupied;
+      }catch(e){ console.warn('Future inbound rendered post-outbound occupancy scan failed', e); }
+    }
     const refs=futureInboundSelectedCarRefs();
     try{
       for(let r=0;r<data.length;r++){
@@ -32279,17 +32326,53 @@ document.addEventListener('DOMContentLoaded',()=>{
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
   function loadFutureInboundRollupOptions(){
-    let arr=[];
-    try{ arr=JSON.parse(localStorage.getItem(FUTURE_INBOUND_ROLLUP_STORAGE_KEY)||'[]'); }catch(e){ arr=[]; }
+    let raw=null;
+    try{ raw=JSON.parse(localStorage.getItem(FUTURE_INBOUND_ROLLUP_STORAGE_KEY)||'[]'); }catch(e){ raw=[]; }
+    let arr=Array.isArray(raw) ? raw : (Array.isArray(raw&&raw.trains) ? raw.trains : (Array.isArray(raw&&raw.items) ? raw.items : (Array.isArray(raw&&raw.data) ? raw.data : [])));
+    if((!arr || !arr.length) && Array.isArray(window.trains)) arr=window.trains;
+    if((!arr || !arr.length) && window.inboundSummaryState && Array.isArray(window.inboundSummaryState.trains)) arr=window.inboundSummaryState.trains;
+    if(!arr || !arr.length){
+      try{
+        const frame=document.getElementById('inbound-page-frame');
+        const fw=frame && frame.contentWindow;
+        if(fw && Array.isArray(fw.trains)) arr=fw.trains;
+        else if(fw && fw.inboundSummaryState && Array.isArray(fw.inboundSummaryState.trains)) arr=fw.inboundSummaryState.trains;
+      }catch(e){}
+    }
+    if(!arr || !arr.length){
+      try{
+        const docs=[document];
+        const frame=document.getElementById('inbound-page-frame');
+        if(frame && frame.contentDocument) docs.push(frame.contentDocument);
+        arr=[];
+        docs.forEach(function(doc){
+          doc.querySelectorAll('.rollup-table tbody tr').forEach(function(tr){
+            const train=cleanManual((tr.querySelector('.rollup-train-symbol')||tr.querySelector('.inbound-cell')||{}).textContent);
+            const dateTime=cleanManual((tr.querySelector('.arrival-cell')||{}).textContent);
+            const ft=nManual((tr.querySelector('.ft-cell-rollup')||{}).textContent);
+            if(train || dateTime || ft) arr.push({train:train,dateTime:dateTime,totalFootage:ft});
+          });
+        });
+      }catch(e){}
+    }
     if(!Array.isArray(arr)) arr=[];
+    const readTrainName=function(t){ return cleanManual(t && (t.train || t.name || t.symbol || t.inbound || t.trainId)).toUpperCase(); };
+    const readDateTime=function(t){ return cleanManual(t && (t.dateTime || t.arrival || t.arrivalTime || t.datetime || t.date || t.eta)); };
+    const rowFeet=function(row){ return nManual(row && (row.ft || row.footage || row.length || row.feet || row.totalFt)); };
+    const totalFeet=function(t){
+      const rows=Array.isArray(t&&t.rows) ? t.rows : (Array.isArray(t&&t.blocks) ? t.blocks : (Array.isArray(t&&t.cars) ? t.cars : []));
+      const rowTotal=rows.reduce(function(sum,row){ return sum+rowFeet(row); },0);
+      return rowTotal || nManual(t && (t.totalFootage || t.totalFt || t.ft || t.footage || t.length));
+    };
     return arr.map(function(t,idx){
-      const total=(Array.isArray(t.rows)?t.rows:[]).reduce(function(sum,row){ return sum+nManual(row && row.ft); },0);
-      const parsed=parseFutureRollupDate(t && t.dateTime);
+      const total=totalFeet(t);
+      const dateTime=readDateTime(t);
+      const parsed=parseFutureRollupDate(dateTime);
       return {
         idx:idx,
-        train:cleanManual(t && t.train).toUpperCase(),
-        dateTime:cleanManual(t && t.dateTime),
-        arrivalLocal:futureRollupDateToLocalValue(t && t.dateTime),
+        train:readTrainName(t),
+        dateTime:dateTime,
+        arrivalLocal:futureRollupDateToLocalValue(dateTime),
         totalFootage:total,
         sort:parsed ? parsed.getTime() : Number.MAX_SAFE_INTEGER
       };
@@ -32634,6 +32717,11 @@ document.addEventListener('DOMContentLoaded',()=>{
         shove++;
       }
     }
+    if(!newBlocks.length){
+      toastManual('No selected Post Outbound tracks have room for this inbound');
+      updateFutureInboundPreview(modal);
+      return;
+    }
     if(remaining>0){
       toastManual((editingId?'Future inbound updated, but ':'Future inbound added, but ')+Math.round(remaining).toLocaleString()+' ft did not fit in selected tracks');
     }else{
@@ -32642,6 +32730,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     const blocks=window.loadManualAfterBlocks();
     const keep=editingId ? blocks.filter(b=>!oldGroupIds.has(String(b.id))) : blocks;
     window.saveManualAfterBlocks(keep.concat(newBlocks));
+    try{
+      localStorage.setItem('dwellHideFutureInboundBlocks_v4','0');
+      localStorage.setItem('dwellHideTomorrowIhosaMhoas','0');
+      localStorage.removeItem('dwellHideAfterDepartingBlocks');
+      if(typeof window.forceShowFutureInboundBlocks==='function') window.forceShowFutureInboundBlocks();
+    }catch(e){}
     closeFutureInboundModal();
     try{ if(typeof renderOB==='function') renderOB(); }catch(e){ console.error('renderOB after future inbound save failed', e); }
   }
