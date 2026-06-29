@@ -51338,6 +51338,14 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     return cls||'normal';
   }
 
+  function stableBlockKey(block){
+    var ds = block && block.dataset || {};
+    var sample = cl(ds.sampleCar||ds.sampleEquipId||ds.equipId||'').toUpperCase();
+    var tr = block && block.closest ? block.closest('tr') : null;
+    var track = tr ? cl(tr.querySelector('.bowl-track') ? tr.querySelector('.bowl-track').textContent : '').replace(/[^0-9]/g,'') : '';
+    return track && sample ? track+'||'+sample : '';
+  }
+
   /* -- extract block info -- */
   function blockInfo(block){
     var ds = block.dataset||{};
@@ -51353,8 +51361,21 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     var train   = cl(ds.currentTrain||ds.sourceTrain||ds.afterTrain||'');
     var sampleCar = cl(ds.sampleCar||ds.sampleEquipId||ds.equipId||'');
     var editKey = cl(ds.currentEditKey||'');
-    // try stored edit for richer data
-    var stored = editKey ? (load()[editKey]||{}) : {};
+    // Try every stable key Resolve SS may have saved under.
+    var store = load();
+    var keys = [];
+    if(editKey) keys.push(editKey);
+    var stableKey = stableBlockKey(block);
+    if(stableKey) keys.push(stableKey);
+    var stored = {};
+    keys.some(function(k){
+      if(k && store[k]){
+        stored = store[k];
+        if(!editKey) editKey = k;
+        return true;
+      }
+      return false;
+    });
     if(!ssStart && stored.ssStart)  ssStart  = cl(stored.ssStart);
     if(!ssEnd   && stored.ssEnd)    ssEnd    = cl(stored.ssEnd);
     if(!arrival && stored.arrival)  arrival  = cl(stored.arrival);
@@ -52078,6 +52099,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     return blocks;
   }
 
+  function stableEditKey(block, sample, fallbackTrack){
+    var tr = block && block.closest ? block.closest('tr') : null;
+    var track = clean(fallbackTrack || trackFromRow(tr));
+    sample = clean(sample || (block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || block.dataset.equipId || block.dataset.equipmentId || block.dataset.carId)) || '').toUpperCase();
+    return track && sample ? track+'||'+sample : '';
+  }
   function getBlockInfo(block){
     var ds = block.dataset||{};
     var bTag = block.querySelector('b');
@@ -53872,6 +53899,11 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     border-color:#f87171!important;
     box-shadow:0 0 0 3px rgba(239,68,68,.18)!important;
   }
+  #resolve-ss-modal #rss-save.rss-save-needs-start{
+    opacity:.45!important;
+    cursor:pointer!important;
+    filter:saturate(.45)!important;
+  }
 </style>
 <script id="resolve-ss-final-authority-js">
 (function(){
@@ -53905,7 +53937,30 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     }
     return changed;
   }
-  function toastMsg(msg){ try{ if(typeof window.toast === 'function') window.toast(msg); else console.log(msg); }catch(e){ console.log(msg); } }
+  function toastMsg(msg){
+    try{
+      if(typeof window.toast === 'function'){
+        window.toast(msg);
+        setTimeout(function(){
+          var t = document.getElementById('_toast');
+          if(t) t.style.zIndex = '100040';
+        }, 0);
+        return;
+      }
+      var box = document.getElementById('resolve-ss-toast');
+      if(!box){
+        box = document.createElement('div');
+        box.id = 'resolve-ss-toast';
+        box.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:999999;background:#052e16;color:#dcfce7;border:1px solid #22c55e;border-radius:10px;padding:10px 14px;font-family:var(--mono,monospace);font-size:12px;font-weight:900;letter-spacing:.6px;box-shadow:0 14px 34px rgba(0,0,0,.35);opacity:0;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;pointer-events:none;';
+        document.body.appendChild(box);
+      }
+      box.textContent = msg;
+      box.style.opacity = '1';
+      box.style.transform = 'translateY(0)';
+      clearTimeout(box._rssTimer);
+      box._rssTimer = setTimeout(function(){ box.style.opacity = '0'; box.style.transform = 'translateY(8px)'; }, 1800);
+    }catch(e){ try{ console.log(msg); }catch(err){} }
+  }
 
   function parseCompact(raw){
     var s = rawClean(raw).replace(/\D/g,'');
@@ -53920,7 +53975,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   function parseAnyDate(raw){
     var s = rawClean(raw);
     if(!s) return null;
-    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})0*T(\d{1,2}):(\d{2})/);
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s+)(\d{1,2}):(\d{2})/);
     if(m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
     m = s.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s+(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/i);
     if(m){
@@ -53966,6 +54021,13 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);
   }
   function blockKey(block){ return [trackFromRow(block && block.closest ? block.closest('tr') : null), normalizeKeyText(block ? block.textContent : '')].join('||'); }
+  function stableEditKey(block, sample, fallbackTrack){
+    var tr = block && block.closest ? block.closest('tr') : null;
+    var ds = block && block.dataset ? block.dataset : {};
+    var track = clean(fallbackTrack || trackFromRow(tr));
+    var car = clean(sample || ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase();
+    return track && car ? track+'||'+car : '';
+  }
   function hasCuRamp(v){ return /(^|[^A-Z0-9])(CU|RAMP)([^A-Z0-9]|$)/.test(clean(v).toUpperCase()); }
   function hasSsToken(v){ return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(v).toUpperCase()) || clean(v).toUpperCase() === 'SS' || clean(v).toUpperCase().indexOf('_SS') >= 0; }
   function looksLikeHoldCodeNotTrain(v){
@@ -54030,7 +54092,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   }
   function getBlockInfo(block){
     var ds = block.dataset || {};
-    var key = clean(ds.currentEditKey || blockKey(block));
+    var key = clean(ds.currentEditKey || stableEditKey(block) || blockKey(block));
     if(key) block.dataset.currentEditKey = key;
     var existing = existingEditFor(block, key);
     var bTag = block.querySelector('b');
@@ -54077,6 +54139,20 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     else style += 'background:#450a0a;border:1px solid #ef4444;color:#fecaca;';
     return '<span style="'+style+'">'+Math.round(h)+'H NET</span>';
   }
+  function applySavedBlockVisual(block, hours){
+    if(!block || !Number.isFinite(hours)) return;
+    var cls = dwellClassFromHours(hours);
+    var text = Math.round(hours)+'H NET';
+    var badge = block.querySelector('.bowl-dwell');
+    if(!badge){
+      badge = document.createElement('span');
+      var btn = block.querySelector('button');
+      if(btn) btn.before(badge);
+      else (block.querySelector('span') || block).appendChild(badge);
+    }
+    badge.className = 'bowl-dwell '+cls;
+    badge.textContent = text;
+  }
 
   function ensureModal(){
     var m = document.getElementById('resolve-ss-modal');
@@ -54106,14 +54182,41 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       ['rss-ss-start','rss-ss-end'].forEach(function(id){
         var input = document.getElementById(id);
         if(!input) return;
-        input.addEventListener('input', function(){ input.classList.remove('rss-required-missing'); updateNet(); }, true);
-        input.addEventListener('change', function(){ input.classList.remove('rss-required-missing'); updateNet(); }, true);
-        input.addEventListener('blur', function(){ var iso = toIso(input.value); if(iso) input.value = fmtDisplay(iso); updateNet(); }, true);
+        input.addEventListener('input', function(){ input.classList.remove('rss-required-missing'); updateNet(); syncSaveState(); }, true);
+        input.addEventListener('change', function(){ input.classList.remove('rss-required-missing'); updateNet(); syncSaveState(); }, true);
+        input.addEventListener('blur', function(){ var iso = toIso(input.value); if(iso) input.value = fmtDisplay(iso); updateNet(); syncSaveState(); }, true);
+      });
+      [
+        ['rss-save', function(e){ saveAndAdvanceCurrent(); }],
+        ['rss-next', function(e){ skipCurrent(); }],
+        ['rss-cancel', function(e){ closeModal(); }],
+        ['rss-close', function(e){ closeModal(); }],
+        ['rss-copy-btn', function(e){ copySample(); }]
+      ].forEach(function(pair){
+        var btn = document.getElementById(pair[0]);
+        if(!btn) return;
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+          pair[1](e);
+          return false;
+        }, true);
       });
     }
     return m;
   }
   function currentInfo(){ return queue[idx] || null; }
+  function syncSaveState(){
+    var save = document.getElementById('rss-save');
+    var start = document.getElementById('rss-ss-start');
+    if(!save || !start) return;
+    var valid = !!toIso(start.value);
+    save.disabled = false;
+    save.classList.toggle('rss-save-needs-start', !valid);
+    save.setAttribute('aria-disabled', valid ? 'false' : 'true');
+    save.title = valid ? 'Save SS start/end changes' : 'Enter SS START first';
+  }
   function updateProgress(){
     var bar = document.getElementById('rss-progress-bar');
     if(bar) bar.style.width = queue.length ? Math.round(((idx+1)/queue.length)*100)+'%' : '0%';
@@ -54171,6 +54274,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(next) next.style.display = (idx < queue.length-1) ? '' : 'none';
     updateProgress();
     updateNet();
+    syncSaveState();
     setTimeout(function(){ var el = document.getElementById('rss-ss-start'); if(el) el.focus(); }, 60);
   }
   function saveCurrentEntry(){
@@ -54182,6 +54286,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(!ssStart){
       if(startInput){ startInput.classList.add('rss-required-missing'); startInput.focus(); }
       toastMsg('Enter SS start, or use SKIP to leave this block unchanged');
+      syncSaveState();
       return false;
     }
     var ssEnd = toIso(rawClean((document.getElementById('rss-ss-end')||{}).value));
@@ -54207,11 +54312,13 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       updatedAt: new Date().toISOString()
     };
     edits[info.key] = full;
+    var stableKey = stableEditKey(info.block || null, sampleCar || full.sampleCar || info.sampleCar, info.track);
+    if(stableKey) edits[stableKey] = full;
     saveEdits(edits);
 
     var block = info.block;
     if(block){
-      block.dataset.currentEditKey = info.key;
+      block.dataset.currentEditKey = stableKey || info.key;
       block.dataset.currentSsStart = ssStart;
       block.dataset.currentSsEnd = ssEnd;
       block.dataset.currentArrival = full.arrival;
@@ -54223,17 +54330,27 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       block.classList.remove('missing-ss-start','current-ss-start-missing');
       delete block.dataset.missingSsStart;
       block.dataset.missingSsStartAuthority = '0';
+      applySavedBlockVisual(block, arrToSS);
     }
 
     try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
     try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
     try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
     scheduleButtonSync();
+    toastMsg('Saved SS times for 06-'+(info.track || '')+' - moving to next');
     return true;
   }
   function advance(){
     if(idx < queue.length-1){ idx++; loadEntry(); }
     else { closeModal(); try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){} toastMsg('Resolve SS complete'); }
+  }
+  function saveAndAdvanceCurrent(){
+    try{
+      if(saveCurrentEntry()) advance();
+    }catch(err){
+      try{ console.error('Resolve SS save failed', err); }catch(e){}
+      toastMsg('Save failed - '+(err && err.message ? err.message : 'check console'));
+    }
   }
   function openResolveModal(){
     var blocks = getResolveBlocks();
@@ -54278,8 +54395,23 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var count = getResolveBlocks().length;
     btn.textContent = count ? 'RESOLVE SS ('+count+')' : 'RESOLVE SS';
     btn.dataset.count = String(count);
-    btn.disabled = count === 0;
-    btn.style.pointerEvents = count === 0 ? 'none' : 'auto';
+    btn.disabled = false;
+    btn.style.pointerEvents = 'auto';
+    btn.onclick = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openResolveModal();
+      return false;
+    };
+    btn.onpointerdown = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openResolveModal();
+      return false;
+    };
+    btn.onmousedown = btn.onpointerdown;
   }
   var syncTimer = null;
   function scheduleButtonSync(){
@@ -54311,15 +54443,15 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
 
   document.addEventListener('click', function(e){
     if(!e.target || !e.target.closest) return;
-    if(e.target.closest('#rss-save')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); if(saveCurrentEntry()) advance(); return; }
+    if(e.target.closest('#rss-save')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); saveAndAdvanceCurrent(); return; }
     if(e.target.closest('#rss-next')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); skipCurrent(); return; }
     if(e.target.closest('#rss-cancel,#rss-close')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); closeModal(); return; }
     if(e.target.closest('#rss-copy-btn')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); copySample(); return; }
-    if(e.target.id === 'resolve-ss-modal') closeModal();
+    if(e.target.id === 'resolve-ss-modal'){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); return; }
   }, true);
   document.addEventListener('input', function(e){ if(e.target && (e.target.id === 'rss-ss-start' || e.target.id === 'rss-ss-end')) updateNet(); }, true);
   document.addEventListener('change', function(e){ if(e.target && (e.target.id === 'rss-ss-start' || e.target.id === 'rss-ss-end')) updateNet(); }, true);
-  document.addEventListener('keydown', function(e){ var m = document.getElementById('resolve-ss-modal'); if(e.key === 'Escape' && m && m.classList.contains('open')) closeModal(); }, true);
+  document.addEventListener('keydown', function(e){ var m = document.getElementById('resolve-ss-modal'); if(e.key === 'Escape' && m && m.classList.contains('open')){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); } }, true);
   document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell,[data-current-purple-ss-head-toggle],[data-bowl-missing-ss-flair-toggle]')) scheduleButtonSync(); }, true);
   document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell')) scheduleButtonSync(); }, true);
   document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-page-shell')) scheduleButtonSync(); }, true);
@@ -54784,3 +54916,192 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
 </script>
 
 
+
+<script id="resolve-ss-stable-edit-restore-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsStableEditRestoreFinalInstalled) return;
+  window.__resolveSsStableEditRestoreFinalInstalled = true;
+  var STORE = 'dwellCurrentBoardBlockEditsV2';
+  function clean(v){return String(v == null ? '' : v).replace(/\s+/g,' ').trim();}
+  function num(v){var n=parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,''));return Number.isFinite(n)?n:0;}
+  function fmt(v){return Math.round(num(v)).toLocaleString();}
+  function esc(s){return clean(s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});}
+  function load(){try{return JSON.parse(localStorage.getItem(STORE)||'{}')||{};}catch(e){return {};}}
+  function save(o){try{localStorage.setItem(STORE,JSON.stringify(o||{}));}catch(e){}}
+  function trackFromBlock(block){var tr=block&&block.closest&&block.closest('tr');var cell=tr&&tr.querySelector('.bowl-track');return clean(cell?cell.textContent:'').replace(/[^0-9]/g,'');}
+  function sampleFromBlock(block){var ds=block&&block.dataset||{};return clean(ds.sampleCar||ds.sampleEquipId||ds.equipId||ds.equipmentId||ds.carId||'').toUpperCase();}
+  function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);}
+  function visualKey(block){return trackFromBlock(block)+'||'+normalizeText(block&&block.textContent||'');}
+  function stableKey(block){var track=trackFromBlock(block), sample=sampleFromBlock(block);return track&&sample ? track+'||'+sample : '';}
+  function keysFor(block){var ds=block&&block.dataset||{}, out=[];[ds.currentEditKey, stableKey(block), visualKey(block)].forEach(function(k){k=clean(k);if(k&&out.indexOf(k)<0)out.push(k);});return out;}
+  function findEdit(block, edits){var found=null, foundKey='';keysFor(block).some(function(k){if(edits[k]){found=edits[k];foundKey=k;return true;}return false;});return {edit:found,key:foundKey};}
+  function dwellClass(txt){var h=parseFloat(clean(txt));if(!Number.isFinite(h))return '';return h<7?'dw-green':(h<11?'dw-gold':'dw-red');}
+  function labelFor(block, edit){var label=clean(edit.sourceBlockLabel||edit.label);if(label)return label;var ds=block.dataset||{};return clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||block.textContent).replace(/^\s*[\d,]+\s*\|\s*/,'');}
+  function applyEdit(block, edit, key){
+    if(!block||!edit) return;
+    var stable=stableKey(block)||key;
+    if(stable) block.dataset.currentEditKey=stable;
+    block.dataset.currentSsStart=clean(edit.ssStart||edit.ssStartTime||'');
+    block.dataset.currentSsEnd=clean(edit.ssEnd||'');
+    block.dataset.ssStart=block.dataset.currentSsStart;
+    block.dataset.ssEnd=block.dataset.currentSsEnd;
+    if(edit.arrival) block.dataset.currentArrival=clean(edit.arrival);
+    if(edit.train){block.dataset.currentTrain=clean(edit.train).toUpperCase();block.dataset.sourceTrain=clean(edit.train).toUpperCase();}
+    if(edit.blockType) block.dataset.currentBlockType=clean(edit.blockType).toUpperCase();
+    if(edit.sourceBlockLabel||edit.label) block.dataset.sourceBlockLabel=clean(edit.sourceBlockLabel||edit.label);
+    if(edit.sampleCar) block.dataset.sampleCar=clean(edit.sampleCar).toUpperCase();
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete block.dataset.missingSsStart;
+    block.dataset.missingSsStartAuthority='0';
+    var dwell=clean(edit.dwell), label=labelFor(block,edit), ft=fmt(edit.ft || (block.querySelector('b')&&block.querySelector('b').textContent));
+    if(dwell){
+      var span=block.querySelector('span')||block;
+      var editBtn=block.querySelector('.current-block-edit-btn');
+      if(!editBtn){editBtn=document.createElement('button');editBtn.className='current-block-edit-btn';editBtn.type='button';editBtn.title='Edit first table block';editBtn.textContent='EDIT';}
+      span.innerHTML='<b>'+esc(ft)+'</b><span class="bowl-block-pipe-dim">|</span>'+esc(label)+' <span class="bowl-dwell '+dwellClass(dwell)+'">'+esc(dwell.toUpperCase().indexOf('NET')>=0?dwell:(dwell+' NET'))+'</span>';
+      span.appendChild(editBtn);
+      if(span!==block && !span.parentNode) block.appendChild(span);
+    }
+  }
+  function apply(){
+    var edits=load(), changed=false;
+    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(block.querySelector('.manual-tag')) return;
+      var found=findEdit(block,edits);
+      if(!found.edit) return;
+      var stable=stableKey(block);
+      if(stable && !edits[stable]){edits[stable]=found.edit;changed=true;}
+      applyEdit(block,found.edit,stable||found.key);
+    });
+    if(changed) save(edits);
+    try{
+      window.__resolveSsStableEditRestoreApplying = true;
+      if(typeof window.syncCurrentEditsToPostOutbound==='function') window.syncCurrentEditsToPostOutbound();
+    }catch(e){}finally{
+      window.__resolveSsStableEditRestoreApplying = false;
+    }
+  }
+  function schedule(){clearTimeout(window.__resolveSsStableEditRestoreTimer);window.__resolveSsStableEditRestoreTimer=setTimeout(apply,60);setTimeout(apply,220);}
+  function wrap(name){var fn=window[name];if(typeof fn!=='function'||fn.__resolveSsStableEditRestoreWrapped)return;var wrapped=function(){var r=fn.apply(this,arguments);if(!window.__resolveSsStableEditRestoreApplying)schedule();return r;};wrapped.__resolveSsStableEditRestoreWrapped=true;window[name]=wrapped;}
+  ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound'].forEach(wrap);
+  document.addEventListener('DOMContentLoaded',schedule,{once:true});
+  window.addEventListener('load',schedule,{once:true});
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#rss-save,#rss-next,#tab-outbound'))schedule();},true);
+  schedule();
+})();
+</script>
+
+<script id="resolve-ss-first-click-open-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsFirstClickOpenFinalInstalled) return;
+  window.__resolveSsFirstClickOpenFinalInstalled = true;
+  var lastOpenAt = 0;
+  function modalOpen(){var m=document.getElementById('resolve-ss-modal');return !!(m && m.classList.contains('open'));}
+  function openNow(){
+    var now = Date.now();
+    if(now - lastOpenAt < 350) return;
+    lastOpenAt = now;
+    try{
+      if(typeof window.openResolveSsQueue === 'function') window.openResolveSsQueue();
+      else if(typeof window.syncResolveSsButtonFinalAuthority === 'function') window.syncResolveSsButtonFinalAuthority();
+    }catch(e){console.error('Resolve SS open failed', e);}
+  }
+  function handler(e){
+    var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-resolve-ss-btn]');
+    if(!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if(!modalOpen()) openNow();
+  }
+  document.addEventListener('pointerdown', handler, true);
+  document.addEventListener('click', handler, true);
+})();
+</script>
+
+<script id="resolve-ss-direct-button-owner-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsDirectButtonOwnerFinalInstalled) return;
+  window.__resolveSsDirectButtonOwnerFinalInstalled = true;
+  function stop(e){
+    if(!e) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+  }
+  function openResolve(e){
+    stop(e);
+    try{
+      if(typeof window.openResolveSsQueue === 'function') window.openResolveSsQueue();
+      else if(typeof window.syncResolveSsButtonFinalAuthority === 'function') window.syncResolveSsButtonFinalAuthority();
+    }catch(err){ console.error('Resolve SS direct open failed', err); }
+    return false;
+  }
+  function bind(){
+    document.querySelectorAll('#tab-outbound [data-resolve-ss-btn]').forEach(function(btn){
+      btn.disabled = false;
+      btn.style.pointerEvents = 'auto';
+      btn.onclick = openResolve;
+      btn.onpointerdown = openResolve;
+      btn.onmousedown = openResolve;
+      btn.ontouchstart = openResolve;
+      btn.dataset.resolveSsDirectBound = '1';
+    });
+  }
+  [0,50,150,350,800,1600].forEach(function(ms){setTimeout(bind,ms);});
+  document.addEventListener('DOMContentLoaded', bind, {once:true});
+  window.addEventListener('load', bind, {once:true});
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound .bowl-ramp-head')) setTimeout(bind,0); }, true);
+  document.addEventListener('input', bind, true);
+  document.addEventListener('change', bind, true);
+})();
+</script>
+<style id="resolve-ss-first-click-pointer-final-css">
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn],
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn][data-count="0"]{
+  pointer-events:auto!important;
+  cursor:pointer!important;
+}
+#tab-outbound .bowl-ramp-head > [data-resolve-ss-btn][data-count="0"]{
+  opacity:.72!important;
+}
+</style>
+<script id="resolve-ss-open-retry-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsOpenRetryFinalInstalled) return;
+  window.__resolveSsOpenRetryFinalInstalled = true;
+  function modalOpen(){
+    var m = document.getElementById('resolve-ss-modal');
+    return !!(m && m.classList.contains('open'));
+  }
+  function prep(){
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.applyCurrentRampMissingSSStartWarning === 'function') window.applyCurrentRampMissingSSStartWarning(); }catch(e){}
+    try{ if(typeof window.syncResolveSsButtonFinalAuthority === 'function') window.syncResolveSsButtonFinalAuthority(); }catch(e){}
+  }
+  function install(){
+    var oldOpen = window.openResolveSsQueue;
+    if(typeof oldOpen !== 'function' || oldOpen.__resolveSsOpenRetryWrapped) return;
+    var wrapped = function(){
+      prep();
+      oldOpen.apply(this, arguments);
+      [80,220,520].forEach(function(ms){
+        setTimeout(function(){
+          if(modalOpen()) return;
+          prep();
+          oldOpen.apply(window, arguments);
+        }, ms);
+      });
+    };
+    wrapped.__resolveSsOpenRetryWrapped = true;
+    window.openResolveSsQueue = wrapped;
+  }
+  install();
+  [0,100,300,800,1600].forEach(function(ms){ setTimeout(install, ms); });
+  window.addEventListener('load', install, {once:true});
+})();
+</script>
