@@ -931,7 +931,7 @@
   function syncButtonText(){
     var showing = read();
     document.querySelectorAll('#tab-outbound [data-current-display-track-head-toggle]').forEach(function(btn){
-      var text = showing ? 'HIDE DISPLAY TRACK' : 'SHOW DISPLAY TRACK';
+      var text = showing ? 'HIDE DISPLAY TRACK' : 'DISPLAY TRACK';
       if(btn.textContent !== text) btn.textContent = text;
       btn.setAttribute('aria-pressed', showing ? 'true' : 'false');
       btn.classList.toggle('is-showing', showing);
@@ -1075,7 +1075,7 @@
   function syncText(){
     var hidden = read();
     document.querySelectorAll('#tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'SHOW DWELL' : 'HIDE DWELL';
+      btn.textContent = hidden ? 'DWELL' : 'HIDE DWELL';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       btn.classList.toggle('is-hiding', hidden);
     });
@@ -1259,7 +1259,7 @@
     if(document.body) document.body.classList.toggle('dwell-hide-current-missing-ss-flair', hidden);
 
     document.querySelectorAll('#tab-outbound [data-current-purple-ss-head-toggle], #tab-outbound [data-bowl-missing-ss-flair-toggle]').forEach(function(btn){
-      var nextText = hidden ? 'SHOW PURPLE SS' : 'HIDE PURPLE SS';
+      var nextText = hidden ? 'PURPLE SS' : 'HIDE PURPLE SS';
       if(btn.textContent !== nextText) btn.textContent = nextText;
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       btn.classList.toggle('is-hiding', hidden);
@@ -5545,7 +5545,7 @@ td.bowl-current,
 }
 
 
-/* After Outbound Consists board: force the entire header row, including Î”, to stay dark blue. */
+/* After Outbound Consists board: force the entire header row, including ÃŽâ€, to stay dark blue. */
 .bowl-board.bowl-board-after thead th,
 .bowl-board.bowl-board-after thead th:last-child{
   background:linear-gradient(180deg,#1e3a8a 0%, #0f172a 100%) !important;
@@ -8026,7 +8026,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   function applyState(){
     var hidden = read();
     document.querySelectorAll('[data-current-dwell-head-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'SHOW DWELL' : 'HIDE DWELL';
+      btn.textContent = hidden ? 'DWELL' : 'HIDE DWELL';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
     });
   }
@@ -23243,7 +23243,7 @@ document.addEventListener('click',e=>{
 <!-- MINI CONFIRM -->
 <div id="mini-confirm">
   <div id="mini-box">
-    <div class="mc-icon">WARNï¸</div>
+    <div class="mc-icon">WARNÃ¯Â¸Â</div>
     <div class="mc-msg" id="mc-msg">Are you sure?</div>
     <div class="mc-btns">
       <button id="mc-cancel">Cancel</button>
@@ -24854,12 +24854,12 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       '<th colspan="12" class="bowl-ramp-head" style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;text-align:center;">'+
         '<span>CURRENT RAMP BLOCKING</span>'+
         '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>'+
-        '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button>'+
-        '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'SHOW DISPLAY TRACK')+'</button>'+
-        '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'SHOW PURPLE SS':'HIDE PURPLE SS')+'</button>'+
+        '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button>'+
+        '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button>'+
+        '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button>'+
         '<button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>'+
       '</th>'+
-      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">Î”</th>'+
+      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">ÃŽâ€</th>'+
     '</tr>';
   table.appendChild(thead);
 
@@ -25284,7 +25284,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         '<th style="'+headBg+'">'+currentLabel+'</th>'+ 
         '<th colspan="12" class="bowl-ramp-head" style="'+headBg+'text-align:center;">'+ 
           '<span>'+title+'</span>'+
-          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'SHOW DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'SHOW DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'SHOW PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
+          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
           ''+
         '</th>'+ 
         '<th style="'+headBg+'font-weight:800;text-align:center;">SUM</th>'+ 
@@ -25981,7 +25981,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(btn){
     btn.addEventListener('click',()=>{
       shell.classList.toggle('bowl-hide-dwell');
-      btn.textContent=shell.classList.contains('bowl-hide-dwell') ? 'SHOW DWELL' : 'HIDE DWELL';
+      btn.textContent=shell.classList.contains('bowl-hide-dwell') ? 'DWELL' : 'HIDE DWELL';
     });
   }
 }
@@ -54518,15 +54518,15 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var resolve = makeButton('[data-resolve-ss-btn]', 'resolve-ss-final-btn', 'resolveSsBtn');
 
     if(dwell){
-      dwell.textContent = dwellHidden ? 'SHOW DWELL' : 'HIDE DWELL';
+      dwell.textContent = dwellHidden ? 'DWELL' : 'HIDE DWELL';
       dwell.setAttribute('aria-pressed', dwellHidden ? 'true' : 'false');
     }
     if(display){
-      display.textContent = displayShown ? 'HIDE DISPLAY TRACK' : 'SHOW DISPLAY TRACK';
+      display.textContent = displayShown ? 'HIDE DISPLAY TRACK' : 'DISPLAY TRACK';
       display.setAttribute('aria-pressed', displayShown ? 'true' : 'false');
     }
     if(purple){
-      purple.textContent = purpleHidden ? 'SHOW PURPLE SS' : 'HIDE PURPLE SS';
+      purple.textContent = purpleHidden ? 'PURPLE SS' : 'HIDE PURPLE SS';
       purple.setAttribute('aria-pressed', purpleHidden ? 'true' : 'false');
     }
     if(resolve && !resolve.textContent.trim()){
@@ -55199,3 +55199,33 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     padding-right:9px!important;
   }
 </style>
+
+<script id="outbound-current-header-remove-show-labels-final-js">
+(function(){
+  'use strict';
+  function cleanLabels(){
+    [
+      ['#tab-outbound [data-current-dwell-head-toggle]', 'SHOW DWELL', 'DWELL'],
+      ['#tab-outbound [data-current-display-track-head-toggle]', 'SHOW DISPLAY TRACK', 'DISPLAY TRACK'],
+      ['#tab-outbound [data-current-purple-ss-head-toggle]', 'SHOW PURPLE SS', 'PURPLE SS']
+    ].forEach(function(pair){
+      document.querySelectorAll(pair[0]).forEach(function(btn){
+        if((btn.textContent || '').trim() === pair[1]) btn.textContent = pair[2];
+      });
+    });
+  }
+  function schedule(){
+    if(schedule._pending) return;
+    schedule._pending = true;
+    setTimeout(function(){ schedule._pending = false; cleanLabels(); }, 40);
+  }
+  try{
+    new MutationObserver(schedule).observe(document.documentElement, {subtree:true, childList:true, characterData:true});
+  }catch(e){}
+  document.addEventListener('click', schedule, true);
+  document.addEventListener('DOMContentLoaded', schedule);
+  window.addEventListener('load', schedule, {once:true});
+  cleanLabels();
+})();
+</script>
+
