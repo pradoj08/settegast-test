@@ -24853,7 +24853,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;">CURRENT</th>'+
       '<th colspan="12" class="bowl-ramp-head" style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;text-align:center;">'+
         '<span>CURRENT RAMP BLOCKING</span>'+
-        '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>'+
+        '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>'+
         '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button>'+
         '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button>'+
         '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button>'+
@@ -25284,7 +25284,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         '<th style="'+headBg+'">'+currentLabel+'</th>'+ 
         '<th colspan="12" class="bowl-ramp-head" style="'+headBg+'text-align:center;">'+ 
           '<span>'+title+'</span>'+
-          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
+          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
           ''+
         '</th>'+ 
         '<th style="'+headBg+'font-weight:800;text-align:center;">SUM</th>'+ 
@@ -54496,7 +54496,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     menu = document.createElement('div');
     menu.className = 'bowl-control-dropdown bowl-current-options-menu';
     menu.dataset.bowlOptionsMenu = '1';
-    menu.innerHTML = '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">SHOW ONLY IHOSA/MHOAS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">SHOW OUTBOUND TRACKS</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">SHOW INBOUND</button></div>';
+    menu.innerHTML = '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">SHOW ONLY IHOSA/MHOAS</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">SHOW OUTBOUND TRACKS</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">SHOW INBOUND</button></div>';
     var title = head.querySelector(':scope > span');
     if(title) title.insertAdjacentElement('afterend', menu);
     else head.appendChild(menu);
@@ -55226,6 +55226,72 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   document.addEventListener('DOMContentLoaded', schedule);
   window.addEventListener('load', schedule, {once:true});
   cleanLabels();
+})();
+</script>
+
+
+<style id="outbound-hide-ihosa-mhoas-borders-final-css">
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block.ihosa,
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block.mhoas,
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block.depart-ihosa,
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block.depart-mhoas,
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block:has(.after-depart-badge.ihosa),
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-board .bowl-segments-cell .bowl-block:has(.after-depart-badge.mhoas){
+    border-color:var(--obfmt-normal-border,#64748b)!important;
+    box-shadow:none!important;
+  }
+  html body #tab-outbound .bowl-current-options-menu [data-hide-ihosa-mhoas-borders-toggle]{
+    border-color:rgba(96,165,250,.35)!important;
+    color:#bfdbfe!important;
+  }
+  html body #tab-outbound.ob-hide-ihosa-mhoas-borders .bowl-current-options-menu [data-hide-ihosa-mhoas-borders-toggle]{
+    border-color:rgba(245,158,11,.70)!important;
+    color:#fde68a!important;
+    background:rgba(120,53,15,.34)!important;
+  }
+</style>
+<script id="outbound-hide-ihosa-mhoas-borders-final-js">
+(function(){
+  'use strict';
+  var KEY = 'dwellHideIhosaMhoasBorders';
+  function read(){ try{return localStorage.getItem(KEY)==='1';}catch(e){return false;} }
+  function write(v){ try{localStorage.setItem(KEY, v ? '1' : '0');}catch(e){} }
+  function apply(){
+    var tab = document.getElementById('tab-outbound');
+    var hidden = read();
+    if(tab) tab.classList.toggle('ob-hide-ihosa-mhoas-borders', hidden);
+    document.querySelectorAll('#tab-outbound .bowl-current-options-menu [data-hide-ihosa-mhoas-borders-toggle]').forEach(function(btn){
+      btn.textContent = hidden ? 'SHOW IHOSA/MHOAS BORDERS' : 'HIDE IHOSA/MHOAS BORDERS';
+      btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+    });
+  }
+  function ensure(){
+    document.querySelectorAll('#tab-outbound .bowl-current-options-menu [data-bowl-options-panel]').forEach(function(panel){
+      if(panel.querySelector('[data-hide-ihosa-mhoas-borders-toggle]')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bowl-hide-ihosa-mhoas-borders-toggle';
+      btn.dataset.hideIhosaMhoasBordersToggle = '1';
+      panel.appendChild(btn);
+    });
+    apply();
+  }
+  function schedule(){ clearTimeout(schedule._t); schedule._t = setTimeout(ensure, 50); }
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-hide-ihosa-mhoas-borders-toggle]');
+    if(!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    write(!read());
+    apply();
+  }, true);
+  try{
+    new MutationObserver(schedule).observe(document.documentElement, {subtree:true, childList:true});
+  }catch(e){}
+  document.addEventListener('DOMContentLoaded', schedule);
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-bowl-options-main]')) schedule(); }, true);
+  schedule();
 })();
 </script>
 
