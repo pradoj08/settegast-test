@@ -25177,6 +25177,24 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const s=String(v).trim();
     return s && s.toLowerCase()!=='nan' ? s : '';
   };
+  const postOutboundAssignmentStore=(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem('dwellPostOutboundAssignments_v1')||'{}');
+      return raw && typeof raw==='object' ? raw : {};
+    }catch{return {};}
+  })();
+  const postOutboundAssignmentKey=(track,groupKey,label)=>[
+    String(track||'').replace(/^06-/,'').replace(/[^0-9]/g,''),
+    clean(groupKey).toUpperCase(),
+    clean(label).toUpperCase().replace(/\s+/g,' ')
+  ].join('||');
+  const postOutboundSavedAssignment=(track,groupKey,label)=>{
+    const saved=postOutboundAssignmentStore[postOutboundAssignmentKey(track,groupKey,label)];
+    if(!saved || typeof saved!=='object') return null;
+    const kind=normalizeOutboundTrain(saved.kind || saved.departure || '');
+    if(!kind) return null;
+    return {kind,display:clean(saved.display || (kind+'2'))};
+  };
   const num=v=>{
     const n=parseFloat(v);
     return isFinite(n)?n:0;
@@ -25636,17 +25654,20 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
           const tr=parseInt(row[CI.track],10);
           if(tr!==track) continue;
           const equip=clean(row[CI.equipId]);
+          const manualEntryForEquip=manualSel && manualSel[track] && equip ? manualSel[track][equip] : null;
           const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
           const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${track}||${equip}`);
-          const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
+          let assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
+          if(!isAfterBoard && manualEntryForEquip && manualEntryForEquip._postOutboundOnly) assignedDepart='';
+          const assignedDisplayDepart=(isAfterBoard && !isNextDayBoard && manualEntryForEquip && manualEntryForEquip._postOutboundOnly && assignedDepart) ? (assignedDepart+'2') : assignedDepart;
           const ln=num(row[CI.ln]);
           if(!ln && !clean(row[CI.bk1]) && !clean(row[CI.bk2]) && !clean(row[CI.ydBlock])) continue;
           // Keep selected cars visible on BOTH bowl boards, but tag the exact
           // source row as IHOSA/MHOAS so adjacent blocks split when the selected status changes.
           // This lets the first Current Ramp Blocking table show the same physical split as
           // the Post Outbound Consist table without subtracting those cars from CURRENT.
-          if(assignedDepart){ row._afterDepartTrain=assignedDepart; }
-          else if(row && row._afterDepartTrain){ try{ delete row._afterDepartTrain; }catch{} }
+          if(assignedDepart){ row._afterDepartTrain=assignedDepart; row._afterDepartDisplayTrain=assignedDisplayDepart; }
+          else if(row && row._afterDepartTrain){ try{ delete row._afterDepartTrain; delete row._afterDepartDisplayTrain; }catch{} }
           rows.push(row);
         }
       }
@@ -25671,11 +25692,6 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       rows.forEach(row=>{
         const ln=num(row[CI.ln]);
         const rowOldestRank=!isAfterBoard ? (oldestInboundFlagByRowIdx.get(Number(row._bowlRowIndex)) || 0) : 0;
-        const assignedDepart=normalizeOutboundTrain(row._afterDepartTrain || '');
-        // Hide previous-day/current IHOSA/MHOAS departures from the AFTER board totals,
-        // not just visually hide the pill after the math has already been calculated.
-        if(isAfterBoard && hidePreviousDepartingBlocks && (assignedDepart==='IHOSA' || assignedDepart==='MHOAS')) return;
-        currentFt+=ln;
         const label=chooseLabel(row);
         const netDwell=isAfterBoard ? netAfterOutboundDwellHours(row) : netCurrentDwellHours(row);
         const hold=clean(row[CI.timeInHold]);
@@ -25686,11 +25702,29 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const physicalGroupKey=physicalGroup && physicalGroup.key
           ? physicalGroup.key
           : [trainForDwell(row),track,label,Number(row._bowlRowIndex)].join('||');
+        let assignedDepart=normalizeOutboundTrain(row._afterDepartTrain || '');
+        let assignedDisplayDepart=clean(row._afterDepartDisplayTrain || assignedDepart);
+        if(isAfterBoard && !isNextDayBoard && !assignedDepart){
+          const savedPostAssign=postOutboundSavedAssignment(track,physicalGroupKey,label);
+          if(savedPostAssign){
+            assignedDepart=savedPostAssign.kind;
+            assignedDisplayDepart=savedPostAssign.display;
+            try{
+              row._afterDepartTrain=assignedDepart;
+              row._afterDepartDisplayTrain=assignedDisplayDepart;
+            }catch{}
+          }
+        }
+        // Hide previous-day/current IHOSA/MHOAS departures from the AFTER board totals,
+        // not just visually hide the pill after the math has already been calculated.
+        if(isAfterBoard && hidePreviousDepartingBlocks && (assignedDepart==='IHOSA' || assignedDepart==='MHOAS')) return;
+        currentFt+=ln;
         const key=physicalGroupKey+'||'+label+'||'+(inbound?'INBOUND':'BLOCK')+'||'+assignedDepart;
 
         if(active && active.key===key){
           active.ft+=ln;
           if(!active.train) active.train=trainForDwell(row);
+          if(!active.displayDepartureTrain) active.displayDepartureTrain=assignedDisplayDepart;
           if(!active.sampleCar) active.sampleCar=clean(row[CI.equipId]);
           if(!active.ssStartRaw) active.ssStartRaw=confirmedSsStart;
           active.missingSSStart = active.missingSSStart || missingSsStart;
@@ -25708,7 +25742,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
           if(active) segments.push(active);
           const w=ln||1;
           active={
-            key, ft:ln, label, hold, inbound, departureTrain:assignedDepart, oldestRank:rowOldestRank, missingSSStart:missingSsStart, cls:missingSsStart?'missing-ss-start':(assignedDepart==='IHOSA'?'depart-ihosa':assignedDepart==='MHOAS'?'depart-mhoas':classify(label, hold, inbound)),
+            key, ft:ln, label, hold, inbound, departureTrain:assignedDepart, displayDepartureTrain:assignedDisplayDepart, oldestRank:rowOldestRank, missingSSStart:missingSsStart, cls:missingSsStart?'missing-ss-start':(assignedDepart==='IHOSA'?'depart-ihosa':assignedDepart==='MHOAS'?'depart-mhoas':classify(label, hold, inbound)),
             dwellWt:netDwell!==null?netDwell*w:0,
             dwellFt:netDwell!==null?w:0,
             dwellVal:netDwell!==null?netDwell:null,
@@ -25716,7 +25750,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
             dwellCls:netDwell!==null?dwellClassFromAvg(netDwell):'',
             train:trainForDwell(row),
             sampleCar:clean(row[CI.equipId]),
-            ssStartRaw:confirmedSsStart
+            ssStartRaw:confirmedSsStart,
+            physicalGroupKey
           };
         }
       });
@@ -25773,6 +25808,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
 
       const segmentHtml=isNextDayBoard ? savedNextDayHtml : segments.map(seg=>{
         const segDepart=normalizeFutureInboundBlockSafe(seg.departureTrain || seg.futureBlock || seg.outbound || '');
+        const segDisplayDepart=clean(seg.displayDepartureTrain || segDepart);
         const currentOnlyHiddenCls=(!isAfterBoard && showCurrentIhosaMhoasOnly && !(segDepart==='IHOSA' || segDepart==='MHOAS')) ? ' current-only-layout-placeholder' : '';
         if(isAfterBoard && (segDepart==='IHOSA' || segDepart==='MHOAS')){
           if(seg.futureInbound && hideTomorrowDepartingBlocks) return '';
@@ -25781,7 +25817,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const dwellHtml=seg.dwell ? ` <span class="bowl-dwell ${seg.dwellCls||''}">${seg.dwell}</span>` : '';
         const oldestBadge=(!isAfterBoard && seg.oldestRank) ? ` <span class="bowl-oldest-flag rank-${seg.oldestRank}">${seg.oldestRank===1?'OLDEST':'2ND OLDEST'}</span>` : '';
         const futureStatusBadge=(seg.futureInbound && segDepart==='SS') ? ` <span class="future-status-badge ss">SS</span>` : '';
-        const departBadge=(!seg.futureInbound && (segDepart==='IHOSA'||segDepart==='MHOAS')) ? ` <span class="after-depart-badge ${segDepart.toLowerCase()}">${segDepart}</span>` : '';
+        const departBadge=(!seg.futureInbound && (segDepart==='IHOSA'||segDepart==='MHOAS')) ? ` <span class="after-depart-badge ${segDepart.toLowerCase()}">${segDisplayDepart}</span>` : '';
         const shoveBadge=(seg.futureInbound && seg.shoveIndex) ? ` <span class="future-shove-badge">[${String(seg.shoveIndex).replace(/[^0-9A-Za-z_-]/g,'')}]</span>` : '';
         const displayTrack=seg.outTrack||track;
         // Removed hidden track suffix from inside block pills. Track is already shown in the row header,
@@ -25797,7 +25833,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const currentEditBtn=(!isAfterBoard && !seg.manual) ? `<button class="current-block-edit-btn" type="button" title="Edit block">EDIT</button>` : '';
         const arrivalTitle=seg.manual&&seg.arrival ? ` title="Arrival: ${String(seg.arrival).replace(/"/g,'&quot;')}"` : '';
         const fiAttrs=seg.futureInbound ? ` data-future-inbound-id="${String(seg.id||'').replace(/"/g,'&quot;')}" data-future-inbound-group="${String(seg.groupId||'').replace(/"/g,'&quot;')}" data-future-inbound-train="${String(seg.departureTrain||seg.futureBlock||'').replace(/"/g,'&quot;')}"` : '';
-        const departAttrs=(isAfterBoard && (segDepart==='IHOSA'||segDepart==='MHOAS')) ? ` data-outbound-departure="${segDepart}" data-after-depart="${segDepart}"` : '';
+        const departAttrs=(isAfterBoard && (segDepart==='IHOSA'||segDepart==='MHOAS')) ? ` data-outbound-departure="${segDepart}" data-outbound-display-departure="${String(segDisplayDepart||segDepart).replace(/"/g,'&quot;')}" data-after-depart="${segDepart}"` : '';
         const inboundSource=String(seg.train||seg.inbound||'').trim().toUpperCase();
         const inboundAttr=inboundSource ? ` data-block-inbound-source="${inboundSource.replace(/"/g,'&quot;')}"` : '';
         const rawDisplayLabel=isAfterBoard ? cleanPostOutboundLabel(seg.label) : String(seg.label||'').replace(/\s*SS\?\?\s*/g,' ').replace(/\s{2,}/g,' ').trim();
@@ -25810,7 +25846,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const sourceBlockLabel=String(seg.futureInbound ? `${displayLabel} ${segDepart}`.trim() : (seg.label||'')).replace(/"/g,'&quot;');
         const currentAttrs=(!isAfterBoard && !seg.manual) ? ` data-current-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-current-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}" data-source-block-label="${sourceBlockLabel}"` : '';
         const afterAttrs=(isAfterBoard && !seg.manual) ? ` data-after-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-source-train="${String(seg.train||'').replace(/"/g,'&quot;')}" data-after-ss-start="${String(seg.ssStartRaw||'').replace(/"/g,'&quot;')}" data-after-status="${sourceBlockLabel}" data-source-block-label="${sourceBlockLabel}"` : '';
-        const sampleAttrs=` data-sample-car="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}" data-sample-equip-id="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}"`;
+        const groupKeyAttr=String(seg.physicalGroupKey||'').replace(/"/g,'&quot;');
+        const sampleAttrs=` data-bowl-group-key="${groupKeyAttr}" data-sample-car="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}" data-sample-equip-id="${String(seg.sampleCar||'').replace(/"/g,'&quot;')}"`;
         const suppressCurrentMissingSsFlair=!isAfterBoard && seg.missingSSStart && hideCurrentMissingSsFlair;
         const missingSsAttr=(seg.missingSSStart && !suppressCurrentMissingSsFlair) ? ' data-missing-ss-start="1"' : '';
         const baseCurrentBlockCls=classify(seg.label||'',seg.hold||'',false);
@@ -25864,6 +25901,8 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const row=data[r];
         const tr=parseInt(row[CI.track],10);
         const equip=clean(row[CI.equipId]);
+        const manualEntry=manualSel && manualSel[tr] && equip ? manualSel[tr][equip] : null;
+        if(manualEntry && manualEntry._postOutboundOnly) continue;
         const selectedByRow=excludedIds && excludedIds.assignByRowIdx && excludedIds.assignByRowIdx.get(r);
         const selectedById=excludedIds && excludedIds.assignById && equip && excludedIds.assignById.get(`${tr}||${equip}`);
         const assignedDepart=normalizeOutboundTrain(selectedByRow || selectedById || '');
@@ -25946,7 +25985,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     return board;
   };
 
-  const buildPostOutboundTracksBoard=(excludedIds)=>{
+  const buildPostOutboundTracksBoard=(postTable)=>{
     // Fourth bowl table: mirrors the gold Outbound Tracks table, but sources its
     // IHOSA/MHOAS cuts from the POST OUTBOUND CONSIST board, including manually
     // added/future inbound blocks assigned to depart on IHOSA or MHOAS.
@@ -25968,6 +26007,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const body=document.createElement('tbody');
     const order=(outboundTracksOrder==='MHOAS_FIRST') ? ['MHOAS','IHOSA'] : ['IHOSA','MHOAS'];
     const targetCaps={IHOSA:2500,MHOAS:2500};
+    const postDisplayTrain=trainName=>trainName+'2';
 
     const pushSegment=(segments,seg)=>{
       if(!seg || !seg.ft) return;
@@ -26043,12 +26083,57 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       });
       return out;
     };
+    const readPostDepartingSegments=(trainName)=>{
+      const out=[];
+      const table=postTable || document.querySelector('#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)');
+      if(!table) return out;
+      table.querySelectorAll('tbody tr').forEach(row=>{
+        const rowTrack=String((row.querySelector('.bowl-track')||{}).textContent||'').replace(/\+/g,'').replace(/^06-/,'').replace(/[^0-9]/g,'');
+        row.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{
+          const depart=normalizeOutboundTrain(
+            block.dataset.outboundDeparture ||
+            block.dataset.afterDepart ||
+            block.dataset.assignmentDepart ||
+            ''
+          );
+          if(depart!==trainName) return;
+          const ftText=(block.querySelector('b')&&block.querySelector('b').textContent)||'';
+          const ft=num(ftText);
+          if(!ft) return;
+          const rawLabel=block.dataset.sourceBlockLabel || block.dataset.afterStatus || (block.querySelector('span')&&block.querySelector('span').textContent) || block.textContent || trainName;
+          const label=cleanPostOutboundLabel(String(rawLabel)
+            .replace(/^\s*[\d,]+\s*\|\s*/,'')
+            .replace(/\b(?:IHOSA2|MHOAS2|IHOSA|MHOAS)\b/ig,'')
+            .replace(/\s+\d+(?:\.\d+)?\s*(?:NET|HR|H)\b/ig,'')
+            .replace(/\s*\[[^\]]+\]\s*/g,' ')
+            .trim());
+          const dwellEl=block.querySelector('.bowl-dwell');
+          const dwellVal=dwellEl ? parseFloat(String(dwellEl.textContent||'').replace(/[^\d.-]/g,'')) : null;
+          out.push({
+            ft,
+            label:label || trainName,
+            sourceTrack:block.dataset.displayTrack || rowTrack,
+            departureTrain:trainName,
+            displayTrain:block.dataset.outboundDisplayDeparture || postDisplayTrain(trainName),
+            cls:block.classList.contains('future-inbound') ? 'future-inbound' : (block.classList.contains('manual-future') ? 'manual-future' : (trainName==='IHOSA'?'depart-ihosa':'depart-mhoas')),
+            dwellVal:Number.isFinite(dwellVal)?dwellVal:null,
+            dwell:dwellEl ? dwellEl.textContent : '',
+            dwellCls:dwellEl ? dwellEl.className.replace(/\bbowl-dwell\b/g,'').trim() : '',
+            manual:block.classList.contains('future-inbound') || block.classList.contains('manual-future'),
+            train:block.dataset.afterTrain || block.dataset.sourceTrain || '',
+            sampleCar:block.dataset.sampleCar || block.dataset.sampleEquipId || '',
+            ssStartRaw:block.dataset.afterSsStart || ''
+          });
+        });
+      });
+      return out;
+    };
 
     order.forEach(trainName=>{
       let currentFt=0;
       const segments=[];
 
-      readNextDayDepartingSegments(trainName).forEach(seg=>{
+      readPostDepartingSegments(trainName).forEach(seg=>{
         currentFt+=seg.ft;
         pushSegment(segments,seg);
       });
@@ -26058,6 +26143,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       const deltaCls=delta>=750?'good':delta>=300?'warn':'bad';
       const segmentHtml=segments.map(seg=>{
         const dwellHtml=seg.dwell ? ` <span class="bowl-dwell ${seg.dwellCls||''}">${seg.dwell}</span>` : '';
+        const displayTrain=seg.displayTrain || postDisplayTrain(trainName);
         const srcTrack=seg.sourceTrack ? ` <span class="after-depart-badge ${trainName.toLowerCase()}">06-${seg.sourceTrack}</span>` : '';
         const shoveBadge=(seg.manual && seg.shoveIndex) ? ` <span class="future-shove-badge">[${String(seg.shoveIndex).replace(/[^0-9A-Za-z_-]/g,'')}]</span>` : '';
         const manualTag=seg.manual ? `<span class="manual-tag future-inbound-tag">post outbound</span>` : '';
@@ -26065,13 +26151,13 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
         const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
         const sourceTrackAttr=String(seg.sourceTrack||'').replace(/"/g,'&quot;');
-        return `<div class="bowl-block ${seg.cls}" data-display-track="${sourceTrackAttr}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b><span class="bowl-block-pipe-dim">|</span>${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge}${srcTrack}${dwellHtml}${manualTag}</span></div>`;
+        return `<div class="bowl-block ${seg.cls}" data-display-track="${sourceTrackAttr}" data-post-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-outbound-display-departure="${displayTrain}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b><span class="bowl-block-pipe-dim">|</span>${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge} <span class="after-depart-badge ${trainName.toLowerCase()}">${displayTrain}</span>${srcTrack}${dwellHtml}${manualTag}</span></div>`;
       }).join('');
 
       const row=document.createElement('tr');
       if(!segments.length) row.classList.add('bowl-empty-track-row');
       row.innerHTML=[
-        `<td class="bowl-track outbound-${trainName.toLowerCase()}">${trainName}</td>`,
+        `<td class="bowl-track outbound-${trainName.toLowerCase()}">${postDisplayTrain(trainName)}</td>`,
         `<td class="bowl-current" style="background:linear-gradient(135deg,#1c1a08,#161410) !important;color:#fbbf24 !important;font-weight:800 !important;border-left:2px solid rgba(251,191,36,.5) !important;border-right:2px solid rgba(251,191,36,.5) !important;text-shadow:0 0 10px rgba(251,191,36,.35) !important;">${fmtN(currentFt)}</td>`,
         `<td colspan="12" class="bowl-segments-cell"><div class="bowl-segments-wrap">${segmentHtml||''}</div></td>`,
         `<td class="bowl-delta sum">${fmtN(currentFt)}</td>`
@@ -26083,7 +26169,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   };
 
 
-  try{ data.forEach(row=>{ if(row && row._afterDepartTrain) delete row._afterDepartTrain; }); }catch{}
+  try{ data.forEach(row=>{ if(row && row._afterDepartTrain) delete row._afterDepartTrain; if(row && row._afterDepartDisplayTrain) delete row._afterDepartDisplayTrain; }); }catch{}
   const selectedIds=selectedCarIdsForOutbound();
   const onlyCurrent=!!(options&&options.onlyCurrent);
   const omitCurrent=!!(options&&options.omitCurrent);
@@ -26099,16 +26185,17 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(!onlyCurrent && !omitAfter){
     const afterTitle=document.createElement('div');
     afterTitle.className='bowl-after-title';
-    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+'[TRACK]'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+'FUTURE TAG'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+'FUTURE BLOCKS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+'PREV IHOSA/MHOAS'+'</button>'+          '<button class="post-assign-train-btn" data-post-assign-train="IHOSA" type="button">IHOSA</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="MHOAS" type="button">MHOAS</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+'TOMORROW IHOSA/MHOAS'+'</button>'+        '</div>'+      '</div>'+      '<button class="post-assign-train-btn" data-post-assign-train="IHOSA" type="button">IHOSA</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="MHOAS" type="button">MHOAS</button>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
+    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+'[TRACK]'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+'FUTURE TAG'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+'FUTURE BLOCKS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+'PREV IHOSA/MHOAS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+'TOMORROW IHOSA/MHOAS'+'</button>'+        '</div>'+      '</div>'+      '<button class="bowl-prev-depart-head-toggle" data-bowl-prev-depart-toggle type="button">PREV IHOSA/MHOAS</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="IHOSA" type="button">IHOSA</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="MHOAS" type="button">MHOAS</button>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
     wrap.appendChild(afterTitle);
 
-    wrap.appendChild(buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds));
+    const postOutboundBoard=buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds);
+    wrap.appendChild(postOutboundBoard);
+    if(showOutboundTracksTable) wrap.appendChild(buildPostOutboundTracksBoard(postOutboundBoard));
     const nextDayTitle=document.createElement('div');
     nextDayTitle.className='bowl-next-day-title';
     nextDayTitle.innerHTML='<span>NEXT DAY OUTLOOK</span>';
     wrap.appendChild(nextDayTitle);
     wrap.appendChild(buildBoard('NEXT DAY OUTLOOK','CURRENT',selectedIds));
-    if(showOutboundTracksTable) wrap.appendChild(buildPostOutboundTracksBoard(selectedIds));
   }
 
   // Attach the generated bowl turnover boards to the requested container.
@@ -49647,18 +49734,22 @@ table.bowl-board td.bowl-delta.good{
     }
     return '';
   }
-  function hasCorrectTag(block, dep){
+  function displayDepartForBlock(block, dep){
+    var ds = block.dataset || {};
+    return ds.outboundDisplayDeparture || (dep ? dep + '2' : '');
+  }
+  function hasCorrectTag(block, dep, displayDep){
     var sel = '.after-depart-badge.' + dep.toLowerCase();
     return Array.from(block.querySelectorAll(sel)).some(function(tag){
-      return norm(tag.textContent) === dep;
+      return norm(tag.textContent) === norm(displayDep || dep);
     });
   }
-  function makeTag(dep){
+  function makeTag(dep, displayDep){
     var tag = document.createElement('span');
     tag.className = 'after-depart-badge ' + dep.toLowerCase();
     tag.dataset.postSaAsRestored = '1';
-    tag.title = 'Selected assignment: ' + dep;
-    tag.textContent = dep;
+    tag.title = 'Selected assignment: ' + (displayDep || dep);
+    tag.textContent = displayDep || dep;
     return tag;
   }
   function insertTag(block, tag){
@@ -49670,14 +49761,19 @@ table.bowl-board td.bowl-delta.good{
   function stampBlock(block){
     var dep = departureFromBlock(block);
     if(!dep) return;
+    var displayDep = displayDepartForBlock(block, dep);
     if(block.dataset.outboundDeparture !== dep) block.dataset.outboundDeparture = dep;
+    if(block.dataset.outboundDisplayDeparture !== displayDep) block.dataset.outboundDisplayDeparture = displayDep;
     if(block.dataset.afterDepart !== dep) block.dataset.afterDepart = dep;
     if(block.dataset.afterDeparting !== '1') block.dataset.afterDeparting = '1';
     block.classList.toggle('depart-ihosa', dep === 'IHOSA');
     block.classList.toggle('depart-mhoas', dep === 'MHOAS');
-    if(hasCorrectTag(block, dep)) return;
+    block.querySelectorAll('.after-depart-badge.' + dep.toLowerCase()).forEach(function(tag){
+      if(norm(tag.textContent) === dep) tag.remove();
+    });
+    if(hasCorrectTag(block, dep, displayDep)) return;
     block.querySelectorAll('.after-depart-badge[data-post-sa-as-restored="1"]').forEach(function(tag){ tag.remove(); });
-    insertTag(block, makeTag(dep));
+    insertTag(block, makeTag(dep, displayDep));
   }
   function apply(){
     document.querySelectorAll('table.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(stampBlock);
@@ -55908,12 +56004,38 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function removeOldBadges(block){
     block.querySelectorAll('.after-depart-badge.ihosa,.after-depart-badge.mhoas').forEach(function(x){ x.remove(); });
   }
+  function displayKindForBlock(block, kind){
+    if(block && block.closest && block.closest('.bowl-board-next-day')) return kind + '3';
+    if(block && block.closest && block.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)')) return kind + '2';
+    return kind;
+  }
+  function isPostOutboundAssignBlock(block){
+    return !!(block && block.closest && block.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)'));
+  }
+  function postAssignKeyFromBlock(block){
+    if(!isPostOutboundAssignBlock(block)) return '';
+    var groupKey = normText(block && block.dataset && block.dataset.bowlGroupKey);
+    var label = normText(block && block.dataset && (block.dataset.sourceBlockLabel || block.dataset.afterStatus || ''));
+    if(!groupKey || !label) return '';
+    return [blockTrack(block), groupKey, label].join('||');
+  }
+  function savePostOutboundAssignment(block, kind){
+    var key = postAssignKeyFromBlock(block);
+    if(!key) return;
+    try{
+      var store = JSON.parse(localStorage.getItem('dwellPostOutboundAssignments_v1') || '{}');
+      if(!store || typeof store !== 'object') store = {};
+      store[key] = {kind:kind, display:displayKindForBlock(block, kind), savedAt:Date.now()};
+      localStorage.setItem('dwellPostOutboundAssignments_v1', JSON.stringify(store));
+    }catch(e){ console.warn('Post outbound assignment save failed', e); }
+  }
   function addBadge(block, kind){
     removeOldBadges(block);
     var span = block.querySelector(':scope > span') || block.querySelector('span') || block;
+    var displayKind = displayKindForBlock(block, kind);
     var badge = document.createElement('span');
     badge.className = 'after-depart-badge ' + kind.toLowerCase();
-    badge.textContent = kind;
+    badge.textContent = displayKind;
     span.appendChild(document.createTextNode(' '));
     span.appendChild(badge);
   }
@@ -55933,6 +56055,15 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function assignCarToTrain(car, group, fallbackTrack, kind){
     var carTrack = blockTrack({dataset:{displayTrack:(car && car.track) || (group && group.track) || fallbackTrack || ''}});
     setManualCarSelection(carTrack || (group && group.track) || fallbackTrack, car, group, kind);
+    try{
+      var id = String(car && car.equipId || '').trim();
+      var trk = carTrack || (group && group.track) || fallbackTrack;
+      if(assignBlockCars._postOnly && manualSel && manualSel[trk] && manualSel[trk][id]){
+        manualSel[trk][id]._postOutboundOnly = true;
+      }else if(!assignBlockCars._postOnly && manualSel && manualSel[trk] && manualSel[trk][id]){
+        delete manualSel[trk][id]._postOutboundOnly;
+      }
+    }catch(e){}
   }
   function assignContiguousSampleSegment(group, sampleCar, fallbackTrack, kind){
     var cars = Array.isArray(group && group.cars) ? group.cars : [];
@@ -55954,7 +56085,8 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var sampleCar = normText(block && (block.dataset.sampleCar || block.dataset.sampleEquipId || ''));
     var assigned = 0;
     try{
-      buildGroups().forEach(function(g){
+      assignBlockCars._postOnly = !!(block && block.closest && block.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table),table.bowl-board-next-day'));
+      (assignBlockCars._groups || buildGroups()).forEach(function(g){
         if(!g || g.isForecast || !Array.isArray(g.cars)) return;
         var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
         if(track && gTrack && track !== gTrack) return;
@@ -55975,18 +56107,55 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
         if(typeof localStorage !== 'undefined') localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {}));
       }catch(e){}
     }catch(e){ console.warn('Post outbound block car assignment failed', e); }
+    assignBlockCars._postOnly = false;
     return assigned;
+  }
+  function refreshOutboundTrackTablesNow(){
+    try{
+      if(typeof window.renderBowlTurnover === 'function'){
+        window.renderBowlTurnover('ob-standalone-bowl');
+        if(document.getElementById('ob-frozen-bowl')) window.renderBowlTurnover('ob-frozen-bowl', {onlyCurrent:true});
+        return true;
+      }
+    }catch(e){ console.warn('Fast outbound track refresh failed', e); }
+    return false;
+  }
+  function sanitizeNextDayTagHtml(html){
+    var box = document.createElement('div');
+    box.innerHTML = html || '';
+    box.querySelectorAll('button,.after-block-edit-btn,.current-block-edit-btn,.bowl-manual-edit,.bowl-manual-del').forEach(function(el){ el.remove(); });
+    box.querySelectorAll('.bowl-block').forEach(function(block){
+      block.classList.remove('next-day-selected','outbound-dnd-selected','outbound-dnd-dragging','switching-selected','switching-dragging','outbound-context-edit-active');
+      block.removeAttribute('draggable');
+      block.removeAttribute('tabindex');
+    });
+    return box.innerHTML;
+  }
+  function persistNextDayBoard(){
+    var table = document.querySelector('#tab-outbound .bowl-board-next-day') || document.querySelector('.bowl-board-next-day');
+    if(!table) return false;
+    var rows = Array.from(table.querySelectorAll('tbody tr')).map(function(row){
+      var trackCell = row.querySelector('.bowl-track');
+      var wrap = row.querySelector('.bowl-segments-wrap') || row.querySelector('.bowl-segments-cell');
+      var track = String(trackCell && trackCell.textContent || '').replace(/\+/g,'').trim();
+      return {track:track, html:sanitizeNextDayTagHtml(wrap ? wrap.innerHTML : '')};
+    });
+    try{ localStorage.setItem('dwellNextDayOutlookRows_v1', JSON.stringify(rows)); }catch(e){ return false; }
+    try{ if(typeof window.syncNextDayOutlookNow === 'function') window.syncNextDayOutlookNow(); }catch(e){}
+    return true;
   }
   function assignBlock(block, kind){
     block.dataset.outboundDeparture = kind;
     block.dataset.afterDepart = kind;
     block.dataset.afterDeparting = '1';
     block.dataset.assignmentDepart = kind;
+    block.dataset.outboundDisplayDeparture = displayKindForBlock(block, kind);
     block.classList.toggle('depart-ihosa', kind === 'IHOSA');
     block.classList.toggle('depart-mhoas', kind === 'MHOAS');
     block.classList.toggle('assignment-ihosa-border', kind === 'IHOSA');
     block.classList.toggle('assignment-mhoas-border', kind === 'MHOAS');
     addBadge(block, kind);
+    savePostOutboundAssignment(block, kind);
     assignBlockCars(block, kind);
   }
   function selectedOutboundBlocks(){
@@ -56003,10 +56172,19 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function assignSelected(kind){
     var selected = selectedOutboundBlocks();
     if(!selected.length){ toastMsg('Select blocks first'); return; }
+    var hasNextDay = selected.some(function(block){ return !!(block && block.closest && block.closest('.bowl-board-next-day')); });
+    try{ assignBlockCars._groups = (typeof buildGroups === 'function') ? buildGroups() : null; }catch(e){ assignBlockCars._groups = null; }
     selected.forEach(function(block){ assignBlock(block, kind); block.classList.remove('outbound-dnd-selected','next-day-selected'); });
+    assignBlockCars._groups = null;
+    if(hasNextDay) persistNextDayBoard();
     try{ if(typeof window.flushAssignmentBadgeSpacing === 'function') window.flushAssignmentBadgeSpacing(); }catch(e){}
     try{ if(typeof window.applyAfterDepartHideAuthority === 'function') window.applyAfterDepartHideAuthority(); }catch(e){}
-    try{ if(typeof window.renderOB === 'function') setTimeout(function(){ window.renderOB(); }, 0); }catch(e){}
+    var fastRefreshed = refreshOutboundTrackTablesNow();
+    try{
+      if(typeof window.renderOB === 'function'){
+        setTimeout(function(){ window.renderOB(); }, fastRefreshed ? 450 : 0);
+      }
+    }catch(e){}
     toastMsg('Assigned '+selected.length+' block'+(selected.length===1?'':'s')+' to '+kind);
   }
   function schedule(){ clearTimeout(schedule._t); schedule._t = setTimeout(ensureButtons, 60); }
