@@ -33,6 +33,312 @@
     document.documentElement.style.setProperty('--boot-content-zoom', String(pct / 100));
   })();
 </script>
+
+<script id="net-dwell-block-authority-final-js">
+(function(){
+  'use strict';
+  if(window.__netDwellBlockAuthorityFinalInstalled) return;
+  window.__netDwellBlockAuthorityFinalInstalled = true;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function parseAny(raw){
+    raw = clean(raw);
+    if(!raw) return null;
+    if(typeof window.parseSSDt === 'function'){
+      try{ var ss = window.parseSSDt(raw); if(ss && Number.isFinite(new Date(ss).getTime())) return new Date(ss); }catch(e){}
+    }
+    if(typeof window.parseAnyDateTime === 'function'){
+      try{ var any = window.parseAnyDateTime(raw); if(any && Number.isFinite(new Date(any).getTime())) return new Date(any); }catch(e){}
+    }
+    if(typeof window.parseCompactDate === 'function'){
+      try{ var pc = window.parseCompactDate(raw); if(pc && Number.isFinite(new Date(pc).getTime())) return new Date(pc); }catch(e){}
+    }
+    var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s+)(\d{1,2}):(\d{2})/);
+    if(m){
+      var iso = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+      if(Number.isFinite(iso.getTime())) return iso;
+    }
+    m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s+(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/i);
+    if(m){
+      var yr = m[3] == null ? new Date().getFullYear() : +m[3];
+      if(yr < 100) yr += 2000;
+      var hr = +m[4], mi = m[5] == null ? 0 : +m[5], ap = (m[6] || '').toUpperCase();
+      if(ap === 'PM' && hr < 12) hr += 12;
+      if(ap === 'AM' && hr === 12) hr = 0;
+      var loose = new Date(yr, +m[1]-1, +m[2], hr, mi, 0, 0);
+      if(Number.isFinite(loose.getTime())) return loose;
+    }
+    var d = new Date(raw);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function hours(a,b){
+    if(!a || !b) return null;
+    var h = (b - a) / 3600000;
+    return Number.isFinite(h) ? h : null;
+  }
+  function netDwell(arrivalRaw, endRaw, ssStartRaw, ssEndRaw){
+    var arrival = parseAny(arrivalRaw);
+    var finalEnd = parseAny(endRaw) || new Date();
+    if(!arrival || !finalEnd) return null;
+    var raw = hours(arrival, finalEnd);
+    if(raw == null) return null;
+    raw = Math.max(0, raw);
+    var ssStart = parseAny(ssStartRaw);
+    if(!ssStart) return raw;
+    var ssEnd = parseAny(ssEndRaw);
+    var ssMeasureEnd = ssEnd || finalEnd;
+    var ssTotal = hours(ssStart, ssMeasureEnd);
+    if(ssTotal != null && ssTotal >= 24){
+      var overlapStart = new Date(Math.max(arrival.getTime(), ssStart.getTime()));
+      var overlapEnd = new Date(Math.min(finalEnd.getTime(), ssMeasureEnd.getTime()));
+      var deduction = hours(overlapStart, overlapEnd);
+      if(deduction != null && deduction > 0) raw -= deduction;
+    }
+    return Math.max(0, raw);
+  }
+  function dwellClass(h){
+    if(!Number.isFinite(h)) return '';
+    if(h < 7) return 'dw-green';
+    if(h < 11) return 'dw-gold';
+    return 'dw-red';
+  }
+  function looksSS(block){
+    if(!block) return false;
+    var ds = block.dataset || {};
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    var raw = [
+      ds.currentBlockType, ds.afterBlockType, ds.postOutboundBlockType,
+      ds.sourceBlockLabel, ds.afterStatus, ds.currentLabel, ds.afterLabel,
+      clone.textContent
+    ].map(clean).join(' | ').toUpperCase();
+    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(raw);
+  }
+  function trainForBlock(block){
+    var ds = block.dataset || {};
+    return clean(ds.afterTrain || ds.currentTrain || ds.sourceTrain || ds.blockInboundSource).toUpperCase();
+  }
+  function arrivalForBlock(block){
+    var ds = block.dataset || {};
+    var direct = parseAny(ds.currentArrival || ds.afterArrival || ds.arrival);
+    if(direct) return direct;
+    var train = trainForBlock(block);
+    if(!train) return null;
+    try{ if(typeof window.getArrivalInfo === 'function'){ var info = window.getArrivalInfo(train); if(info && info.dt) return new Date(info.dt); } }catch(e){}
+    try{ if(typeof window.getArrival === 'function'){ var a = window.getArrival(train); if(a) return new Date(a); } }catch(e){}
+    try{ if(window.arrOverrides && window.arrOverrides[train]) return new Date(window.arrOverrides[train]); }catch(e){}
+    return null;
+  }
+  function ssStartForBlock(block){
+    var ds = block.dataset || {};
+    return parseAny(ds.currentSsStart || ds.afterSsStart || ds.ssStart || ds.ssStartTime);
+  }
+  function ssEndForBlock(block){
+    var ds = block.dataset || {};
+    return parseAny(ds.currentSsEnd || ds.afterSsEnd || ds.ssEnd || ds.ssEndTime);
+  }
+  function assignedDeparture(block){
+    var ds = block.dataset || {};
+    var raw = clean(ds.outboundDeparture || ds.afterDepart || ds.futureInboundTrain || ds.postOutboundTrackSeg).toUpperCase();
+    if(raw === 'IHOSA' || raw === 'MHOAS') return raw;
+    var badge = block.querySelector && block.querySelector('.after-depart-badge.ihosa,.after-depart-badge.mhoas');
+    if(badge && badge.classList.contains('ihosa')) return 'IHOSA';
+    if(badge && badge.classList.contains('mhoas')) return 'MHOAS';
+    return '';
+  }
+  function endForBlock(block){
+    var dep = assignedDeparture(block);
+    if(dep && typeof window.getDepDtForTrain === 'function'){
+      try{ var d = window.getDepDtForTrain(dep); if(d && Number.isFinite(new Date(d).getTime())) return new Date(d); }catch(e){}
+    }
+    if(block.closest && block.closest('.bowl-board-after')){
+      try{ var clock = localStorage.getItem('dwellAfterSsFutureTime') || ''; var c = parseAny(clock); if(c) return c; }catch(e){}
+    }
+    return new Date();
+  }
+  function writeBadge(block, h){
+    if(!block || !Number.isFinite(h)) return;
+    var text = Math.round(h) + 'H NET';
+    var cls = dwellClass(h);
+    var badge = block.querySelector('.bowl-dwell');
+    if(!badge){
+      badge = document.createElement('span');
+      var btn = block.querySelector('.current-block-edit-btn,.after-block-edit-btn,.bowl-manual-edit,.bowl-manual-del');
+      if(btn) btn.parentNode.insertBefore(badge, btn);
+      else (block.querySelector('span') || block).appendChild(badge);
+    }
+    badge.className = 'bowl-dwell ' + cls;
+    badge.textContent = text;
+    badge.dataset.netDwellAuthorityFinal = '1';
+    block.dataset.netDwellAuthorityFinal = h.toFixed(1);
+  }
+  function normalizeBlock(block){
+    if(!looksSS(block)) return;
+    var arrival = arrivalForBlock(block);
+    var ssStart = ssStartForBlock(block);
+    if(!arrival || !ssStart) return;
+    var isCurrentRamp = block.closest && block.closest('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)');
+    var h = isCurrentRamp ? hours(arrival, ssStart) : netDwell(arrival, endForBlock(block), ssStart, ssEndForBlock(block));
+    if(h == null) return;
+    h = Math.max(0, h);
+    writeBadge(block, h);
+  }
+  function modalArrival(prefix){
+    var train = clean((document.getElementById(prefix + '-train') || {}).value).toUpperCase();
+    if(!train) return null;
+    try{ if(typeof window.getArrival === 'function'){ var a = window.getArrival(train); if(a) return a; } }catch(e){}
+    try{ if(window.arrOverrides && window.arrOverrides[train]) return window.arrOverrides[train]; }catch(e){}
+    return null;
+  }
+  function updateEditModal(prefix){
+    var blockEl = document.getElementById(prefix + '-block');
+    var netEl = document.getElementById(prefix === 'current-edit' ? 'current-edit-net' : 'final-after-net');
+    var timeEl = document.getElementById(prefix === 'current-edit' ? 'current-edit-time' : 'final-after-time');
+    if(!blockEl || !netEl || !timeEl) return;
+    var blockType = clean(blockEl.value).toUpperCase();
+    if(blockType !== 'SS') return;
+    var arrival = modalArrival(prefix);
+    var ssStart = timeEl.value;
+    if(!arrival && ssStart){ netEl.value = 'MISSING ARRIVAL'; return; }
+    if(!ssStart){ netEl.value = 'ENTER SS START'; return; }
+    var h = prefix === 'current-edit' ? hours(parseAny(arrival), parseAny(ssStart)) : netDwell(arrival, new Date(), ssStart, null);
+    netEl.value = h == null ? 'CHECK TIMES' : Math.round(h) + 'H NET';
+  }
+  function updateGroupModal(){
+    var dwell = document.getElementById('bowl-group-dwell');
+    if(!dwell) return;
+    var arrival = (document.getElementById('bowl-group-arrival') || {}).value;
+    var depart = (document.getElementById('bowl-group-actual-depart') || {}).value;
+    var ssStart = (document.getElementById('bowl-group-ss-start') || {}).value;
+    var ssEnd = (document.getElementById('bowl-group-ss-end') || {}).value;
+    var h = netDwell(arrival, depart || new Date(), ssStart, ssEnd);
+    if(h != null) dwell.value = String(Math.round(h));
+  }
+  function apply(){
+    document.querySelectorAll('#tab-outbound .bowl-segments-cell .bowl-block').forEach(normalizeBlock);
+    updateEditModal('current-edit');
+    updateEditModal('final-after');
+    updateGroupModal();
+  }
+  function schedule(){
+    clearTimeout(schedule._t);
+    schedule._t = setTimeout(apply, 0);
+    setTimeout(apply, 90);
+    setTimeout(apply, 260);
+  }
+  function wrapRenderHooks(){
+    ['renderOB','renderBowlTurnover','applyPostOutboundSsNetDwellAuthority','restoreFinalPostOutboundDwell','normalizePostOutboundSingleDisplayOwner'].forEach(function(name){
+      var fn = window[name];
+      if(typeof fn !== 'function' || fn.__netDwellBlockAuthorityFinalWrapped) return;
+      window[name] = function(){
+        var res = fn.apply(this, arguments);
+        schedule();
+        return res;
+      };
+      window[name].__netDwellBlockAuthorityFinalWrapped = true;
+    });
+  }
+  document.addEventListener('input', function(e){
+    if(e.target && /^(current-edit|final-after|bowl-group)-/.test(e.target.id || '')) schedule();
+  }, true);
+  document.addEventListener('change', function(e){
+    if(e.target && /^(current-edit|final-after|bowl-group|after-ss-dwell-time)/.test(e.target.id || '')) schedule();
+  }, true);
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,.current-block-edit-btn,.after-block-edit-btn,.bowl-manual-edit,.resolve-ss-final-btn')) schedule();
+  }, true);
+  document.addEventListener('DOMContentLoaded', function(){ wrapRenderHooks(); schedule(); });
+  window.addEventListener('load', function(){ wrapRenderHooks(); schedule(); }, {once:true});
+  setTimeout(wrapRenderHooks, 0);
+  setTimeout(wrapRenderHooks, 500);
+  setTimeout(wrapRenderHooks, 1500);
+  wrapRenderHooks();
+  schedule();
+})();
+</script>
+
+<style id="current-ramp-prev-ihosa-mhoas-stable-final-css">
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle],
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle],
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]{
+    background:rgba(15,23,42,.34)!important;
+    background-image:none!important;
+    border-color:rgba(148,163,184,.34)!important;
+    color:rgba(226,232,240,.82)!important;
+    box-shadow:none!important;
+    text-shadow:none!important;
+  }
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle]:hover,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle]:hover,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]:hover{
+    background:rgba(30,41,59,.52)!important;
+    background-image:none!important;
+    border-color:rgba(191,219,254,.48)!important;
+    color:#dbeafe!important;
+  }
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle]::before,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle]::before,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]::before{
+    content:none!important;
+    display:none!important;
+  }
+</style>
+<script id="current-ramp-prev-ihosa-mhoas-stable-final-js">
+(function(){
+  'use strict';
+  var KEY = 'dwellHidePreviousIhosaMhoas';
+  function read(){ try{return localStorage.getItem(KEY)==='1';}catch(e){return false;} }
+  function apply(){
+    var hidden = read();
+    document.querySelectorAll('#tab-outbound .bowl-after-title > [data-bowl-prev-depart-toggle]').forEach(function(btn){
+      var text = 'PREV IHOSA/MHOAS';
+      if(btn.textContent !== text) btn.textContent = text;
+      btn.classList.add('bowl-prev-depart-head-toggle');
+      btn.classList.toggle('is-hiding', hidden);
+      btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+      btn.removeAttribute('data-bowl-fixed-action');
+    });
+  }
+  function schedule(){
+    apply();
+    clearTimeout(schedule._timer);
+    schedule._timer = setTimeout(apply, 80);
+  }
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound .bowl-after-title,[data-bowl-prev-depart-toggle],[data-bowl-options-main]')){
+      [0,40,120,260].forEach(function(delay){ setTimeout(apply, delay); });
+    }
+  }, true);
+  function attachObserver(){
+    var root = document.getElementById('tab-outbound') || document.body;
+    if(!root){
+      setTimeout(attachObserver, 80);
+      return;
+    }
+    if(root.__prevIhosaMhoasStableFinalObserved) return;
+    root.__prevIhosaMhoasStableFinalObserved = true;
+    try{
+      new MutationObserver(schedule).observe(root, {subtree:true, childList:true, characterData:true});
+    }catch(e){}
+  }
+  ['renderOB','renderBowlTurnover'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__prevIhosaMhoasStableFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__prevIhosaMhoasStableFinalWrapped = true;
+    window[name] = wrapped;
+  });
+  attachObserver();
+  document.addEventListener('DOMContentLoaded', attachObserver, {once:true});
+  schedule();
+})();
+</script>
 <style id="remove-switching-page-final-css">
   html body [data-page-tab="switching"],
   html body #tab-switching{
@@ -931,7 +1237,7 @@
   function syncButtonText(){
     var showing = read();
     document.querySelectorAll('#tab-outbound [data-current-display-track-head-toggle]').forEach(function(btn){
-      var text = showing ? 'HIDE DISPLAY TRACK' : 'DISPLAY TRACK';
+      var text = 'DISPLAY TRACK';
       if(btn.textContent !== text) btn.textContent = text;
       btn.setAttribute('aria-pressed', showing ? 'true' : 'false');
       btn.classList.toggle('is-showing', showing);
@@ -1075,7 +1381,7 @@
   function syncText(){
     var hidden = read();
     document.querySelectorAll('#tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'DWELL' : 'HIDE DWELL';
+      btn.textContent = 'DWELL';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       btn.classList.toggle('is-hiding', hidden);
     });
@@ -1259,7 +1565,7 @@
     if(document.body) document.body.classList.toggle('dwell-hide-current-missing-ss-flair', hidden);
 
     document.querySelectorAll('#tab-outbound [data-current-purple-ss-head-toggle], #tab-outbound [data-bowl-missing-ss-flair-toggle]').forEach(function(btn){
-      var nextText = hidden ? 'PURPLE SS' : 'HIDE PURPLE SS';
+      var nextText = 'PURPLE SS';
       if(btn.textContent !== nextText) btn.textContent = nextText;
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       btn.classList.toggle('is-hiding', hidden);
@@ -1389,7 +1695,7 @@
   function syncPrevText(){
     var hidden = read(PREV_KEY);
     document.querySelectorAll('[data-bowl-prev-depart-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'SHOW PREV IHOSA/MHOAS' : 'HIDE PREV IHOSA/MHOAS';
+      btn.textContent = 'PREV IHOSA/MHOAS';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
     });
   }
@@ -1397,7 +1703,7 @@
   function syncCurrentText(){
     var only = read(CURRENT_KEY);
     document.querySelectorAll('[data-bowl-current-ihosa-mhoas-toggle]').forEach(function(btn){
-      btn.textContent = only ? 'SHOW ALL TAGS' : 'SHOW ONLY IHOSA/MHOAS';
+      btn.textContent = 'IHOSA/MHOAS';
       btn.setAttribute('aria-pressed', only ? 'true' : 'false');
     });
   }
@@ -5545,7 +5851,7 @@ td.bowl-current,
 }
 
 
-/* After Outbound Consists board: force the entire header row, including ÃŽâ€, to stay dark blue. */
+/* After Outbound Consists board: force the entire header row, including DELTA, to stay dark blue. */
 .bowl-board.bowl-board-after thead th,
 .bowl-board.bowl-board-after thead th:last-child{
   background:linear-gradient(180deg,#1e3a8a 0%, #0f172a 100%) !important;
@@ -7683,7 +7989,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   function applyState(){
     var hidden = read();
     document.querySelectorAll('.bowl-after-title > [data-bowl-prev-depart-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'SHOW PREV IHOSA/MHOAS' : 'HIDE PREV IHOSA/MHOAS';
+      btn.textContent = 'PREV IHOSA/MHOAS';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
     });
   }
@@ -7783,7 +8089,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     cleanLegacy();
     var hidden = read();
     document.querySelectorAll('#tab-outbound .bowl-after-title:not(.bowl-next-day-title) > [data-post-future-block-head-toggle], .bowl-after-title:not(.bowl-next-day-title) > [data-post-future-block-head-toggle]').forEach(function(btn){
-      var nextText = hidden ? 'SHOW FUTURE BLOCKS' : 'HIDE FUTURE BLOCKS';
+      var nextText = 'FUTURE BLOCKS';
       var nextPressed = hidden ? 'true' : 'false';
       if(btn.textContent !== nextText) btn.textContent = nextText;
       if(btn.getAttribute('aria-pressed') !== nextPressed) btn.setAttribute('aria-pressed', nextPressed);
@@ -8026,7 +8332,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   function applyState(){
     var hidden = read();
     document.querySelectorAll('[data-current-dwell-head-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'DWELL' : 'HIDE DWELL';
+      btn.textContent = 'DWELL';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
     });
   }
@@ -9682,7 +9988,7 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
       shell.classList.toggle('bowl-hide-inbound-source',!show);
     });
     document.querySelectorAll('[data-bowl-inbound-source-toggle]').forEach(function(btn){
-      var nextText=show?'HIDE INBOUND':'SHOW INBOUND';
+      var nextText='INBOUND';
       if(btn.textContent!==nextText) btn.textContent=nextText;
     });
     document.querySelectorAll('.bowl-board .bowl-segments-cell .bowl-block').forEach(function(block){
@@ -12508,7 +12814,7 @@ html body main.app section.grid .summary-stack #trainStack section.same-day-inbo
       <button class="topbar-btn" id="btn-projected-dwell" title="Toggle IHOSA/MHOAS projected dwell cards">Projected Dwell</button>
       <button class="topbar-btn" id="toggle-bowl-turnover">Hide Bowl Turnover</button>
       <button class="topbar-btn" id="btn-light-view" title="Toggle light background on Outbound page">Light View</button>
-      <button class="topbar-btn" id="btn-consist-toggle" title="Show or hide IHOSA/MHOAS consist tables">Show Consist</button>
+      <button class="topbar-btn" id="btn-consist-toggle" title="Toggle IHOSA/MHOAS consist tables">Consist</button>
     </div>
   </div>
 </div>
@@ -23243,7 +23549,7 @@ document.addEventListener('click',e=>{
 <!-- MINI CONFIRM -->
 <div id="mini-confirm">
   <div id="mini-box">
-    <div class="mc-icon">WARNÃ¯Â¸Â</div>
+    <div class="mc-icon">WARN</div>
     <div class="mc-msg" id="mc-msg">Are you sure?</div>
     <div class="mc-btns">
       <button id="mc-cancel">Cancel</button>
@@ -24222,17 +24528,18 @@ try{
   const _saved=localStorage.getItem('dwellTrainBank');
   if(_saved){
     trainBank=JSON.parse(_saved);
-    // Merge any new PRELOADED entries that have a value but are missing/empty in saved bank
-    let changed=false;
-    Object.entries(PRELOADED).forEach(([k,v])=>{
-      if(v&&(!trainBank[k]||trainBank[k]==='')){ trainBank[k]=v; changed=true; }
-    });
-    if(changed) localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));
   } else {
-    trainBank=Object.assign({},PRELOADED);
-    localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));
+    trainBank={};
   }
-}catch{trainBank=Object.assign({},PRELOADED);}
+}catch{trainBank={};}
+
+try{
+  if(localStorage.getItem('dwellTrainBankSupabaseOnlyV1')!=='1'){
+    trainBank={};
+    localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));
+    localStorage.setItem('dwellTrainBankSupabaseOnlyV1','1');
+  }
+}catch{}
 
 // Grid state
 let anchor={r:0,c:0}, active={r:0,c:0};
@@ -24853,13 +25160,13 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;">CURRENT</th>'+
       '<th colspan="12" class="bowl-ramp-head" style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;text-align:center;">'+
         '<span>CURRENT RAMP BLOCKING</span>'+
-        '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div>'+
-        '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button>'+
-        '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button>'+
-        '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button>'+
+        '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+'IHOSA/MHOAS'+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+'OUTBOUND TRACKS'+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+'INBOUND'+'</button></div></div>'+
+        '<button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+'DWELL'+'</button>'+
+        '<button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+'DISPLAY TRACK'+'</button>'+
+        '<button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+'PURPLE SS'+'</button>'+
         '<button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>'+
       '</th>'+
-      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">ÃŽâ€</th>'+
+      '<th style="background:linear-gradient(180deg,#991b1b 0%, #450a0a 100%);color:#fee2e2;border-color:#7f1d1d;font-weight:800;text-align:center;">DELTA</th>'+
     '</tr>';
   table.appendChild(thead);
 
@@ -25284,7 +25591,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
         '<th style="'+headBg+'">'+currentLabel+'</th>'+ 
         '<th colspan="12" class="bowl-ramp-head" style="'+headBg+'text-align:center;">'+ 
           '<span>'+title+'</span>'+
-          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+(showCurrentIhosaMhoasOnly?'SHOW ALL TAGS':'SHOW ONLY IHOSA/MHOAS')+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+(showOutboundTracksTable?'HIDE OUTBOUND TRACKS':'SHOW OUTBOUND TRACKS')+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+(showInboundSourceTags?'HIDE INBOUND':'SHOW INBOUND')+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+(hideDwellValues?'DWELL':'HIDE DWELL')+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+(showCurrentDisplayTrack?'HIDE DISPLAY TRACK':'DISPLAY TRACK')+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+(hideCurrentMissingSsFlair?'PURPLE SS':'HIDE PURPLE SS')+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
+          (!isAfterBoard ? '<div class="bowl-control-dropdown bowl-current-options-menu" data-bowl-options-menu><button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">'+'IHOSA/MHOAS'+'</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">'+'OUTBOUND TRACKS'+'</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">'+'INBOUND'+'</button></div></div><button class="bowl-current-dwell-head-toggle" data-current-dwell-head-toggle="1" type="button" aria-pressed="'+(hideDwellValues?'true':'false')+'">'+'DWELL'+'</button><button class="bowl-current-display-track-head-toggle'+(showCurrentDisplayTrack?' is-showing':'')+'" data-current-display-track-head-toggle="1" type="button" aria-pressed="'+(showCurrentDisplayTrack?'true':'false')+'">'+'DISPLAY TRACK'+'</button><button class="bowl-current-purple-ss-head-toggle'+(hideCurrentMissingSsFlair?' is-hiding':'')+'" data-current-purple-ss-head-toggle="1" type="button" aria-pressed="'+(hideCurrentMissingSsFlair?'true':'false')+'">'+'PURPLE SS'+'</button><button class="resolve-ss-final-btn" data-resolve-ss-btn="1" data-count="0" type="button">RESOLVE SS</button>' : '')+
           ''+
         '</th>'+ 
         '<th style="'+headBg+'font-weight:800;text-align:center;">SUM</th>'+ 
@@ -25540,7 +25847,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     head.innerHTML='<tr>'+ 
       '<th>OUTBOUND</th>'+ 
       '<th>CURRENT</th>'+ 
-      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS - SELECTED FROM CURRENT RAMP</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">HIDE OUTBOUND TRACKS</button></th>'+ 
+      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS - SELECTED FROM CURRENT RAMP</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">OUTBOUND TRACKS</button></th>'+ 
       '<th>SUM</th>'+ 
     '</tr>';
     board.appendChild(head);
@@ -25653,7 +25960,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     head.innerHTML='<tr>'+ 
       '<th>OUTBOUND</th>'+ 
       '<th>TOTAL</th>'+ 
-      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS - DEPARTING FROM POST OUTBOUND CONSIST</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">HIDE OUTBOUND TRACKS</button></th>'+ 
+      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS - DEPARTING FROM POST OUTBOUND CONSIST</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">OUTBOUND TRACKS</button></th>'+ 
       '<th>SUM</th>'+ 
     '</tr>';
     board.appendChild(head);
@@ -25792,7 +26099,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(!onlyCurrent && !omitAfter){
     const afterTitle=document.createElement('div');
     afterTitle.className='bowl-after-title';
-    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+(hideTrackSuffix?'SHOW [TRACK]':'HIDE [TRACK]')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+(hideFutureInboundTag?'SHOW FUTURE TAG':'HIDE FUTURE TAG')+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+(hideFutureInboundBlocks?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+(hidePreviousDepartingBlocks?'SHOW PREV IHOSA/MHOAS':'HIDE PREV IHOSA/MHOAS')+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+(hideTomorrowDepartingBlocks?'SHOW TOMORROW IHOSA/MHOAS':'HIDE TOMORROW IHOSA/MHOAS')+'</button>'+        '</div>'+      '</div>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
+    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+'[TRACK]'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+'FUTURE TAG'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+'FUTURE BLOCKS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+'PREV IHOSA/MHOAS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+'TOMORROW IHOSA/MHOAS'+'</button>'+        '</div>'+      '</div>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
     wrap.appendChild(afterTitle);
 
     wrap.appendChild(buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds));
@@ -25981,7 +26288,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(btn){
     btn.addEventListener('click',()=>{
       shell.classList.toggle('bowl-hide-dwell');
-      btn.textContent=shell.classList.contains('bowl-hide-dwell') ? 'DWELL' : 'HIDE DWELL';
+      btn.textContent='DWELL';
     });
   }
 }
@@ -26078,7 +26385,10 @@ if(projectedDwellBtn){
 // =======================================
 //  TRAIN BANK
 // =======================================
-function saveTB(){localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));}
+function saveTB(){
+  localStorage.setItem('dwellTrainBank',JSON.stringify(trainBank));
+  try{ if(typeof window.dwellForceSupabaseSave === 'function') window.dwellForceSupabaseSave(); }catch(e){}
+}
 window.clearTrainBankTimes=function(){
   Object.keys(trainBank).forEach(function(k){ trainBank[k]=''; });
   saveTB();
@@ -26682,17 +26992,33 @@ function calcCarDwell(arrDt,depDt,holdDay,holdHr){
 // Returns the operational block/status used for SS logic.
 // Priority must stay BK1 -> BK2 -> Yard Block.
 function getCarBlockStatus(car){
-  return String((car && (car.bk1 || car.bk2 || car.ydBlock)) || '').trim().toUpperCase();
+  return [car && car.bk1, car && car.bk2, car && car.ydBlock]
+    .map(v=>String(v||'').trim().toUpperCase())
+    .filter(Boolean)
+    .join(' | ');
 }
 
 function isActiveSSCar(car){
   const status=getCarBlockStatus(car);
-  return status==='SS' || status.startsWith('SS ') || status.includes(' SS') || status.includes('SS');
+  return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(status);
 }
 
 function getCarSSStart(car){
   if(!car) return null;
-  const dt=parseCompactDate((car.timeInHold||'').trim());
+  const raw=String(car.timeInHold||'').trim();
+  if(!raw) return null;
+  let dt=null;
+  try{ if(typeof parseSSDt==='function') dt=parseSSDt(raw); }catch(e){}
+  if(!dt){
+    try{ dt=parseCompactDate(raw); }catch(e){}
+  }
+  if(!dt && typeof parseAnyDateTime==='function'){
+    try{ dt=parseAnyDateTime(raw); }catch(e){}
+  }
+  if(!dt){
+    const d=new Date(raw);
+    if(!Number.isNaN(d.getTime())) dt=d;
+  }
   return dt && !isNaN(dt) ? dt : null;
 }
 
@@ -29319,7 +29645,7 @@ function buildCarPicker(groups){
 
   const dwellTurnoverBtn=document.createElement('button');
   dwellTurnoverBtn.className='cp-clear-btn cp-dwell-turnover-btn';
-  dwellTurnoverBtn.textContent=window._dwellTurnoverVisible?'HIDE DWELL TURNOVER':'SHOW DWELL TURNOVER';
+  dwellTurnoverBtn.textContent='DWELL TURNOVER';
   dwellTurnoverBtn.title='Show or hide the Dwell Turnover table';
   dwellTurnoverBtn.addEventListener('click',e=>{
     e.stopPropagation();
@@ -33843,11 +34169,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       shell.classList.toggle('bowl-hide-future-inbound-blocks',state.future);
       shell.classList.toggle('bowl-hide-after-departing-blocks',state.depart);
     });
-    document.querySelectorAll('[data-bowl-dwell-toggle],#bowl-dwell-btn').forEach(b=>{b.textContent=state.dwell?'SHOW DWELL':'HIDE DWELL';});
-    document.querySelectorAll('[data-bowl-track-suffix-toggle]').forEach(b=>{b.textContent=state.track?'SHOW [TRACK]':'HIDE [TRACK]';});
-    document.querySelectorAll('[data-bowl-future-tag-toggle]').forEach(b=>{b.textContent=state.tag?'SHOW FUTURE TAG':'HIDE FUTURE TAG';});
-    document.querySelectorAll('[data-bowl-future-block-toggle]').forEach(b=>{b.textContent=state.future?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS';});
-    document.querySelectorAll('[data-bowl-after-depart-toggle]').forEach(b=>{b.textContent=state.depart?'SHOW IHOSA/MHOAS':'HIDE IHOSA/MHOAS';});
+    document.querySelectorAll('[data-bowl-dwell-toggle],#bowl-dwell-btn').forEach(b=>{b.textContent='DWELL';});
+    document.querySelectorAll('[data-bowl-track-suffix-toggle]').forEach(b=>{b.textContent='[TRACK]';});
+    document.querySelectorAll('[data-bowl-future-tag-toggle]').forEach(b=>{b.textContent='FUTURE TAG';});
+    document.querySelectorAll('[data-bowl-future-block-toggle]').forEach(b=>{b.textContent='FUTURE BLOCKS';});
+  document.querySelectorAll('[data-bowl-after-depart-toggle]').forEach(b=>{b.textContent='IHOSA/MHOAS';});
     markDepartingBlocks();
     requestAnimationFrame(recalcAfterRows);
   }
@@ -33917,11 +34243,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   const fmt=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:0});
   function state(){return {dwell:read(keys.dwell),track:read(keys.track),tag:read(keys.tag),future:read(keys.future),depart:read(keys.depart)};}
   function setButtonText(st){
-    document.querySelectorAll('[data-bowl-dwell-toggle],#bowl-dwell-btn').forEach(b=>b.textContent=st.dwell?'SHOW DWELL':'HIDE DWELL');
-    document.querySelectorAll('[data-bowl-track-suffix-toggle]').forEach(b=>b.textContent=st.track?'SHOW [TRACK]':'HIDE [TRACK]');
-    document.querySelectorAll('[data-bowl-future-tag-toggle]').forEach(b=>b.textContent=st.tag?'SHOW FUTURE TAG':'HIDE FUTURE TAG');
-    document.querySelectorAll('[data-bowl-future-block-toggle]').forEach(b=>b.textContent=st.future?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS');
-    document.querySelectorAll('[data-bowl-after-depart-toggle]').forEach(b=>b.textContent=st.depart?'SHOW IHOSA/MHOAS':'HIDE IHOSA/MHOAS');
+    document.querySelectorAll('[data-bowl-dwell-toggle],#bowl-dwell-btn').forEach(b=>b.textContent='DWELL');
+    document.querySelectorAll('[data-bowl-track-suffix-toggle]').forEach(b=>b.textContent='[TRACK]');
+    document.querySelectorAll('[data-bowl-future-tag-toggle]').forEach(b=>b.textContent='FUTURE TAG');
+    document.querySelectorAll('[data-bowl-future-block-toggle]').forEach(b=>b.textContent='FUTURE BLOCKS');
+    document.querySelectorAll('[data-bowl-after-depart-toggle]').forEach(b=>b.textContent='IHOSA/MHOAS');
   }
   function isFutureBlock(block){return !!(block&&(block.classList.contains('future-inbound')||block.hasAttribute('data-future-inbound-id')||block.querySelector('.future-inbound-tag')));}
   function isDepartingBlock(block){
@@ -34041,11 +34367,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   }
   function setText(st){
-    document.querySelectorAll('[data-bowl-fixed-action="dwell"]').forEach(b=>b.textContent=st.dwell?'SHOW DWELL':'HIDE DWELL');
-    document.querySelectorAll('[data-bowl-fixed-action="track"]').forEach(b=>b.textContent=st.track?'SHOW [TRACK]':'HIDE [TRACK]');
-    document.querySelectorAll('[data-bowl-fixed-action="tag"]').forEach(b=>b.textContent=st.tag?'SHOW FUTURE TAG':'HIDE FUTURE TAG');
-    document.querySelectorAll('[data-bowl-fixed-action="future"]').forEach(b=>b.textContent=st.future?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS');
-    document.querySelectorAll('[data-bowl-fixed-action="depart"]').forEach(b=>b.textContent=st.depart?'SHOW IHOSA/MHOAS':'HIDE IHOSA/MHOAS');
+    document.querySelectorAll('[data-bowl-fixed-action="dwell"]').forEach(b=>b.textContent='DWELL');
+    document.querySelectorAll('[data-bowl-fixed-action="track"]').forEach(b=>b.textContent='[TRACK]');
+    document.querySelectorAll('[data-bowl-fixed-action="tag"]').forEach(b=>b.textContent='FUTURE TAG');
+    document.querySelectorAll('[data-bowl-fixed-action="future"]').forEach(b=>b.textContent='FUTURE BLOCKS');
+    document.querySelectorAll('[data-bowl-fixed-action="depart"]').forEach(b=>b.textContent='IHOSA/MHOAS');
   }
   function recalcAfter(st){
     document.querySelectorAll('.bowl-board-after tbody tr').forEach(tr=>{
@@ -34208,7 +34534,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(e.stopImmediatePropagation) e.stopImmediatePropagation();
     const next=!futureHidden();
     setFutureHidden(next);
-    btn.textContent=next ? 'SHOW FUTURE BLOCKS' : 'HIDE FUTURE BLOCKS';
+    btn.textContent='FUTURE BLOCKS';
     try{ if(typeof renderOB==='function') renderOB(); else if(typeof renderBowlTurnover==='function') renderBowlTurnover(); }catch(err){console.error('future block toggle render failed',err);}
   }, true);
   window.forceShowFutureInboundBlocks=function(){
@@ -34257,7 +34583,7 @@ body:not(.bowl-hide-future-inbound-blocks) .bowl-board-after .bowl-block[data-fu
     const h=hidden();
     setHidden(h);
     document.querySelectorAll('[data-bowl-fixed-action="future"],[data-bowl-future-block-toggle]').forEach(btn=>{
-      btn.textContent=h?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS';
+    btn.textContent='FUTURE BLOCKS';
     });
     if(!h){
       document.querySelectorAll('.bowl-board-after .bowl-block.future-inbound,.bowl-board-after .bowl-block[data-future-inbound-id]').forEach(el=>{
@@ -34363,8 +34689,8 @@ body.bowl-hide-future-inbound-blocks .bowl-board-after .bowl-block[data-future-i
   }
   function setButtonText(){
     const depart=read(KEY_DEPART), future=read(KEY_FUTURE);
-    document.querySelectorAll('[data-bowl-fixed-action="depart"],[data-bowl-after-depart-toggle]').forEach(b=>b.textContent=depart?'SHOW IHOSA/MHOAS':'HIDE IHOSA/MHOAS');
-    document.querySelectorAll('[data-bowl-fixed-action="future"],[data-bowl-future-block-toggle]').forEach(b=>b.textContent=future?'SHOW FUTURE BLOCKS':'HIDE FUTURE BLOCKS');
+    document.querySelectorAll('[data-bowl-fixed-action="depart"],[data-bowl-after-depart-toggle]').forEach(b=>b.textContent='IHOSA/MHOAS');
+    document.querySelectorAll('[data-bowl-fixed-action="future"],[data-bowl-future-block-toggle]').forEach(b=>b.textContent='FUTURE BLOCKS');
   }
   function recalcAfter(){
     const depart=read(KEY_DEPART), future=read(KEY_FUTURE);
@@ -34625,8 +34951,8 @@ body.bowl-hide-tomorrow-departing-blocks .bowl-board-after .bowl-block.tomorrow-
   }
   function setButtonText(){
     const prev=read(KEY_PREV), tom=read(KEY_TOM);
-    document.querySelectorAll('[data-bowl-prev-depart-toggle]').forEach(b=>{b.textContent=prev?'SHOW PREV IHOSA/MHOAS':'HIDE PREV IHOSA/MHOAS';});
-    document.querySelectorAll('[data-bowl-tomorrow-depart-toggle]').forEach(b=>{b.textContent=tom?'SHOW TOMORROW IHOSA/MHOAS':'HIDE TOMORROW IHOSA/MHOAS';});
+    document.querySelectorAll('[data-bowl-prev-depart-toggle]').forEach(b=>{b.textContent='PREV IHOSA/MHOAS';});
+    document.querySelectorAll('[data-bowl-tomorrow-depart-toggle]').forEach(b=>{b.textContent='TOMORROW IHOSA/MHOAS';});
   }
   function apply(){
     const prev=read(KEY_PREV), tom=read(KEY_TOM);
@@ -35741,7 +36067,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
     }
     // Use the already-computed dwell from the modal (ov.dwell) when present - never override with calcArrivalToOutbound which uses projected departure times and produces wrong values for non-SS blocks
     let dwell=clean(ov.dwell);
-    if(!dwell && blockType==='SS' && ov.ssStart){
+    if(blockType==='SS' && ov.ssStart){
       const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival);
       if(calc!==null) dwell=Math.round(calc)+'H NET';
     }
@@ -51326,6 +51652,32 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     var h=(db-da)/3600000;
     return isFinite(h)?Math.max(0,h):null;
   }
+  function ssTotalHours(ssStartRaw, ssEndRaw, endRaw){
+    var ssStart=parseAnyDate(ssStartRaw);
+    if(!ssStart) return null;
+    var ssEnd=parseAnyDate(ssEndRaw) || parseAnyDate(endRaw) || new Date();
+    var h=(ssEnd-ssStart)/3600000;
+    return isFinite(h)?Math.max(0,h):null;
+  }
+  function netDwellWithSS(arrivalRaw, ssStartRaw, ssEndRaw, endRaw){
+    var arrival=parseAnyDate(arrivalRaw);
+    var ssStart=parseAnyDate(ssStartRaw);
+    if(!arrival || !ssStart) return null;
+    var finalEnd=parseAnyDate(endRaw) || new Date();
+    var raw=(finalEnd-arrival)/3600000;
+    if(!isFinite(raw)) return null;
+    raw=Math.max(0,raw);
+    var ssEnd=parseAnyDate(ssEndRaw);
+    var ssMeasureEnd=ssEnd || finalEnd;
+    var ssTotal=(ssMeasureEnd-ssStart)/3600000;
+    if(isFinite(ssTotal) && ssTotal>=24){
+      var overlapStart=new Date(Math.max(arrival.getTime(),ssStart.getTime()));
+      var overlapEnd=new Date(Math.min(finalEnd.getTime(),ssMeasureEnd.getTime()));
+      var deduction=(overlapEnd-overlapStart)/3600000;
+      if(isFinite(deduction) && deduction>0) raw-=deduction;
+    }
+    return Math.max(0,raw);
+  }
   function dwellClass(h){
     if(!isFinite(h)) return '';
     return h<7?'dw-green':h<11?'dw-gold':'dw-red';
@@ -51505,14 +51857,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     var projEl     = document.getElementById('dqe-projected');
     var previewEl  = document.getElementById('dqe-preview');
 
-    // Compute dwell: arrival -> SS start = net dwell
-    var arrToSS = hoursBetween(_info.arrival, ssStartVal);
-    var ssTotal = hoursBetween(ssStartVal, ssEndVal);
-
-    var dwellH = null;
-    if(arrToSS !== null){
-      dwellH = arrToSS;
-    }
+    // Net dwell uses the shared SS rule: raw dwell minus eligible SS only at 24h+.
+    var ssTotal = ssTotalHours(ssStartVal, ssEndVal);
+    var dwellH = netDwellWithSS(_info.arrival, ssStartVal, ssEndVal);
 
     var projText = '';
     if(dwellH !== null){
@@ -51549,8 +51896,8 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     var ssStart   = cl(document.getElementById('dqe-ss-start').value);
     var ssEnd     = cl(document.getElementById('dqe-ss-end').value);
     var sampleCar = cl(document.getElementById('dqe-sample-car').value);
-    var arrToSS   = hoursBetween(_info.arrival, ssStart);
-    var dwell     = arrToSS !== null ? Math.round(arrToSS)+'H NET' : (_info.stored.dwell||'');
+    var netDwell  = netDwellWithSS(_info.arrival, ssStart, ssEnd);
+    var dwell     = netDwell !== null ? Math.round(netDwell)+'H NET' : (_info.stored.dwell||'');
 
     // Merge into the existing edit store entry
     var key = _info.editKey;
@@ -51581,9 +51928,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
 
     // Update the dwell badge on the block in place
     var existingBadge = _block.querySelector('.bowl-dwell');
-    if(dwell && arrToSS !== null){
-      var dc = dwellClass(arrToSS);
-      var badgeHtml = Math.round(arrToSS)+'H NET';
+    if(dwell && netDwell !== null){
+      var dc = dwellClass(netDwell);
+      var badgeHtml = Math.round(netDwell)+'H NET';
       if(existingBadge){
         existingBadge.className = 'bowl-dwell '+dc;
         existingBadge.textContent = badgeHtml;
@@ -52484,7 +52831,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     if(ob) ob.classList.toggle('ob-hide-consist-panels', hidden);
     var btn = document.getElementById('btn-consist-toggle');
     if(btn){
-      btn.textContent = hidden ? 'Show Consist' : 'Hide Consist';
+      btn.textContent = 'Consist';
       btn.classList.toggle('active-toggle', !hidden);
     }
   }
@@ -54496,17 +54843,53 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     menu = document.createElement('div');
     menu.className = 'bowl-control-dropdown bowl-current-options-menu';
     menu.dataset.bowlOptionsMenu = '1';
-    menu.innerHTML = '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">SHOW ONLY IHOSA/MHOAS</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">HIDE IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">SHOW OUTBOUND TRACKS</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">SHOW INBOUND</button></div>';
+    menu.innerHTML = '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button><div class="bowl-options-panel" data-bowl-options-panel><button class="bowl-current-ihosa-mhoas-toggle" data-bowl-current-ihosa-mhoas-toggle type="button">IHOSA/MHOAS</button><button class="bowl-hide-ihosa-mhoas-borders-toggle" data-hide-ihosa-mhoas-borders-toggle type="button">IHOSA/MHOAS BORDERS</button><button class="bowl-outbound-tracks-toggle" data-bowl-outbound-tracks-toggle type="button">OUTBOUND TRACKS</button><button class="bowl-inbound-source-toggle" data-bowl-inbound-source-toggle type="button">INBOUND</button></div>';
     var title = head.querySelector(':scope > span');
     if(title) title.insertAdjacentElement('afterend', menu);
     else head.appendChild(menu);
     return menu;
   }
 
+  function setOptionButton(menu, selector, text, pressed){
+    var btn = menu && menu.querySelector(selector);
+    if(!btn) return;
+    if(btn.textContent !== text) btn.textContent = text;
+    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    btn.classList.toggle('is-hiding', !!pressed);
+  }
+
+  function syncCurrentOptionLabels(menu){
+    setOptionButton(
+      menu,
+      '[data-bowl-current-ihosa-mhoas-toggle]',
+      'IHOSA/MHOAS',
+      readBool('dwellCurrentRampOnlyIhosaMhoasTags')
+    );
+    setOptionButton(
+      menu,
+      '[data-bowl-outbound-tracks-toggle]',
+      'OUTBOUND TRACKS',
+      readBool('dwellShowOutboundTracksTable')
+    );
+    setOptionButton(
+      menu,
+      '[data-bowl-inbound-source-toggle]',
+      'INBOUND',
+      readBool('dwellShowBlockInboundSource')
+    );
+    setOptionButton(
+      menu,
+      '[data-hide-ihosa-mhoas-borders-toggle]',
+      'IHOSA/MHOAS BORDERS',
+      readBool('dwellHideIhosaMhoasBorders')
+    );
+  }
+
   function syncHeader(){
     var head = document.querySelector('#tab-outbound .bowl-ramp-head');
     if(!head) return;
     var menu = ensureOptions(head);
+    syncCurrentOptionLabels(menu);
 
     var dwellHidden = readBool('dwellHideBowlDwell');
     var displayShown = readBool('dwellShowCurrentDisplayTrack');
@@ -54518,15 +54901,15 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var resolve = makeButton('[data-resolve-ss-btn]', 'resolve-ss-final-btn', 'resolveSsBtn');
 
     if(dwell){
-      dwell.textContent = dwellHidden ? 'DWELL' : 'HIDE DWELL';
+      dwell.textContent = 'DWELL';
       dwell.setAttribute('aria-pressed', dwellHidden ? 'true' : 'false');
     }
     if(display){
-      display.textContent = displayShown ? 'HIDE DISPLAY TRACK' : 'DISPLAY TRACK';
+      display.textContent = 'DISPLAY TRACK';
       display.setAttribute('aria-pressed', displayShown ? 'true' : 'false');
     }
     if(purple){
-      purple.textContent = purpleHidden ? 'PURPLE SS' : 'HIDE PURPLE SS';
+      purple.textContent = 'PURPLE SS';
       purple.setAttribute('aria-pressed', purpleHidden ? 'true' : 'false');
     }
     if(resolve && !resolve.textContent.trim()){
@@ -54938,6 +55321,34 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function findEdit(block, edits){var found=null, foundKey='';keysFor(block).some(function(k){if(edits[k]){found=edits[k];foundKey=k;return true;}return false;});return {edit:found,key:foundKey};}
   function dwellClass(txt){var h=parseFloat(clean(txt));if(!Number.isFinite(h))return '';return h<7?'dw-green':(h<11?'dw-gold':'dw-red');}
   function labelFor(block, edit){var label=clean(edit.sourceBlockLabel||edit.label);if(label)return label;var ds=block.dataset||{};return clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||block.textContent).replace(/^\s*[\d,]+\s*\|\s*/,'');}
+  function parseDate(raw){
+    raw=clean(raw);
+    if(!raw) return null;
+    var m=raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(m){var d1=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);return isNaN(d1)?null:d1;}
+    m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s+(\d{1,2}):(\d{2})(?:\s*([AP]M))?/i);
+    if(m){var h=+m[4], ap=(m[6]||'').toUpperCase();if(ap==='PM'&&h<12)h+=12;if(ap==='AM'&&h===12)h=0;var d2=new Date(+m[3],+m[1]-1,+m[2],h,+m[5]);return isNaN(d2)?null:d2;}
+    var d3=new Date(raw);
+    return isNaN(d3)?null:d3;
+  }
+  function arrivalForEdit(block, edit){
+    var ds=block&&block.dataset||{};
+    var direct=clean(edit.arrival||ds.currentArrival||ds.arrival||'');
+    if(direct) return direct;
+    var train=clean(edit.train||ds.currentTrain||ds.sourceTrain||'').toUpperCase();
+    if(!train) return '';
+    try{if(typeof window.getArrivalInfo==='function'){var info=window.getArrivalInfo(train);if(info&&info.dt)return info.dt;}}catch(e){}
+    try{if(typeof window.getArrival==='function'){var d=window.getArrival(train);if(d)return d;}}catch(e){}
+    try{if(window.arrOverrides&&window.arrOverrides[train])return window.arrOverrides[train];}catch(e){}
+    return '';
+  }
+  function ssNetDwell(block, edit){
+    var start=parseDate(edit.ssStart||edit.ssStartTime||(block&&block.dataset&&(block.dataset.currentSsStart||block.dataset.ssStart))||'');
+    var arrival=parseDate(arrivalForEdit(block,edit));
+    if(!arrival||!start) return '';
+    var h=(start-arrival)/3600000;
+    return Number.isFinite(h) ? Math.max(0,Math.round(h))+'H NET' : '';
+  }
   function applyEdit(block, edit, key){
     if(!block||!edit) return;
     var stable=stableKey(block)||key;
@@ -54954,7 +55365,9 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     block.classList.remove('missing-ss-start','current-ss-start-missing');
     delete block.dataset.missingSsStart;
     block.dataset.missingSsStartAuthority='0';
-    var dwell=clean(edit.dwell), label=labelFor(block,edit), ft=fmt(edit.ft || (block.querySelector('b')&&block.querySelector('b').textContent));
+    var label=labelFor(block,edit), ft=fmt(edit.ft || (block.querySelector('b')&&block.querySelector('b').textContent));
+    var isSS=/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(edit.blockType||label).toUpperCase());
+    var dwell=isSS ? (ssNetDwell(block,edit)||clean(edit.dwell)) : clean(edit.dwell);
     if(dwell){
       var span=block.querySelector('span')||block;
       var editBtn=block.querySelector('.current-block-edit-btn');
@@ -55254,6 +55667,9 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
 (function(){
   'use strict';
   var KEY = 'dwellHideIhosaMhoasBorders';
+  try{
+    if(localStorage.getItem(KEY) == null) localStorage.setItem(KEY, '1');
+  }catch(e){}
   function read(){ try{return localStorage.getItem(KEY)==='1';}catch(e){return false;} }
   function write(v){ try{localStorage.setItem(KEY, v ? '1' : '0');}catch(e){} }
   function apply(){
@@ -55261,7 +55677,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var hidden = read();
     if(tab) tab.classList.toggle('ob-hide-ihosa-mhoas-borders', hidden);
     document.querySelectorAll('#tab-outbound .bowl-current-options-menu [data-hide-ihosa-mhoas-borders-toggle]').forEach(function(btn){
-      btn.textContent = hidden ? 'SHOW IHOSA/MHOAS BORDERS' : 'HIDE IHOSA/MHOAS BORDERS';
+      btn.textContent = 'IHOSA/MHOAS BORDERS';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
     });
   }
@@ -55294,4 +55710,99 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   schedule();
 })();
 </script>
+
+<script id="outbound-neutral-toggle-labels-final-js">
+(function(){
+  'use strict';
+  if(window.__outboundNeutralToggleLabelsFinalInstalled) return;
+  window.__outboundNeutralToggleLabelsFinalInstalled = true;
+
+  var LABELS = [
+    ['#tab-outbound [data-current-dwell-head-toggle]', 'DWELL'],
+    ['#tab-outbound [data-current-display-track-head-toggle]', 'DISPLAY TRACK'],
+    ['#tab-outbound [data-current-purple-ss-head-toggle]', 'PURPLE SS'],
+    ['#tab-outbound [data-bowl-current-ihosa-mhoas-toggle]', 'IHOSA/MHOAS'],
+    ['#tab-outbound [data-hide-ihosa-mhoas-borders-toggle]', 'IHOSA/MHOAS BORDERS'],
+    ['#tab-outbound [data-bowl-outbound-tracks-toggle]', 'OUTBOUND TRACKS'],
+    ['#tab-outbound [data-bowl-inbound-source-toggle]', 'INBOUND'],
+    ['#tab-outbound [data-bowl-prev-depart-toggle]', 'PREV IHOSA/MHOAS'],
+    ['#tab-outbound [data-bowl-tomorrow-depart-toggle]', 'TOMORROW IHOSA/MHOAS'],
+    ['#tab-outbound [data-bowl-track-suffix-toggle]', '[TRACK]'],
+    ['#tab-outbound [data-bowl-future-tag-toggle]', 'FUTURE TAG'],
+    ['#tab-outbound [data-bowl-future-block-toggle]', 'FUTURE BLOCKS'],
+    ['#tab-outbound [data-post-future-block-head-toggle]', 'FUTURE BLOCKS'],
+    ['#tab-outbound [data-current-ss-hours-head-toggle]', 'SS HRS'],
+    ['#tab-outbound [data-bowl-dwell-toggle]', 'DWELL'],
+    ['#tab-outbound .cp-dwell-turnover-btn', 'DWELL TURNOVER'],
+    ['#tab-outbound [data-bowl-after-depart-toggle]', 'IHOSA/MHOAS'],
+    ['#tab-outbound [data-bowl-fixed-action="depart"]', 'IHOSA/MHOAS']
+  ];
+
+  function normalize(){
+    LABELS.forEach(function(pair){
+      document.querySelectorAll(pair[0]).forEach(function(btn){
+        if((btn.textContent || '').trim() !== pair[1]) btn.textContent = pair[1];
+        btn.dataset.neutralToggleLabel = '1';
+      });
+    });
+  }
+
+  function schedule(){
+    normalize();
+    clearTimeout(schedule._timer);
+    schedule._timer = setTimeout(normalize, 50);
+  }
+
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,[data-bowl-options-main],[data-bowl-options-panel]')){
+      [0,40,120,260].forEach(function(delay){ setTimeout(normalize, delay); });
+    }
+  }, true);
+  try{
+    var root = document.getElementById('tab-outbound') || document.body || document.documentElement;
+    new MutationObserver(schedule).observe(root, {subtree:true, childList:true, characterData:true});
+  }catch(e){}
+  ['renderOB','renderBowlTurnover'].forEach(function(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__outboundNeutralToggleLabelsFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__outboundNeutralToggleLabelsFinalWrapped = true;
+    window[name] = wrapped;
+  });
+  schedule();
+})();
+</script>
+
+<style id="current-ramp-prev-ihosa-mhoas-stable-late-css">
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle],
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle],
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]{
+    background:rgba(15,23,42,.34)!important;
+    background-image:none!important;
+    border-color:rgba(148,163,184,.34)!important;
+    color:rgba(226,232,240,.82)!important;
+    box-shadow:none!important;
+    text-shadow:none!important;
+  }
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle]:hover,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle]:hover,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]:hover{
+    background:rgba(30,41,59,.52)!important;
+    background-image:none!important;
+    border-color:rgba(191,219,254,.48)!important;
+    color:#dbeafe!important;
+  }
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle[data-bowl-prev-depart-toggle]::before,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding[data-bowl-prev-depart-toggle]::before,
+  html body #tab-outbound .bowl-after-title > button.bowl-prev-depart-head-toggle.is-hiding.is-hiding[data-bowl-prev-depart-toggle]::before{
+    content:none!important;
+    display:none!important;
+  }
+</style>
 
