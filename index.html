@@ -3012,8 +3012,8 @@ html body .archive-dialog{
       var found = normalizedDepart(sources[i]);
       if(found) return found;
     }
-    if(block.classList.contains('depart-ihosa') || block.classList.contains('ihosa')) return 'IHOSA';
-    if(block.classList.contains('depart-mhoas') || block.classList.contains('mhoas')) return 'MHOAS';
+    if(block.classList.contains('depart-ihosa') || block.classList.contains('assignment-ihosa-border')) return 'IHOSA';
+    if(block.classList.contains('depart-mhoas') || block.classList.contains('assignment-mhoas-border')) return 'MHOAS';
     var badge = block.querySelector('.after-depart-badge.ihosa,.after-depart-badge.mhoas');
     if(badge){
       if(badge.classList.contains('ihosa')) return 'IHOSA';
@@ -10744,6 +10744,244 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   }catch(e){}
 })();
 </script>
+
+<style id="current-ramp-header-display-repair-true-tail-css">
+  html body #tab-outbound .bowl-ramp-head{
+    position:relative!important;
+    overflow:visible!important;
+    white-space:normal!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu{
+    position:relative!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    vertical-align:middle!important;
+    margin:0 8px!important;
+    width:auto!important;
+    height:auto!important;
+    z-index:20!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-main,
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    box-sizing:border-box!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:auto!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:30px!important;
+    min-height:30px!important;
+    max-height:30px!important;
+    margin:2px 4px!important;
+    padding:0 12px!important;
+    border-radius:8px!important;
+    border:1px solid rgba(148,163,184,.38)!important;
+    background:linear-gradient(180deg,rgba(30,41,59,.78),rgba(15,23,42,.94))!important;
+    color:#dbeafe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1.2px!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    cursor:pointer!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.18)!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]{
+    color:#fde68a!important;
+    border-color:rgba(245,158,11,.68)!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.76),rgba(69,26,3,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle]{
+    color:#d8b4fe!important;
+    border-color:rgba(148,163,184,.36)!important;
+    background:linear-gradient(180deg,rgba(88,28,135,.34),rgba(30,27,75,.90))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    color:#f0abfc!important;
+    border-color:rgba(168,85,247,.54)!important;
+    background:linear-gradient(180deg,rgba(112,26,117,.52),rgba(88,28,135,.88))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle]{
+    color:#bfdbfe!important;
+    border-color:rgba(96,165,250,.52)!important;
+    background:linear-gradient(180deg,rgba(30,64,175,.62),rgba(15,23,42,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel{
+    position:absolute!important;
+    top:calc(100% + 7px)!important;
+    left:0!important;
+    right:auto!important;
+    display:none!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:7px!important;
+    min-width:236px!important;
+    max-width:320px!important;
+    padding:9px!important;
+    border:1px solid rgba(96,165,250,.52)!important;
+    border-radius:10px!important;
+    background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;
+    box-shadow:0 18px 34px rgba(0,0,0,.46)!important;
+    z-index:2147482500!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu.open > .bowl-options-panel{
+    display:flex!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel > button{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    width:100%!important;
+    height:31px!important;
+    min-height:31px!important;
+    padding:0 10px!important;
+    border:1px solid rgba(96,165,250,.35)!important;
+    border-radius:8px!important;
+    background:rgba(15,23,42,.92)!important;
+    color:#bfdbfe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1px!important;
+    text-align:left!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+  }
+</style>
+
+<style id="current-ramp-header-display-repair-eof-css">
+  html body #tab-outbound .bowl-ramp-head{
+    position:relative!important;
+    overflow:visible!important;
+    white-space:normal!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu{
+    position:relative!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    vertical-align:middle!important;
+    margin:0 8px!important;
+    width:auto!important;
+    height:auto!important;
+    z-index:20!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-main,
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    box-sizing:border-box!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:auto!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:30px!important;
+    min-height:30px!important;
+    max-height:30px!important;
+    margin:2px 4px!important;
+    padding:0 12px!important;
+    border-radius:8px!important;
+    border:1px solid rgba(148,163,184,.38)!important;
+    background:linear-gradient(180deg,rgba(30,41,59,.78),rgba(15,23,42,.94))!important;
+    color:#dbeafe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1.2px!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    cursor:pointer!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.18)!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]{
+    color:#fde68a!important;
+    border-color:rgba(245,158,11,.68)!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.76),rgba(69,26,3,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle]{
+    color:#d8b4fe!important;
+    border-color:rgba(148,163,184,.36)!important;
+    background:linear-gradient(180deg,rgba(88,28,135,.34),rgba(30,27,75,.90))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    color:#f0abfc!important;
+    border-color:rgba(168,85,247,.54)!important;
+    background:linear-gradient(180deg,rgba(112,26,117,.52),rgba(88,28,135,.88))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle]{
+    color:#bfdbfe!important;
+    border-color:rgba(96,165,250,.52)!important;
+    background:linear-gradient(180deg,rgba(30,64,175,.62),rgba(15,23,42,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel{
+    position:absolute!important;
+    top:calc(100% + 7px)!important;
+    left:0!important;
+    right:auto!important;
+    display:none!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:7px!important;
+    min-width:236px!important;
+    max-width:320px!important;
+    padding:9px!important;
+    border:1px solid rgba(96,165,250,.52)!important;
+    border-radius:10px!important;
+    background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;
+    box-shadow:0 18px 34px rgba(0,0,0,.46)!important;
+    z-index:2147482500!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu.open > .bowl-options-panel{
+    display:flex!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel > button{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    width:100%!important;
+    height:31px!important;
+    min-height:31px!important;
+    padding:0 10px!important;
+    border:1px solid rgba(96,165,250,.35)!important;
+    border-radius:8px!important;
+    background:rgba(15,23,42,.92)!important;
+    color:#bfdbfe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1px!important;
+    text-align:left!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+  }
+</style>
 
 <style id="top-action-fill-space-text-fix">
 /* Make the very top action button labels fill the available button space. */
@@ -24100,11 +24338,15 @@ function buildInboundOutboundProjectionCards(){
   const tomorrowRecords=(TRAIN)=>{
     let blocks=[];
     try{
+      const tomorrowHidden = localStorage.getItem('dwellHideFutureInboundBlocks_v4')==='1' || localStorage.getItem('dwellHideTomorrowIhosaMhoas')==='1';
+      if(tomorrowHidden) return [];
       const all=(typeof window.loadManualAfterBlocks==='function'?window.loadManualAfterBlocks():(typeof loadManualAfterBlocks==='function'?loadManualAfterBlocks():[]))||[];
       blocks=all.filter(b=>{
         if(!b) return false;
         const isFuture=String(b.kind||b.type||'').toLowerCase()==='futureinbound';
         if(!isFuture) return false;
+        if(!b.groupId) return false;
+        if(/^ndfi_/i.test(String(b.id||'')) || /^ndfi_/i.test(String(b.groupId||'')) || /next[-\s_]*day/i.test(String(b.targetMode||b.board||b.sourceBoard||''))) return false;
         const norm=(typeof normalizeFutureInboundBlockSafe==='function')
           ? normalizeFutureInboundBlockSafe(b.futureBlock || b.block || '')
           : ((typeof normalizeFutureInboundBlock==='function')?normalizeFutureInboundBlock(b.futureBlock || b.block || ''):String(b.futureBlock || b.block || '').trim().toUpperCase());
@@ -27930,16 +28172,21 @@ function buildProjectedDwellStrip(ihosaGroups,mhoasGroups){
     // Pull every future-inbound manual block tagged with this train.
     let blocks=[];
     try{
-      const all=(typeof window.loadManualAfterBlocks==='function'?window.loadManualAfterBlocks():(typeof loadManualAfterBlocks==='function'?loadManualAfterBlocks():[]))||[];
-      blocks=all.filter(b=>{
-        if(!b) return false;
-        const isFuture=String(b.kind||b.type||'').toLowerCase()==='futureinbound';
-        if(!isFuture) return false;
-        const norm=(typeof normalizeFutureInboundBlockSafe==='function')
-          ? normalizeFutureInboundBlockSafe(b.futureBlock || b.block || '')
-          : String(b.futureBlock || b.block || '').trim().toUpperCase();
-        return norm===TRAIN;
-      });
+      const tomorrowHidden = localStorage.getItem('dwellHideFutureInboundBlocks_v4')==='1' || localStorage.getItem('dwellHideTomorrowIhosaMhoas')==='1';
+      if(!tomorrowHidden){
+        const all=(typeof window.loadManualAfterBlocks==='function'?window.loadManualAfterBlocks():(typeof loadManualAfterBlocks==='function'?loadManualAfterBlocks():[]))||[];
+        blocks=all.filter(b=>{
+          if(!b) return false;
+          const isFuture=String(b.kind||b.type||'').toLowerCase()==='futureinbound';
+          if(!isFuture) return false;
+          if(!b.groupId) return false;
+          if(/^ndfi_/i.test(String(b.id||'')) || /^ndfi_/i.test(String(b.groupId||'')) || /next[-\s_]*day/i.test(String(b.targetMode||b.board||b.sourceBoard||''))) return false;
+          const norm=(typeof normalizeFutureInboundBlockSafe==='function')
+            ? normalizeFutureInboundBlockSafe(b.futureBlock || b.block || '')
+            : String(b.futureBlock || b.block || '').trim().toUpperCase();
+          return norm===TRAIN;
+        });
+      }
     }catch(e){ blocks=[]; }
 
     // Use the same release date the after-board itself uses for these blocks.
@@ -28060,17 +28307,111 @@ function scheduleRenderOB(){
   });
 }
 
+function currentRampTaggedOutboundTrain(block){
+  if(!block) return '';
+  const norm=v=>String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,' ');
+  const train=v=>{
+    const out=(typeof normalizeOutboundTrain==='function') ? normalizeOutboundTrain(v) : norm(v);
+    return (out==='IHOSA'||out==='MHOAS') ? out : '';
+  };
+  const ds=block.dataset||{};
+  let out=train(ds.outboundDeparture || ds.outboundDisplayDeparture || ds.afterDepart || ds.assignmentDepart || ds.departTrain || '');
+  if(out) return out;
+  if(block.classList && (block.classList.contains('depart-ihosa') || block.classList.contains('assignment-ihosa-border'))) return 'IHOSA';
+  if(block.classList && (block.classList.contains('depart-mhoas') || block.classList.contains('assignment-mhoas-border'))) return 'MHOAS';
+  const badge=block.querySelector && block.querySelector('.after-depart-badge.ihosa,.future-status-badge.ihosa');
+  if(badge) return 'IHOSA';
+  const badgeM=block.querySelector && block.querySelector('.after-depart-badge.mhoas,.future-status-badge.mhoas');
+  if(badgeM) return 'MHOAS';
+  const badgeText=block.querySelectorAll ? Array.from(block.querySelectorAll('.after-depart-badge,.future-status-badge')).map(x=>norm(x.textContent)).join(' ') : '';
+  if(/\bIHOSA\b/.test(badgeText)) return 'IHOSA';
+  if(/\bMHOAS\b/.test(badgeText)) return 'MHOAS';
+  return '';
+}
+
+function currentRampProjectedTaggedGroups(groups){
+  const list=Array.isArray(groups)?groups:[];
+  if(!list.length || typeof document==='undefined') return [];
+  const byKey=new Map();
+  const byTrackEquip=new Map();
+  const norm=v=>String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,' ');
+  const trackOf=v=>{
+    const m=String(v||'').match(/(?:06-)?(80[1-9])/);
+    return m ? m[1] : String(v||'').replace(/\D/g,'');
+  };
+  list.forEach(g=>{
+    if(!g || g.isForecast) return;
+    if(g.key) byKey.set(norm(g.key), g);
+    (g.cars||[]).forEach(car=>{
+      const tr=trackOf(car&&car.track || g.track || '');
+      const id=norm(car&&car.equipId);
+      if(tr&&id) byTrackEquip.set(tr+'||'+id, g);
+    });
+  });
+  const out=[];
+  const seen=new Set();
+  document.querySelectorAll('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(block=>{
+    if(block.classList && block.classList.contains('current-only-layout-placeholder')) return;
+    const assigned=currentRampTaggedOutboundTrain(block);
+    if(!assigned) return;
+    const ds=block.dataset||{};
+    const tr=trackOf(ds.displayTrack || (block.closest('tr')&&block.closest('tr').querySelector('.bowl-track')&&block.closest('tr').querySelector('.bowl-track').textContent) || '');
+    let g=byKey.get(norm(ds.bowlGroupKey));
+    if(!g){
+      const sample=norm(ds.sampleCar || ds.sampleEquipId || '');
+      if(tr&&sample) g=byTrackEquip.get(tr+'||'+sample);
+    }
+    if(!g || !Array.isArray(g.cars) || !g.cars.length) return;
+    const sourceKey=String(g.key||'');
+    const key=assigned+'||'+sourceKey;
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({
+      ...g,
+      key:'CURRENT_TAGGED||'+key,
+      _projectedSourceKey:sourceKey,
+      outbound:assigned,
+      _saTrain:assigned,
+      isManual:true,
+      isCurrentRampTaggedProjection:true,
+      cars:(g.cars||[]).slice()
+    });
+  });
+  return out;
+}
+
 function renderOB(){
+  try{ if(typeof window.syncTaggedCurrentRampCars === 'function') window.syncTaggedCurrentRampCars({fromRenderOB:true}); }catch(e){}
   const depDt=getIHOSA();
   const ihosaDepDt=getDepDtForTrain('IHOSA');
   const mhoasDepDt=getDepDtForTrain('MHOAS');
   const groups=buildGroups().sort((a,b)=>(parseInt(a.track)||0)-(parseInt(b.track)||0)||(a.seqStart||0)-(b.seqStart||0)||a.train.localeCompare(b.train));
-  const selGroups=getSelectedGroups(depDt);
   const trainForGroup=g=>{
     if(g.isManual) return normalizeOutboundTrain(g.outbound || g._saTrain || getRideTrainValue(g.key) || getOutboundSelValue(g.key));
     if(g.isForecast) return normalizeOutboundTrain(getRideTrainValue(g.key) || getOutboundSelValue(g.key) || g.outbound);
     return getRideTrainValue(g.key);
   };
+  let selGroups=getSelectedGroups(depDt);
+  currentRampProjectedTaggedGroups(groups).forEach(tagged=>{
+    const taggedTrain=trainForGroup(tagged);
+    const taggedCars=new Set((tagged.cars||[]).map(c=>String(c&&c.equipId||'').trim()).filter(Boolean));
+    const already=selGroups.some(g=>{
+      if(trainForGroup(g)!==taggedTrain) return false;
+      return (g.cars||[]).some(c=>taggedCars.has(String(c&&c.equipId||'').trim()));
+    });
+    if(!already) selGroups.push(tagged);
+  });
+  const clearRenderMode = Date.now() < (window.__ihosaMhoasClearRenderUntil || 0);
+  if(clearRenderMode){
+    const hasVisibleTags = !!document.querySelector('#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.depart-ihosa,#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.depart-mhoas,#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.assignment-ihosa-border,#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.assignment-mhoas-border,#tab-outbound .bowl-board .bowl-segments-cell .bowl-block .after-depart-badge.ihosa,#tab-outbound .bowl-board .bowl-segments-cell .bowl-block .after-depart-badge.mhoas');
+    if(!hasVisibleTags){
+      selGroups = selGroups.filter(g=>{
+        const train = trainForGroup(g);
+        if(train !== 'IHOSA' && train !== 'MHOAS') return true;
+        return !(g.isManual || g.isCurrentRampTaggedProjection);
+      });
+    }
+  }
   const ihosaGroups=selGroups.filter(g=>trainForGroup(g)==='IHOSA');
   const mhoasGroups=selGroups.filter(g=>trainForGroup(g)==='MHOAS');
   const obView=document.getElementById('ob-inner');
@@ -28212,6 +28553,9 @@ function renderOB(){
     console.error('Bowl turnover render failed', err);
     bowlWrap.innerHTML='<div class="ob-empty"><div class="ob-empty-icon">WARN</div>BOWL TURNOVER FAILED TO RENDER - OUTBOUND TABLE STILL LOADED</div>';
   }
+  setTimeout(()=>{
+    try{ if(typeof window.syncTaggedCurrentRampCars === 'function') window.syncTaggedCurrentRampCars({afterRenderOB:true}); }catch(e){}
+  },0);
 
   setTimeout(()=>{
     const btn=document.getElementById('consist-inline-add-btn');
@@ -30085,6 +30429,8 @@ function buildCarPicker(groups){
       const isSaSelected=(selTrain==='IHOSA' || selTrain==='MHOAS');
       const row=document.createElement('div');
       row.dataset.cpIndex=String(ci);
+      row.dataset.cpTrack=String(track || car.track || '');
+      row.dataset.cpEquipId=String(car.equipId || '').trim().toUpperCase();
       const trainNameForColor=getTrainDisplayName(car);
       const trainColorClass=getTrainColorClass(trainNameForColor);
       row.className='cp-car-row '+trainColorClass+(isChecked?' selected':'')+(isSaSelected ? (selTrain==='MHOAS'?' sa-mhoas':' sa-ihosa') : '');
@@ -55930,6 +56276,435 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
 })();
 </script>
 
+<style id="current-ramp-header-display-repair-after-obfmt-css">
+  html body #tab-outbound .bowl-ramp-head{
+    position:relative!important;
+    overflow:visible!important;
+    white-space:normal!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu{
+    position:relative!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    vertical-align:middle!important;
+    margin:0 8px!important;
+    width:auto!important;
+    height:auto!important;
+    z-index:20!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-main,
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    box-sizing:border-box!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:auto!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:30px!important;
+    min-height:30px!important;
+    max-height:30px!important;
+    margin:2px 4px!important;
+    padding:0 12px!important;
+    border-radius:8px!important;
+    border:1px solid rgba(148,163,184,.38)!important;
+    background:linear-gradient(180deg,rgba(30,41,59,.78),rgba(15,23,42,.94))!important;
+    color:#dbeafe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1.2px!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    cursor:pointer!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.18)!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]{
+    color:#fde68a!important;
+    border-color:rgba(245,158,11,.68)!important;
+    background:linear-gradient(180deg,rgba(120,53,15,.76),rgba(69,26,3,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle]{
+    color:#d8b4fe!important;
+    border-color:rgba(148,163,184,.36)!important;
+    background:linear-gradient(180deg,rgba(88,28,135,.34),rgba(30,27,75,.90))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{
+    color:#f0abfc!important;
+    border-color:rgba(168,85,247,.54)!important;
+    background:linear-gradient(180deg,rgba(112,26,117,.52),rgba(88,28,135,.88))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle]{
+    color:#bfdbfe!important;
+    border-color:rgba(96,165,250,.52)!important;
+    background:linear-gradient(180deg,rgba(30,64,175,.62),rgba(15,23,42,.94))!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel{
+    position:absolute!important;
+    top:calc(100% + 7px)!important;
+    left:0!important;
+    right:auto!important;
+    display:none!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:7px!important;
+    min-width:236px!important;
+    max-width:320px!important;
+    padding:9px!important;
+    border:1px solid rgba(96,165,250,.52)!important;
+    border-radius:10px!important;
+    background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;
+    box-shadow:0 18px 34px rgba(0,0,0,.46)!important;
+    z-index:2147482500!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu.open > .bowl-options-panel{
+    display:flex!important;
+  }
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel > button{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    width:100%!important;
+    height:31px!important;
+    min-height:31px!important;
+    padding:0 10px!important;
+    border:1px solid rgba(96,165,250,.35)!important;
+    border-radius:8px!important;
+    background:rgba(15,23,42,.92)!important;
+    color:#bfdbfe!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1px!important;
+    text-align:left!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+  }
+</style>
+
+
+<style id="outbound-conditional-format-color-click-final-css">
+  #obfmt-popup .obfmt-row label,
+  #obfmt-popup .obfmt-row input[type="color"]{
+    pointer-events:auto!important;
+  }
+  #obfmt-popup .obfmt-row label{
+    cursor:pointer!important;
+  }
+  #obfmt-popup .obfmt-row input[type="color"]{
+    appearance:auto!important;
+    -webkit-appearance:auto!important;
+    opacity:1!important;
+    visibility:visible!important;
+  }
+</style>
+<script id="outbound-conditional-format-color-click-final-js">
+(function(){
+  'use strict';
+  if(window.__outboundConditionalFormatColorClickFinalInstalled) return;
+  window.__outboundConditionalFormatColorClickFinalInstalled = true;
+
+  function rowValues(row){
+    var vals = {};
+    row.querySelectorAll('input[type="color"][data-kind]').forEach(function(input){
+      vals[input.getAttribute('data-kind')] = input.value;
+    });
+    return vals;
+  }
+
+  function syncRow(input){
+    var row = input && input.closest && input.closest('#obfmt-grid [data-obfmt-row]');
+    if(!row) return;
+    var vals = rowValues(row);
+    var preview = row.querySelector('.obfmt-preview');
+    if(preview){
+      preview.style.background = vals.bg || '';
+      preview.style.borderColor = vals.border || '';
+      preview.style.color = vals.text || '';
+    }
+    document.querySelectorAll('#obfmt-grid [data-obfmt-row]').forEach(function(item){
+      var id = item.getAttribute('data-obfmt-row');
+      if(!id) return;
+      var valsForId = rowValues(item);
+      Object.keys(valsForId).forEach(function(kind){
+        document.documentElement.style.setProperty('--obfmt-' + id + '-' + kind, valsForId[kind]);
+      });
+    });
+  }
+
+  document.addEventListener('click', function(e){
+    if(window.__outboundConditionalFormatCustomPickerFinalInstalled) return;
+    var label = e.target && e.target.closest && e.target.closest('#obfmt-popup .obfmt-row label');
+    if(!label) return;
+    var input = label.querySelector('input[type="color"]');
+    if(!input || e.target === input) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try{
+      input.focus({preventScroll:true});
+      if(typeof input.showPicker === 'function') input.showPicker();
+      else input.click();
+    }catch(err){
+      try{ input.click(); }catch(e2){}
+    }
+  }, true);
+
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.matches && e.target.matches('#obfmt-grid input[type="color"][data-kind]')){
+      syncRow(e.target);
+    }
+  }, true);
+})();
+</script>
+
+
+<style id="outbound-conditional-format-custom-picker-final-css">
+  #obfmt-custom-picker{
+    position:fixed;
+    z-index:2147483001;
+    width:236px;
+    padding:10px;
+    border:1px solid rgba(245,158,11,.72);
+    border-radius:10px;
+    background:#080d18;
+    box-shadow:0 18px 46px rgba(0,0,0,.52);
+    color:#e5e7eb;
+    font-family:var(--mono,monospace);
+  }
+  #obfmt-custom-picker[hidden]{display:none!important;}
+  #obfmt-custom-picker .obfmt-picker-title{
+    margin-bottom:8px;
+    color:#fde047;
+    font-size:10px;
+    font-weight:1000;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  #obfmt-custom-picker .obfmt-picker-main{
+    display:grid;
+    grid-template-columns:42px 1fr;
+    gap:8px;
+    align-items:center;
+    margin-bottom:9px;
+  }
+  #obfmt-custom-picker .obfmt-picker-chip{
+    width:42px;
+    height:34px;
+    border:1px solid rgba(255,255,255,.28);
+    border-radius:7px;
+    background:#123456;
+  }
+  #obfmt-custom-picker .obfmt-picker-hex{
+    width:100%;
+    height:34px;
+    border:1px solid rgba(148,163,184,.42);
+    border-radius:7px;
+    background:#020617;
+    color:#f8fafc;
+    padding:0 9px;
+    font:900 12px var(--mono,monospace);
+    letter-spacing:.8px;
+    outline:none;
+  }
+  #obfmt-custom-picker .obfmt-picker-swatches{
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    gap:5px;
+    margin-bottom:10px;
+  }
+  #obfmt-custom-picker .obfmt-picker-swatch{
+    width:22px;
+    height:22px;
+    border:1px solid rgba(255,255,255,.24);
+    border-radius:5px;
+    cursor:pointer;
+  }
+  #obfmt-custom-picker .obfmt-picker-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:7px;
+  }
+  #obfmt-custom-picker .obfmt-picker-actions button{
+    border:1px solid rgba(148,163,184,.42);
+    border-radius:7px;
+    background:#111827;
+    color:#e5e7eb;
+    padding:7px 9px;
+    font:900 10px var(--mono,monospace);
+    letter-spacing:.7px;
+    cursor:pointer;
+  }
+  #obfmt-custom-picker .obfmt-picker-actions [data-obfmt-picker-done]{
+    background:#14532d;
+    border-color:#22c55e;
+    color:#dcfce7;
+  }
+</style>
+<script id="outbound-conditional-format-custom-picker-final-js">
+(function(){
+  'use strict';
+  if(window.__outboundConditionalFormatCustomPickerFinalInstalled) return;
+  window.__outboundConditionalFormatCustomPickerFinalInstalled = true;
+
+  var activeInput = null;
+  var swatches = [
+    '#020617','#0f172a','#111827','#1f2937','#334155','#64748b','#f8fafc','#ffffff',
+    '#7f1d1d','#dc2626','#f97316','#f59e0b','#facc15','#84cc16','#22c55e','#14b8a6',
+    '#0891b2','#38bdf8','#2563eb','#60a5fa','#4f46e5','#7c3aed','#a855f7','#d946ef',
+    '#ec4899','#fb7185','#052e16','#0f2a5f','#3b2606','#312e81','#4c1d95','#17321f'
+  ];
+
+  function validHex(value){
+    value = String(value || '').trim();
+    if(/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+    if(/^[0-9a-f]{6}$/i.test(value)) return ('#' + value).toLowerCase();
+    return '';
+  }
+
+  function labelText(input){
+    var label = input && input.closest && input.closest('label');
+    return label ? String(label.childNodes[0] && label.childNodes[0].nodeValue || label.textContent || '').trim() : 'Color';
+  }
+
+  function ensurePicker(){
+    var picker = document.getElementById('obfmt-custom-picker');
+    if(picker) return picker;
+    picker = document.createElement('div');
+    picker.id = 'obfmt-custom-picker';
+    picker.hidden = true;
+    picker.innerHTML =
+      '<div class="obfmt-picker-title" data-obfmt-picker-title>COLOR</div>' +
+      '<div class="obfmt-picker-main">' +
+        '<div class="obfmt-picker-chip" data-obfmt-picker-chip></div>' +
+        '<input class="obfmt-picker-hex" data-obfmt-picker-hex maxlength="7" spellcheck="false">' +
+      '</div>' +
+      '<div class="obfmt-picker-swatches">' +
+        swatches.map(function(color){return '<button type="button" class="obfmt-picker-swatch" data-obfmt-picker-color="'+color+'" style="background:'+color+'" aria-label="'+color+'"></button>';}).join('') +
+      '</div>' +
+      '<div class="obfmt-picker-actions">' +
+        '<button type="button" data-obfmt-picker-cancel>CANCEL</button>' +
+        '<button type="button" data-obfmt-picker-done>DONE</button>' +
+      '</div>';
+    document.body.appendChild(picker);
+    return picker;
+  }
+
+  function dispatchColorInput(input){
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+
+  function setActiveColor(value){
+    var hex = validHex(value);
+    if(!hex || !activeInput) return false;
+    activeInput.value = hex;
+    dispatchColorInput(activeInput);
+    var picker = ensurePicker();
+    var chip = picker.querySelector('[data-obfmt-picker-chip]');
+    var hexInput = picker.querySelector('[data-obfmt-picker-hex]');
+    if(chip) chip.style.background = hex;
+    if(hexInput && hexInput.value.toLowerCase() !== hex) hexInput.value = hex;
+    return true;
+  }
+
+  function placePicker(picker, anchor){
+    var rect = anchor.getBoundingClientRect();
+    picker.hidden = false;
+    var left = Math.min(Math.max(10, rect.left), window.innerWidth - picker.offsetWidth - 10);
+    var top = rect.bottom + 8;
+    if(top + picker.offsetHeight > window.innerHeight - 10) top = Math.max(10, rect.top - picker.offsetHeight - 8);
+    picker.style.left = left + 'px';
+    picker.style.top = top + 'px';
+  }
+
+  function openPicker(input, anchor){
+    activeInput = input;
+    var picker = ensurePicker();
+    var title = picker.querySelector('[data-obfmt-picker-title]');
+    var hexInput = picker.querySelector('[data-obfmt-picker-hex]');
+    var chip = picker.querySelector('[data-obfmt-picker-chip]');
+    var hex = validHex(input.value) || '#000000';
+    if(title) title.textContent = labelText(input);
+    if(hexInput) hexInput.value = hex;
+    if(chip) chip.style.background = hex;
+    placePicker(picker, anchor || input);
+    setTimeout(function(){ try{ if(hexInput) hexInput.select(); }catch(e){} }, 0);
+  }
+
+  function closePicker(){
+    var picker = document.getElementById('obfmt-custom-picker');
+    if(picker) picker.hidden = true;
+    activeInput = null;
+  }
+
+  document.addEventListener('click', function(e){
+    var control = e.target && e.target.closest && e.target.closest('#obfmt-popup .obfmt-row label, #obfmt-popup .obfmt-row input[type="color"]');
+    if(control){
+      var input = control.matches && control.matches('input[type="color"]') ? control : control.querySelector('input[type="color"]');
+      if(input){
+        e.preventDefault();
+        e.stopPropagation();
+        if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+        openPicker(input, control);
+        return;
+      }
+    }
+
+    var picker = document.getElementById('obfmt-custom-picker');
+    if(!picker || picker.hidden) return;
+    if(e.target.closest && e.target.closest('#obfmt-custom-picker')){
+      var swatch = e.target.closest('[data-obfmt-picker-color]');
+      if(swatch){
+        e.preventDefault();
+        setActiveColor(swatch.getAttribute('data-obfmt-picker-color'));
+        return;
+      }
+      if(e.target.closest('[data-obfmt-picker-cancel], [data-obfmt-picker-done]')){
+        e.preventDefault();
+        closePicker();
+        return;
+      }
+      return;
+    }
+    if(!e.target.closest || !e.target.closest('#obfmt-popup')) closePicker();
+  }, true);
+
+  document.addEventListener('input', function(e){
+    if(e.target && e.target.matches && e.target.matches('#obfmt-custom-picker [data-obfmt-picker-hex]')){
+      var hex = validHex(e.target.value);
+      if(hex) setActiveColor(hex);
+    }
+  }, true);
+
+  document.addEventListener('keydown', function(e){
+    var picker = document.getElementById('obfmt-custom-picker');
+    if(!picker || picker.hidden) return;
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      closePicker();
+    }
+    if(e.key === 'Enter' && e.target && e.target.matches && e.target.matches('#obfmt-custom-picker [data-obfmt-picker-hex]')){
+      e.preventDefault();
+      setActiveColor(e.target.value);
+      closePicker();
+    }
+  }, true);
+})();
+</script>
+
 
 
 <script id="resolve-ss-stable-edit-restore-final-js">
@@ -56681,6 +57456,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     return true;
   }
   function stampPostAssignmentBadges(){
+    if(Date.now() < (window.__suppressPostAssignmentRestampUntil || 0)) return 0;
     if(stampingPostAssignments) return 0;
     stampingPostAssignments = true;
     var count = 0;
@@ -56793,6 +57569,11 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
       }else if(!assignBlockCars._postOnly && manualSel && manualSel[trk] && manualSel[trk][id]){
         delete manualSel[trk][id]._postOutboundOnly;
       }
+      if(assignBlockCars._currentRampTag && manualSel && manualSel[trk] && manualSel[trk][id]){
+        manualSel[trk][id]._currentRampTagged = true;
+        manualSel[trk][id]._currentRampTagTrain = kind;
+        manualSel[trk][id]._currentRampSourceKey = String(group && group.key || '');
+      }
     }catch(e){}
   }
   function assignContiguousSampleSegment(group, sampleCar, fallbackTrack, kind){
@@ -56807,6 +57588,146 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     for(var i=start;i<=end;i++) assignCarToTrain(cars[i], group, fallbackTrack, kind);
     return end - start + 1;
   }
+  function isCurrentRampAssignBlock(block){
+    return !!(block && block.closest && block.closest('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)'));
+  }
+  function currentRampBlockSpan(block){
+    var row = block && block.closest && block.closest('tr');
+    var cell = row && row.querySelector && row.querySelector('.bowl-segments-cell');
+    if(!cell) return null;
+    var blocks = Array.from(cell.querySelectorAll('.bowl-block')).filter(function(item){
+      return item && !item.classList.contains('current-only-layout-placeholder') && !item.closest('.bowl-board-after,.bowl-outbound-track-table');
+    });
+    var start = 0;
+    for(var i=0;i<blocks.length;i++){
+      var ft = blockFootage(blocks[i]);
+      if(blocks[i] === block){
+        return {start:start, end:start + ft, ft:ft, index:i};
+      }
+      start += ft;
+    }
+    return null;
+  }
+  function trackCarsFromGroups(groups, track){
+    var out = [];
+    (groups || []).forEach(function(g){
+      if(!g || g.isForecast || !Array.isArray(g.cars)) return;
+      var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
+      if(track && gTrack && track !== gTrack) return;
+      g.cars.forEach(function(car){
+        out.push({car:car, group:g, ln:parseFloat(car && car.ln) || 0});
+      });
+    });
+    out.sort(function(a,b){
+      var as = parseFloat(a.car && a.car.trackSeq), bs = parseFloat(b.car && b.car.trackSeq);
+      if(Number.isFinite(as) && Number.isFinite(bs) && as !== bs) return as - bs;
+      var ar = parseFloat(a.car && a.car._rowIndex), br = parseFloat(b.car && b.car._rowIndex);
+      if(Number.isFinite(ar) && Number.isFinite(br) && ar !== br) return ar - br;
+      return 0;
+    });
+    return out;
+  }
+  function assignCurrentRampCarsByGroupKey(block, groups, kind){
+    if(!isCurrentRampAssignBlock(block)) return 0;
+    var key = normText(block && block.dataset && block.dataset.bowlGroupKey);
+    if(!key) return 0;
+    var track = blockTrack(block);
+    var assigned = 0;
+    (groups || []).forEach(function(g){
+      if(!g || g.isForecast || !Array.isArray(g.cars)) return;
+      if(normText(g.key) !== key) return;
+      var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
+      if(track && gTrack && track !== gTrack) return;
+      g.cars.forEach(function(car){
+        assignCarToTrain(car, g, track, kind);
+        assigned++;
+      });
+    });
+    return assigned;
+  }
+  function assignCurrentRampCarsBySpan(block, groups, kind){
+    if(!isCurrentRampAssignBlock(block)) return 0;
+    var track = blockTrack(block);
+    var span = currentRampBlockSpan(block);
+    if(!track || !span || span.ft <= 0) return 0;
+    var cars = trackCarsFromGroups(groups, track);
+    if(!cars.length) return 0;
+    var assigned = 0;
+    var cursor = 0;
+    var start = span.start;
+    var end = span.end;
+    cars.forEach(function(item){
+      var ln = item.ln;
+      var carStart = cursor;
+      var carEnd = cursor + ln;
+      cursor = carEnd;
+      if(ln <= 0) return;
+      var midpoint = carStart + (ln / 2);
+      var overlaps = midpoint >= start && midpoint < end;
+      if(!overlaps && carStart < end && carEnd > start){
+        var overlap = Math.min(carEnd, end) - Math.max(carStart, start);
+        overlaps = overlap >= Math.min(ln, span.ft) * 0.35;
+      }
+      if(overlaps){
+        assignCarToTrain(item.car, item.group, track, kind);
+        assigned++;
+      }
+    });
+    return assigned;
+  }
+  function currentRampCarsForBlock(block, groups){
+    if(!isCurrentRampAssignBlock(block)) return [];
+    var track = blockTrack(block);
+    var key = normText(block && block.dataset && block.dataset.bowlGroupKey);
+    var sampleCar = normText(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || ''));
+    var out = [];
+    var seen = {};
+    function add(car, group){
+      var trk = blockTrack({dataset:{displayTrack:(car && car.track) || (group && group.track) || track || ''}});
+      var id = normText(car && car.equipId);
+      if(!trk || !id || seen[trk + '||' + id]) return;
+      seen[trk + '||' + id] = true;
+      out.push({track:trk, equip:id, car:car, group:group});
+    }
+    (groups || []).forEach(function(g){
+      if(!g || g.isForecast || !Array.isArray(g.cars)) return;
+      var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
+      if(track && gTrack && track !== gTrack) return;
+      if(key && normText(g.key) === key){
+        g.cars.forEach(function(car){ add(car, g); });
+        return;
+      }
+      if(sampleCar && g.cars.some(function(car){ return normText(car && car.equipId) === sampleCar; })){
+        var cars = g.cars || [];
+        var idx = cars.findIndex(function(car){ return normText(car && car.equipId) === sampleCar; });
+        var label = idx >= 0 ? normText(rowBlockLabel(cars[idx])) : '';
+        var start = idx, end = idx;
+        while(start > 0 && normText(rowBlockLabel(cars[start - 1])) === label) start--;
+        while(end + 1 < cars.length && normText(rowBlockLabel(cars[end + 1])) === label) end++;
+        for(var i=start;i<=end;i++) add(cars[i], g);
+      }
+    });
+    if(out.length) return out;
+    var span = currentRampBlockSpan(block);
+    if(!track || !span || span.ft <= 0) return out;
+    var cars = trackCarsFromGroups(groups, track);
+    var cursor = 0;
+    cars.forEach(function(item){
+      var ln = item.ln;
+      var carStart = cursor;
+      var carEnd = cursor + ln;
+      cursor = carEnd;
+      if(ln <= 0) return;
+      var midpoint = carStart + (ln / 2);
+      var overlaps = midpoint >= span.start && midpoint < span.end;
+      if(!overlaps && carStart < span.end && carEnd > span.start){
+        var overlap = Math.min(carEnd, span.end) - Math.max(carStart, span.start);
+        overlaps = overlap >= Math.min(ln, span.ft) * 0.35;
+      }
+      if(overlaps) add(item.car, item.group);
+    });
+    return out;
+  }
   function assignBlockCars(block, kind){
     if(typeof buildGroups !== 'function' || typeof setManualCarSelection !== 'function') return 0;
     var track = blockTrack(block);
@@ -56816,29 +57737,134 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var assigned = 0;
     try{
       assignBlockCars._postOnly = !!(block && block.closest && block.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table),table.bowl-board-next-day'));
-      (assignBlockCars._groups || buildGroups()).forEach(function(g){
-        if(!g || g.isForecast || !Array.isArray(g.cars)) return;
-        var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
-        if(track && gTrack && track !== gTrack) return;
-        if(sampleCar){
-          var sampleAssigned = assignContiguousSampleSegment(g, sampleCar, track, kind);
-          if(sampleAssigned) assigned += sampleAssigned;
-          return;
-        }
-        if(sourceTrain && normText(g.train) !== sourceTrain) return;
-        g.cars.forEach(function(car){
-          var carLabel = normText(rowBlockLabel(car));
-          if(sourceLabel && carLabel && carLabel !== sourceLabel) return;
-          assignCarToTrain(car, g, track, kind);
-          assigned++;
+      assignBlockCars._currentRampTag = !!isCurrentRampAssignBlock(block);
+      var groupsForAssign = assignBlockCars._groups || buildGroups();
+      if(isCurrentRampAssignBlock(block)){
+        assigned += assignCurrentRampCarsByGroupKey(block, groupsForAssign, kind);
+      }
+      if(!assigned && isCurrentRampAssignBlock(block) && !sampleCar){
+        assigned += assignCurrentRampCarsBySpan(block, groupsForAssign, kind);
+      }
+      if(!assigned && (sampleCar || sourceTrain || sourceLabel || !isCurrentRampAssignBlock(block))){
+        groupsForAssign.forEach(function(g){
+          if(!g || g.isForecast || !Array.isArray(g.cars)) return;
+          var gTrack = blockTrack({dataset:{displayTrack:g.track || ''}});
+          if(track && gTrack && track !== gTrack) return;
+          if(sampleCar){
+            var sampleAssigned = assignContiguousSampleSegment(g, sampleCar, track, kind);
+            if(sampleAssigned) assigned += sampleAssigned;
+            return;
+          }
+          if(sourceTrain && normText(g.train) !== sourceTrain) return;
+          g.cars.forEach(function(car){
+            var carLabel = normText(rowBlockLabel(car));
+            if(sourceLabel && carLabel && carLabel !== sourceLabel) return;
+            assignCarToTrain(car, g, track, kind);
+            assigned++;
+          });
         });
-      });
+      }
+      if(!assigned){
+        assigned += assignCurrentRampCarsBySpan(block, groupsForAssign, kind);
+      }
       try{
         if(typeof localStorage !== 'undefined') localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {}));
       }catch(e){}
     }catch(e){ console.warn('Post outbound block car assignment failed', e); }
     assignBlockCars._postOnly = false;
+    assignBlockCars._currentRampTag = false;
     return assigned;
+  }
+  var syncingTaggedCurrentRampCars = false;
+  function carPickerRowIdentity(row){
+    var track = normText(row && row.dataset && row.dataset.cpTrack);
+    var equip = normText(row && row.dataset && row.dataset.cpEquipId);
+    if(!track){
+      var trackEl = row && row.querySelector && row.querySelector('.cp-car-track');
+      track = normText(trackEl && trackEl.textContent);
+    }
+    if(!equip){
+      var idEl = row && row.querySelector && row.querySelector('.cp-car-id');
+      equip = normText(idEl && idEl.childNodes && idEl.childNodes[0] ? idEl.childNodes[0].nodeValue : (idEl && idEl.textContent));
+      equip = equip.replace(/\b(?:SA|AS)\b.*$/,'').trim();
+    }
+    return {track:track, equip:equip};
+  }
+  function setCarPickerRowSaBadge(row, train){
+    var idEl = row && row.querySelector && row.querySelector('.cp-car-id');
+    if(!idEl) return;
+    idEl.querySelectorAll('.sa-flag').forEach(function(flag){ flag.remove(); });
+    if(train !== 'IHOSA' && train !== 'MHOAS') return;
+    var badge = document.createElement('span');
+    badge.className = 'sa-flag ' + (train === 'MHOAS' ? 'mhoas' : 'ihosa');
+    badge.title = 'Assigned to ' + train;
+    badge.textContent = train === 'MHOAS' ? 'AS' : 'SA';
+    idEl.appendChild(badge);
+  }
+  function repaintCarPickerSaRows(){
+    document.querySelectorAll('.cp-car-row').forEach(function(row){
+      var id = carPickerRowIdentity(row);
+      var entry = id.track && id.equip && manualSel && manualSel[id.track] && manualSel[id.track][id.equip];
+      var train = normText(entry && (entry._saTrain || (entry._group && (entry._group.train || entry._group.outbound)) || entry.train || ''));
+      var isSa = train === 'IHOSA' || train === 'MHOAS';
+      row.classList.toggle('selected', !!entry);
+      row.classList.toggle('sa-ihosa', train === 'IHOSA');
+      row.classList.toggle('sa-mhoas', train === 'MHOAS');
+      var cb = row.querySelector('.cp-car-chk');
+      if(cb) cb.checked = !!entry;
+      setCarPickerRowSaBadge(row, isSa ? train : '');
+    });
+  }
+  function syncTaggedCurrentRampCars(opts){
+    opts = opts || {};
+    if(syncingTaggedCurrentRampCars) return 0;
+    if(typeof buildGroups !== 'function' || typeof setManualCarSelection !== 'function') return 0;
+    syncingTaggedCurrentRampCars = true;
+    var total = 0;
+    var before = '';
+    try{
+      try{ before = JSON.stringify(manualSel || {}); }catch(e){ before = ''; }
+      assignBlockCars._groups = buildGroups();
+      var activeCurrentRampTaggedCars = {};
+      document.querySelectorAll('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+        var kind = (typeof currentRampTaggedOutboundTrain === 'function') ? currentRampTaggedOutboundTrain(block) : '';
+        if(!kind) return;
+        currentRampCarsForBlock(block, assignBlockCars._groups).forEach(function(item){
+          activeCurrentRampTaggedCars[kind + '||' + item.track + '||' + item.equip] = true;
+        });
+        total += assignBlockCars(block, kind);
+      });
+      Object.keys(manualSel || {}).forEach(function(track){
+        var carMap = manualSel[track] || {};
+        Object.keys(carMap).forEach(function(carId){
+          var entry = carMap[carId] || {};
+          if(!entry._currentRampTagged || entry._postOutboundOnly) return;
+          var train = normText(entry._currentRampTagTrain || entry._saTrain || (entry._group && (entry._group.train || entry._group.outbound)) || '');
+          if((train === 'IHOSA' || train === 'MHOAS') && !activeCurrentRampTaggedCars[train + '||' + normText(track) + '||' + normText(carId)]){
+            delete carMap[carId];
+          }
+        });
+        if(!Object.keys(carMap).length) delete manualSel[track];
+      });
+      try{ if(typeof localStorage !== 'undefined') localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {})); }catch(e){}
+      repaintCarPickerSaRows();
+      var after = '';
+      try{ after = JSON.stringify(manualSel || {}); }catch(e){ after = before; }
+      if(before !== after && !opts.fromRenderOB){
+        clearTimeout(syncTaggedCurrentRampCars._renderTimer);
+        syncTaggedCurrentRampCars._renderTimer = setTimeout(function(){
+          try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){}
+        }, 0);
+      }
+    }catch(e){ console.warn('Current ramp tagged car sync failed', e); }
+    assignBlockCars._groups = null;
+    syncingTaggedCurrentRampCars = false;
+    return total;
+  }
+  window.syncTaggedCurrentRampCars = syncTaggedCurrentRampCars;
+  function scheduleTaggedCurrentRampCarSync(){
+    clearTimeout(scheduleTaggedCurrentRampCarSync._timer);
+    scheduleTaggedCurrentRampCarSync._timer = setTimeout(syncTaggedCurrentRampCars, 90);
   }
   function refreshOutboundTrackTablesNow(){
     try{
@@ -56850,8 +57876,33 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     }catch(e){ console.warn('Fast outbound track refresh failed', e); }
     return false;
   }
+  function removeCurrentRampManualSelectionsForBlock(block){
+    if(!isCurrentRampAssignBlock(block) || !manualSel) return 0;
+    var removed = 0;
+    try{
+      var groups = assignBlockCars._groups || (typeof buildGroups === 'function' ? buildGroups() : []);
+      currentRampCarsForBlock(block, groups).forEach(function(item){
+        var trk = item.track;
+        var id = item.equip;
+        var entry = trk && id && manualSel[trk] && manualSel[trk][id];
+        if(!entry || entry._postOutboundOnly) return;
+        var train = normText(entry._saTrain || (entry._group && (entry._group.train || entry._group.outbound)) || entry.train || '');
+        if(entry._sa || train === 'IHOSA' || train === 'MHOAS' || entry._currentRampTagged){
+          delete manualSel[trk][id];
+          removed++;
+          if(!Object.keys(manualSel[trk]).length) delete manualSel[trk];
+        }
+      });
+      if(removed){
+        try{ localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {})); }catch(e){}
+        try{ repaintCarPickerSaRows(); }catch(e){}
+      }
+    }catch(e){ console.warn('Unable to remove current ramp car picker assignment', e); }
+    return removed;
+  }
   function stripAssignmentFromBlock(block){
     if(!block || !block.dataset) return;
+    removeCurrentRampManualSelectionsForBlock(block);
     function isSaValue(value){
       return /^(?:IHOSA|MHOAS)(?:[123])?$/.test(normText(value));
     }
@@ -56896,6 +57947,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
         if(!Object.keys(carMap).length) delete manualSel[track];
       });
       localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {}));
+      try{ repaintCarPickerSaRows(); }catch(e){}
     }catch(e){ console.warn('Unable to clear manual IHOSA/MHOAS selections', e); }
     return cleared;
   }
@@ -56917,7 +57969,44 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     }catch(e){ console.warn('Unable to clear next day IHOSA/MHOAS assignments', e); }
     return 0;
   }
+  function replaceProjectedDwellAfterClear(){
+    try{
+      if(typeof buildProjectedDwellStrip !== 'function') return false;
+      var oldStrip = document.querySelector('#ob-inner .projected-dwell-strip');
+      if(!oldStrip) return false;
+      oldStrip.replaceWith(buildProjectedDwellStrip([], []));
+      return true;
+    }catch(e){ console.warn('Unable to refresh projected dwell after clear', e); }
+    return false;
+  }
+  function forceOutboundRenderAfterClear(){
+    replaceProjectedDwellAfterClear();
+    try{ refreshOutboundTrackTablesNow(); }catch(e){}
+    try{
+      var outTab = document.getElementById('tab-outbound');
+      if(outTab) outTab.classList.add('active');
+      if(typeof window.activateAppTab === 'function'){
+        window.activateAppTab('outbound');
+      }else if(typeof activateAppTab === 'function'){
+        activateAppTab('outbound');
+      }
+    }catch(e){ console.warn('Unable to activate outbound after clear', e); }
+    try{
+      if(typeof window.renderOB === 'function'){
+        window.renderOB();
+        requestAnimationFrame(function(){
+          try{ window.renderOB(); }catch(e){}
+        });
+        setTimeout(function(){
+          try{ window.renderOB(); }catch(e){}
+        }, 160);
+      }
+    }catch(e){ console.warn('Unable to force outbound clear render', e); }
+  }
   function clearAllIhosaMhoasTags(){
+    window.__ihosaMhoasClearRenderUntil = Date.now() + 12000;
+    window.__suppressPostAssignmentRestampUntil = Date.now() + 12000;
+    try{ clearTimeout(postAssignStampTimer); }catch(e){}
     var clearedManual = clearManualSaSelections();
     var clearedNext = clearNextDayAssignments();
     try{ localStorage.removeItem('dwellPostOutboundAssignments_v1'); }catch(e){}
@@ -56935,12 +58024,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     rememberedSelectedKeys = [];
     try{ if(typeof window.syncNextDayOutlookNow === 'function') window.syncNextDayOutlookNow(); }catch(e){}
     try{ if(typeof window.applyAfterDepartHideAuthority === 'function') window.applyAfterDepartHideAuthority(); }catch(e){}
-    var fastRefreshed = refreshOutboundTrackTablesNow();
-    try{
-      if(typeof window.renderOB === 'function'){
-        setTimeout(function(){ window.renderOB(); }, fastRefreshed ? 250 : 0);
-      }
-    }catch(e){}
+    forceOutboundRenderAfterClear();
     toastMsg('Cleared IHOSA/MHOAS tags');
     return clearedManual + clearedNext;
   }
@@ -57013,6 +58097,8 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     try{ assignBlockCars._groups = (typeof buildGroups === 'function') ? buildGroups() : null; }catch(e){ assignBlockCars._groups = null; }
     selected.forEach(function(block){ assignBlock(block, kind); block.classList.remove('outbound-dnd-selected','next-day-selected'); });
     assignBlockCars._groups = null;
+    scheduleTaggedCurrentRampCarSync();
+    try{ repaintCarPickerSaRows(); }catch(e){}
     rememberedSelectedKeys = [];
     if(hasNextDay) persistNextDayBoard();
     try{ if(typeof window.flushAssignmentBadgeSpacing === 'function') window.flushAssignmentBadgeSpacing(); }catch(e){}
@@ -57021,7 +58107,12 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     schedulePostAssignmentBadges();
     try{
       if(typeof window.renderOB === 'function'){
-        setTimeout(function(){ window.renderOB(); schedulePostAssignmentBadges(); }, fastRefreshed ? 450 : 0);
+        setTimeout(function(){
+          try{ syncTaggedCurrentRampCars(); }catch(e){}
+          window.renderOB();
+          schedulePostAssignmentBadges();
+          scheduleTaggedCurrentRampCarSync();
+        }, fastRefreshed ? 450 : 0);
       }
     }catch(e){}
     toastMsg('Assigned '+selected.length+' block'+(selected.length===1?'':'s')+' to '+toastKind);
@@ -57051,9 +58142,13 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var fn = window[name];
     if(typeof fn === 'function' && !fn.__postAssignSelectionRestoreWrapped){
       var wrapped = function(){
+        if(name === 'renderOB'){
+          try{ syncTaggedCurrentRampCars(); }catch(e){}
+        }
         var result = fn.apply(this, arguments);
         setTimeout(restoreRememberedSelection, 0);
         schedulePostAssignmentBadges();
+        scheduleTaggedCurrentRampCarSync();
         return result;
       };
       wrapped.__postAssignSelectionRestoreWrapped = true;
@@ -57083,7 +58178,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   }
   wrapPostAssignRestoreAll();
   [120,520,1300,2600].forEach(function(delay){
-    setTimeout(function(){ wrapPostAssignRestoreAll(); schedulePostAssignmentBadges(); }, delay);
+    setTimeout(function(){ wrapPostAssignRestoreAll(); schedulePostAssignmentBadges(); scheduleTaggedCurrentRampCarSync(); }, delay);
   });
   try{
     var postAssignObserverRoot = document.getElementById('tab-outbound') || document.documentElement;
@@ -57093,15 +58188,22 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
         var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
         if(target && target.closest && target.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)')){
           schedulePostAssignmentBadges();
+          scheduleTaggedCurrentRampCarSync();
+          return;
+        }
+        if(target && target.closest && target.closest('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table)')){
+          scheduleTaggedCurrentRampCarSync();
           return;
         }
       }
     }).observe(postAssignObserverRoot, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['class','data-outbound-display-departure','data-outbound-departure','data-after-depart']});
   }catch(e){}
   document.addEventListener('DOMContentLoaded', schedule);
-  window.addEventListener('load', schedule, {once:true});
+  document.addEventListener('DOMContentLoaded', scheduleTaggedCurrentRampCarSync);
+  window.addEventListener('load', function(){ schedule(); scheduleTaggedCurrentRampCarSync(); }, {once:true});
   schedule();
   schedulePostAssignmentBadges();
+  scheduleTaggedCurrentRampCarSync();
 })();
 </script>
 <script id="outbound-table-selection-isolation-js">
@@ -57188,3 +58290,22 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   }catch(e){}
 })();
 </script>
+
+<style id="current-ramp-header-display-repair-final-tail-css">
+  html body #tab-outbound .bowl-ramp-head{position:relative!important;overflow:visible!important;white-space:normal!important;}
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu{position:relative!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;vertical-align:middle!important;margin:0 8px!important;width:auto!important;height:auto!important;z-index:20!important;}
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-main,
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{appearance:none!important;-webkit-appearance:none!important;box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:0!important;max-width:none!important;height:30px!important;min-height:30px!important;max-height:30px!important;margin:2px 4px!important;padding:0 12px!important;border-radius:8px!important;border:1px solid rgba(148,163,184,.38)!important;background:linear-gradient(180deg,rgba(30,41,59,.78),rgba(15,23,42,.94))!important;color:#dbeafe!important;font-family:var(--mono,monospace)!important;font-size:11px!important;font-weight:900!important;line-height:1!important;letter-spacing:1.2px!important;text-transform:uppercase!important;white-space:nowrap!important;cursor:pointer!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.18)!important;}
+  html body #tab-outbound .bowl-ramp-head > [data-current-dwell-head-toggle]{color:#fde68a!important;border-color:rgba(245,158,11,.68)!important;background:linear-gradient(180deg,rgba(120,53,15,.76),rgba(69,26,3,.94))!important;}
+  html body #tab-outbound .bowl-ramp-head > [data-current-display-track-head-toggle]{color:#d8b4fe!important;border-color:rgba(148,163,184,.36)!important;background:linear-gradient(180deg,rgba(88,28,135,.34),rgba(30,27,75,.90))!important;}
+  html body #tab-outbound .bowl-ramp-head > [data-current-purple-ss-head-toggle],
+  html body #tab-outbound .bowl-ramp-head > [data-resolve-ss-btn]{color:#f0abfc!important;border-color:rgba(168,85,247,.54)!important;background:linear-gradient(180deg,rgba(112,26,117,.52),rgba(88,28,135,.88))!important;}
+  html body #tab-outbound .bowl-ramp-head > [data-current-ss-hours-head-toggle]{color:#bfdbfe!important;border-color:rgba(96,165,250,.52)!important;background:linear-gradient(180deg,rgba(30,64,175,.62),rgba(15,23,42,.94))!important;}
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel{position:absolute!important;top:calc(100% + 7px)!important;left:0!important;right:auto!important;display:none!important;flex-direction:column!important;align-items:stretch!important;gap:7px!important;min-width:236px!important;max-width:320px!important;padding:9px!important;border:1px solid rgba(96,165,250,.52)!important;border-radius:10px!important;background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;box-shadow:0 18px 34px rgba(0,0,0,.46)!important;z-index:2147482500!important;}
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu.open > .bowl-options-panel{display:flex!important;}
+  html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel > button{appearance:none!important;-webkit-appearance:none!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;height:31px!important;min-height:31px!important;padding:0 10px!important;border:1px solid rgba(96,165,250,.35)!important;border-radius:8px!important;background:rgba(15,23,42,.92)!important;color:#bfdbfe!important;font-family:var(--mono,monospace)!important;font-size:10px!important;font-weight:900!important;line-height:1!important;letter-spacing:1px!important;text-align:left!important;text-transform:uppercase!important;white-space:nowrap!important;box-shadow:none!important;}
+</style>
