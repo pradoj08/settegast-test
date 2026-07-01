@@ -215,7 +215,10 @@
     if(h != null) dwell.value = String(Math.round(h));
   }
   function apply(){
-    document.querySelectorAll('#tab-outbound .bowl-segments-cell .bowl-block').forEach(normalizeBlock);
+    // Keep this final SS dwell pass scoped to Current Ramp only. Post Outbound
+    // boards have their own clock/departure dwell authority and will fight this
+    // older arrival-to-SS-start cleanup if we let it touch every table.
+    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(normalizeBlock);
     updateEditModal('current-edit');
     updateEditModal('final-after');
     updateGroupModal();
@@ -902,14 +905,24 @@
     return '';
   }
 
-  function makeDepartBadge(kind){
+  function displayDepartForBlock(block, kind){
+    var ds = block && block.dataset || {};
+    var display = clean(ds.outboundDisplayDeparture || ds.displayDepartureTrain || '');
+    if(display) return display;
+    kind = clean(kind).toUpperCase();
+    if(kind === 'IHOSA' || kind === 'MHOAS') return kind + '2';
+    return kind;
+  }
+
+  function makeDepartBadge(kind, block){
     kind = clean(kind).toUpperCase();
     if(kind !== 'IHOSA' && kind !== 'MHOAS') return null;
+    var display = displayDepartForBlock(block, kind);
     var tag = document.createElement('span');
     tag.className = 'after-depart-badge ' + kind.toLowerCase();
     tag.dataset.postSaAsRestored = '1';
-    tag.title = 'Selected assignment: ' + kind;
-    tag.textContent = kind;
+    tag.title = 'Selected assignment: ' + display;
+    tag.textContent = display;
     return tag;
   }
 
@@ -1001,8 +1014,18 @@
     var ihosa = first(block, '.after-depart-badge.ihosa,.future-status-badge.ihosa');
     var mhoas = first(block, '.after-depart-badge.mhoas,.future-status-badge.mhoas');
     var depart = departureToken(block);
-    if(depart === 'IHOSA' && !ihosa) ihosa = makeDepartBadge('IHOSA');
-    if(depart === 'MHOAS' && !mhoas) mhoas = makeDepartBadge('MHOAS');
+    if(depart === 'IHOSA' && !ihosa) ihosa = makeDepartBadge('IHOSA', block);
+    if(depart === 'MHOAS' && !mhoas) mhoas = makeDepartBadge('MHOAS', block);
+    if(depart === 'IHOSA' && ihosa){
+      var ihosaDisplay = displayDepartForBlock(block, 'IHOSA');
+      ihosa.title = 'Selected assignment: ' + ihosaDisplay;
+      ihosa.textContent = ihosaDisplay;
+    }
+    if(depart === 'MHOAS' && mhoas){
+      var mhoasDisplay = displayDepartForBlock(block, 'MHOAS');
+      mhoas.title = 'Selected assignment: ' + mhoasDisplay;
+      mhoas.textContent = mhoasDisplay;
+    }
     var ssStatus = first(block, '.after-depart-badge.ss,.future-status-badge.ss');
     var shove = first(block, '.future-shove-badge');
     var manual = first(block, '.manual-tag:not(.future-inbound-tag)');
@@ -8331,9 +8354,16 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
   }
   function applyState(){
     var hidden = read();
+    [document.documentElement, document.body].forEach(function(el){
+      if(el) el.classList.toggle('bowl-hide-dwell', hidden);
+    });
+    document.querySelectorAll('#tab-outbound .bowl-page-shell,.bowl-page-shell').forEach(function(shell){
+      shell.classList.toggle('bowl-hide-dwell', hidden);
+    });
     document.querySelectorAll('[data-current-dwell-head-toggle]').forEach(function(btn){
       btn.textContent = 'DWELL';
       btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+      btn.classList.toggle('is-hiding', hidden);
     });
   }
   function ensureButtons(root){
@@ -8366,7 +8396,10 @@ table[aria-label="Inbound summary table"] td:nth-child(5){width:10%;}
     }else if(typeof window.renderBowlTurnover === 'function'){
       window.renderBowlTurnover('bowl-view');
     }
+    applyState();
     schedule(document);
+    setTimeout(applyState, 0);
+    setTimeout(applyState, 120);
   }
 
   document.addEventListener('click', function(e){
@@ -25188,8 +25221,23 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     clean(groupKey).toUpperCase(),
     clean(label).toUpperCase().replace(/\s+/g,' ')
   ].join('||');
-  const postOutboundSavedAssignment=(track,groupKey,label)=>{
-    const saved=postOutboundAssignmentStore[postOutboundAssignmentKey(track,groupKey,label)];
+  const postOutboundAssignmentLooseKey=(track,keyPart)=>[
+    String(track||'').replace(/^06-/,'').replace(/[^0-9]/g,''),
+    clean(keyPart).toUpperCase()
+  ].join('||');
+  const postOutboundSavedAssignment=(track,groupKey,label,sampleCar='')=>{
+    const keys=[];
+    [groupKey,sampleCar].filter(Boolean).forEach(keyPart=>{
+      keys.push(postOutboundAssignmentKey(track,keyPart,label));
+      keys.push(postOutboundAssignmentLooseKey(track,keyPart));
+    });
+    let saved=null;
+    for(const key of keys){
+      if(postOutboundAssignmentStore[key]){
+        saved=postOutboundAssignmentStore[key];
+        break;
+      }
+    }
     if(!saved || typeof saved!=='object') return null;
     const kind=normalizeOutboundTrain(saved.kind || saved.departure || '');
     if(!kind) return null;
@@ -25373,11 +25421,20 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     const arrDt=getArrival(train);
     if(!arrDt) return null;
 
+    const group=getBowlGroupForRow(row);
+    if(isSSBlockText(rawBlockStatus(row))){
+      const ssStartRaw=confirmedSSStartForRow(row,group);
+      const ssStartDt=parseSsAgeDate(ssStartRaw);
+      if(ssStartDt){
+        const arrToSS=(ssStartDt-arrDt)/3600000;
+        return isFinite(arrToSS) ? Math.max(0,arrToSS) : null;
+      }
+    }
+
     // Tagged Current Ramp cards project to their selected outbound header departure.
     // Untagged cards continue aging against the current time.
     const assignedDepart=normalizeOutboundTrain(row._afterDepartTrain || '');
     const dwellTo=assignedDepart ? getDepDtForTrain(assignedDepart) : new Date();
-    const group=getBowlGroupForRow(row);
     const car=makeBowlCarFromRow(row);
     const dwell=calcCarDwellWithSSState(arrDt,dwellTo,car,group);
     return dwell!==null && dwell!==undefined && isFinite(dwell) ? Math.max(0,dwell) : null;
@@ -25704,16 +25761,14 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
           : [trainForDwell(row),track,label,Number(row._bowlRowIndex)].join('||');
         let assignedDepart=normalizeOutboundTrain(row._afterDepartTrain || '');
         let assignedDisplayDepart=clean(row._afterDepartDisplayTrain || assignedDepart);
-        if(isAfterBoard && !isNextDayBoard && !assignedDepart){
-          const savedPostAssign=postOutboundSavedAssignment(track,physicalGroupKey,label);
-          if(savedPostAssign){
-            assignedDepart=savedPostAssign.kind;
-            assignedDisplayDepart=savedPostAssign.display;
-            try{
-              row._afterDepartTrain=assignedDepart;
-              row._afterDepartDisplayTrain=assignedDisplayDepart;
-            }catch{}
-          }
+        const savedPostAssign=(isAfterBoard && !isNextDayBoard) ? postOutboundSavedAssignment(track,physicalGroupKey,label,clean(row[CI.equipId])) : null;
+        if(savedPostAssign && (!assignedDepart || assignedDepart===savedPostAssign.kind)){
+          assignedDepart=savedPostAssign.kind;
+          assignedDisplayDepart=savedPostAssign.display;
+          try{
+            row._afterDepartTrain=assignedDepart;
+            row._afterDepartDisplayTrain=assignedDisplayDepart;
+          }catch{}
         }
         // Hide previous-day/current IHOSA/MHOAS departures from the AFTER board totals,
         // not just visually hide the pill after the math has already been calculated.
@@ -26090,13 +26145,12 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       table.querySelectorAll('tbody tr').forEach(row=>{
         const rowTrack=String((row.querySelector('.bowl-track')||{}).textContent||'').replace(/\+/g,'').replace(/^06-/,'').replace(/[^0-9]/g,'');
         row.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{
-          const depart=normalizeOutboundTrain(
+          let depart=normalizeOutboundTrain(
             block.dataset.outboundDeparture ||
             block.dataset.afterDepart ||
             block.dataset.assignmentDepart ||
             ''
           );
-          if(depart!==trainName) return;
           const ftText=(block.querySelector('b')&&block.querySelector('b').textContent)||'';
           const ft=num(ftText);
           if(!ft) return;
@@ -26107,6 +26161,9 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
             .replace(/\s+\d+(?:\.\d+)?\s*(?:NET|HR|H)\b/ig,'')
             .replace(/\s*\[[^\]]+\]\s*/g,' ')
             .trim());
+          const savedPostAssign=postOutboundSavedAssignment(rowTrack,block.dataset.bowlGroupKey||'',label,block.dataset.sampleCar||block.dataset.sampleEquipId||'');
+          if(savedPostAssign && (!depart || depart===savedPostAssign.kind)) depart=savedPostAssign.kind;
+          if(depart!==trainName) return;
           const dwellEl=block.querySelector('.bowl-dwell');
           const dwellVal=dwellEl ? parseFloat(String(dwellEl.textContent||'').replace(/[^\d.-]/g,'')) : null;
           out.push({
@@ -26114,7 +26171,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
             label:label || trainName,
             sourceTrack:block.dataset.displayTrack || rowTrack,
             departureTrain:trainName,
-            displayTrain:block.dataset.outboundDisplayDeparture || postDisplayTrain(trainName),
+            displayTrain:(savedPostAssign && savedPostAssign.display) || block.dataset.outboundDisplayDeparture || postDisplayTrain(trainName),
             cls:block.classList.contains('future-inbound') ? 'future-inbound' : (block.classList.contains('manual-future') ? 'manual-future' : (trainName==='IHOSA'?'depart-ihosa':'depart-mhoas')),
             dwellVal:Number.isFinite(dwellVal)?dwellVal:null,
             dwell:dwellEl ? dwellEl.textContent : '',
@@ -26129,11 +26186,45 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
       return out;
     };
 
+    const readSavedPostDepartingSegments=(trainName)=>{
+      const out=[];
+      const seen=new Set();
+      let store={};
+      try{ store=JSON.parse(localStorage.getItem('dwellPostOutboundAssignments_v1')||'{}')||{}; }catch{ store={}; }
+      Object.keys(store).forEach(key=>{
+        const saved=store[key];
+        if(!saved || normalizeOutboundTrain(saved.kind)!==trainName) return;
+        const ft=num(saved.ft);
+        if(!ft) return;
+        const id=clean(saved.primaryId || [saved.track,saved.groupKey||saved.sampleCar,saved.label,trainName].join('||'));
+        if(seen.has(id)) return;
+        seen.add(id);
+        out.push({
+          ft,
+          label:cleanPostOutboundLabel(saved.label || trainName),
+          sourceTrack:String(saved.track||'').replace(/^06-/,'').replace(/[^0-9]/g,''),
+          departureTrain:trainName,
+          displayTrain:clean(saved.display || postDisplayTrain(trainName)),
+          cls:trainName==='IHOSA'?'depart-ihosa':'depart-mhoas',
+          dwellVal:null,
+          dwell:'',
+          dwellCls:'',
+          manual:false,
+          train:saved.train || '',
+          sampleCar:saved.sampleCar || '',
+          ssStartRaw:saved.ssStartRaw || ''
+        });
+      });
+      return out;
+    };
+
     order.forEach(trainName=>{
       let currentFt=0;
       const segments=[];
 
-      readPostDepartingSegments(trainName).forEach(seg=>{
+      const departingSegments=readPostDepartingSegments(trainName);
+      const sourceSegments=departingSegments.length ? departingSegments : readSavedPostDepartingSegments(trainName);
+      sourceSegments.forEach(seg=>{
         currentFt+=seg.ft;
         pushSegment(segments,seg);
       });
@@ -26168,6 +26259,145 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     return board;
   };
 
+  const buildNextDayOutboundTracksBoard=(nextTable)=>{
+    const board=document.createElement('table');
+    board.className='bowl-board bowl-outbound-track-table bowl-next-day-outbound-track-table';
+    const colGroup=document.createElement('colgroup');
+    colGroup.innerHTML='<col class="bowl-col-track"><col class="bowl-col-current">'+Array.from({length:12},()=>'<col class="bowl-col-seg">').join('')+'<col class="bowl-col-delta">';
+    board.appendChild(colGroup);
+
+    const head=document.createElement('thead');
+    head.innerHTML='<tr>'+
+      '<th>OUTBOUND</th>'+
+      '<th>TOTAL</th>'+
+      '<th colspan="12" class="bowl-ramp-head bowl-outbound-track-head" style="text-align:center;"><span>OUTBOUND TRACKS - DEPARTING FROM NEXT DAY OUTLOOK</span><button class="bowl-outbound-track-hide-btn" data-bowl-outbound-tracks-toggle type="button">OUTBOUND TRACKS</button></th>'+
+      '<th>SUM</th>'+
+    '</tr>';
+    board.appendChild(head);
+
+    const body=document.createElement('tbody');
+    const order=(outboundTracksOrder==='MHOAS_FIRST') ? ['MHOAS','IHOSA'] : ['IHOSA','MHOAS'];
+    const targetCaps={IHOSA:2500,MHOAS:2500};
+    const nextDisplayTrain=trainName=>trainName+'3';
+    const nextTagForBlock=(block,trainName)=>{
+      if(!block) return '';
+      const expected=nextDisplayTrain(trainName).toUpperCase();
+      const badge=block.querySelector && block.querySelector('.after-depart-badge.'+trainName.toLowerCase()+',.future-status-badge.'+trainName.toLowerCase());
+      if(badge && clean(String(badge.textContent||'')).toUpperCase()===expected) return trainName;
+      return '';
+    };
+    const blockIsHidden=(block)=>{
+      if(!block || !block.ownerDocument || !block.ownerDocument.defaultView) return false;
+      const style=block.ownerDocument.defaultView.getComputedStyle(block);
+      return style.display==='none' || style.visibility==='hidden';
+    };
+
+    const pushSegment=(segments,seg)=>{
+      if(!seg || !seg.ft) return;
+      const key=[seg.label,seg.sourceTrack||'',seg.departureTrain||'',seg.manual?'MANUAL':'CURRENT'].join('||');
+      const last=segments[segments.length-1];
+      if(last && last.key===key){
+        last.ft+=seg.ft;
+        if(seg.dwellVal!==null && seg.dwellVal!==undefined){
+          const w=seg.ft||1;
+          last.dwellWt=(last.dwellWt||0)+(seg.dwellVal*w);
+          last.dwellFt=(last.dwellFt||0)+w;
+          last.dwellVal=last.dwellWt/last.dwellFt;
+          last.dwell=dwellTextFromAvg(last.dwellVal);
+          last.dwellCls=dwellClassFromAvg(last.dwellVal);
+        }
+      }else{
+        const w=seg.ft||1;
+        segments.push({
+          ...seg,
+          key,
+          dwellWt:(seg.dwellVal!==null && seg.dwellVal!==undefined)?seg.dwellVal*w:0,
+          dwellFt:(seg.dwellVal!==null && seg.dwellVal!==undefined)?w:0,
+          dwell:seg.dwell || ((seg.dwellVal!==null && seg.dwellVal!==undefined)?dwellTextFromAvg(seg.dwellVal):''),
+          dwellCls:seg.dwellCls || ((seg.dwellVal!==null && seg.dwellVal!==undefined)?dwellClassFromAvg(seg.dwellVal):'')
+        });
+      }
+    };
+
+    const readNextDayDepartingSegments=(trainName)=>{
+      const out=[];
+      const table=nextTable || document.querySelector('#tab-outbound table.bowl-board.bowl-board-next-day');
+      if(!table) return out;
+      table.querySelectorAll('tbody tr').forEach(row=>{
+        const rowTrack=String((row.querySelector('.bowl-track')||{}).textContent||'').replace(/\+/g,'').replace(/^06-/,'').replace(/[^0-9]/g,'');
+        row.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{
+          if(blockIsHidden(block)) return;
+          const depart=nextTagForBlock(block,trainName);
+          if(depart!==trainName) return;
+          const ftText=(block.querySelector('b')&&block.querySelector('b').textContent)||'';
+          const ft=num(ftText);
+          if(!ft) return;
+          const rawLabel=block.dataset.sourceBlockLabel || block.dataset.afterStatus || (block.querySelector('span')&&block.querySelector('span').textContent) || block.textContent || trainName;
+          const label=cleanPostOutboundLabel(String(rawLabel)
+            .replace(/^\s*[\d,]+\s*\|\s*/,'')
+            .replace(/\b(?:IHOSA3|MHOAS3|IHOSA|MHOAS)\b/ig,'')
+            .replace(/\s+\d+(?:\.\d+)?\s*(?:NET|HR|H)\b/ig,'')
+            .replace(/\s*\[[^\]]+\]\s*/g,' ')
+            .trim());
+          const dwellEl=block.querySelector('.bowl-dwell');
+          const dwellVal=dwellEl ? parseFloat(String(dwellEl.textContent||'').replace(/[^\d.-]/g,'')) : null;
+          out.push({
+            ft,
+            label:label || trainName,
+            sourceTrack:block.dataset.displayTrack || rowTrack,
+            departureTrain:trainName,
+            displayTrain:block.dataset.outboundDisplayDeparture || nextDisplayTrain(trainName),
+            cls:block.classList.contains('future-inbound') ? 'future-inbound' : (block.classList.contains('manual-future') ? 'manual-future' : (trainName==='IHOSA'?'depart-ihosa':'depart-mhoas')),
+            dwellVal:Number.isFinite(dwellVal)?dwellVal:null,
+            dwell:dwellEl ? dwellEl.textContent : '',
+            dwellCls:dwellEl ? dwellEl.className.replace(/\bbowl-dwell\b/g,'').trim() : '',
+            manual:block.classList.contains('future-inbound') || block.classList.contains('manual-future'),
+            train:block.dataset.afterTrain || block.dataset.sourceTrain || '',
+            sampleCar:block.dataset.sampleCar || block.dataset.sampleEquipId || '',
+            ssStartRaw:block.dataset.afterSsStart || '',
+            shoveIndex:(block.querySelector('.future-shove-badge')&&block.querySelector('.future-shove-badge').textContent||'').replace(/[\[\]]/g,'')
+          });
+        });
+      });
+      return out;
+    };
+
+    order.forEach(trainName=>{
+      let currentFt=0;
+      const segments=[];
+      readNextDayDepartingSegments(trainName).forEach(seg=>{
+        currentFt+=seg.ft;
+        pushSegment(segments,seg);
+      });
+
+      const segmentHtml=segments.map(seg=>{
+        const dwellHtml=seg.dwell ? ` <span class="bowl-dwell ${seg.dwellCls||''}">${seg.dwell}</span>` : '';
+        const displayTrain=seg.displayTrain || nextDisplayTrain(trainName);
+        const srcTrack=seg.sourceTrack ? ` <span class="after-depart-badge ${trainName.toLowerCase()}">06-${seg.sourceTrack}</span>` : '';
+        const shoveBadge=(seg.manual && seg.shoveIndex) ? ` <span class="future-shove-badge">[${String(seg.shoveIndex).replace(/[^0-9A-Za-z_-]/g,'')}]</span>` : '';
+        const manualTag=seg.manual ? `<span class="manual-tag future-inbound-tag">next day</span>` : '';
+        const trainAttr=String(seg.train||'').replace(/"/g,'&quot;');
+        const sampleAttr=String(seg.sampleCar||'').replace(/"/g,'&quot;');
+        const ssStartAttr=String(seg.ssStartRaw||'').replace(/"/g,'&quot;');
+        const sourceTrackAttr=String(seg.sourceTrack||'').replace(/"/g,'&quot;');
+        return `<div class="bowl-block ${seg.cls}" data-display-track="${sourceTrackAttr}" data-next-day-outbound-track-seg="${trainName}" data-outbound-departure="${trainName}" data-outbound-display-departure="${displayTrain}" data-after-train="${trainAttr}" data-source-train="${trainAttr}" data-after-status="${trainName}" data-after-ss-start="${ssStartAttr}" data-sample-car="${sampleAttr}" data-sample-equip-id="${sampleAttr}"${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBlockAttrs(seg.ssStartRaw) : ''}><span><b>${fmtN(seg.ft)}</b><span class="bowl-block-pipe-dim">|</span>${cleanPostOutboundLabel(seg.label)}${/^SS$/i.test(cleanPostOutboundLabel(seg.label)) ? ssHoursInSsBadge(seg.ssStartRaw) : ''}${shoveBadge} <span class="after-depart-badge ${trainName.toLowerCase()}">${displayTrain}</span>${srcTrack}${dwellHtml}${manualTag}</span></div>`;
+      }).join('');
+
+      const currentFtHtml=fmtN(currentFt);
+      const row=document.createElement('tr');
+      if(!segments.length) row.classList.add('bowl-empty-track-row');
+      row.innerHTML=[
+        `<td class="bowl-track outbound-${trainName.toLowerCase()}">${nextDisplayTrain(trainName)}</td>`,
+        `<td class="bowl-current" style="background:linear-gradient(135deg,#1c1a08,#161410) !important;color:#fbbf24 !important;font-weight:800 !important;border-left:2px solid rgba(251,191,36,.5) !important;border-right:2px solid rgba(251,191,36,.5) !important;text-shadow:0 0 10px rgba(251,191,36,.35) !important;">${currentFtHtml}</td>`,
+        `<td colspan="12" class="bowl-segments-cell"><div class="bowl-segments-wrap">${segmentHtml||''}</div></td>`,
+        `<td class="bowl-delta sum">${currentFtHtml}</td>`
+      ].join('');
+      body.appendChild(row);
+    });
+    board.appendChild(body);
+    return board;
+  };
+
 
   try{ data.forEach(row=>{ if(row && row._afterDepartTrain) delete row._afterDepartTrain; if(row && row._afterDepartDisplayTrain) delete row._afterDepartDisplayTrain; }); }catch{}
   const selectedIds=selectedCarIdsForOutbound();
@@ -26185,7 +26415,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   if(!onlyCurrent && !omitAfter){
     const afterTitle=document.createElement('div');
     afterTitle.className='bowl-after-title';
-    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+'[TRACK]'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+'FUTURE TAG'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+'FUTURE BLOCKS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+'PREV IHOSA/MHOAS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+'TOMORROW IHOSA/MHOAS'+'</button>'+        '</div>'+      '</div>'+      '<button class="bowl-prev-depart-head-toggle" data-bowl-prev-depart-toggle type="button">PREV IHOSA/MHOAS</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="IHOSA" type="button">IHOSA</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="MHOAS" type="button">MHOAS</button>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
+    afterTitle.innerHTML='<span>POST OUTBOUND CONSIST</span>'+      '<div class="bowl-after-controls bowl-control-dropdown bowl-post-options-menu" data-bowl-options-menu>'+        '<button class="bowl-options-main" data-bowl-options-main type="button" aria-expanded="false">OPTIONS</button>'+        '<div class="bowl-options-panel" data-bowl-options-panel>'+          '<button class="bowl-track-toggle-btn bowl-track-toggle-head" data-bowl-track-suffix-toggle type="button">'+'[TRACK]'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-track-toggle-head" data-bowl-future-tag-toggle type="button">'+'FUTURE TAG'+'</button>'+          '<button class="bowl-future-tag-toggle-btn bowl-future-block-toggle-btn bowl-track-toggle-head" data-bowl-future-block-toggle type="button">'+'FUTURE BLOCKS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-prev-depart-toggle type="button">'+'PREV IHOSA/MHOAS'+'</button>'+          '<button class="bowl-after-depart-toggle-btn bowl-track-toggle-head" data-bowl-tomorrow-depart-toggle type="button">'+'TOMORROW IHOSA/MHOAS'+'</button>'+        '</div>'+      '</div>'+      '<button class="bowl-prev-depart-head-toggle" data-bowl-prev-depart-toggle type="button">PREV IHOSA/MHOAS</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="IHOSA" type="button" title="Assign selected Post Outbound blocks to IHOSA2">IHOSA</button>'+      '<button class="post-assign-train-btn" data-post-assign-train="MHOAS" type="button" title="Assign selected Post Outbound blocks to MHOAS2">MHOAS</button>'+      '<button class="post-assign-train-btn post-assign-clear-btn" data-post-assign-clear-all="1" type="button" title="Remove all IHOSA/MHOAS tags from current, post outbound, and next day">UNTAG</button>'+      '<div class="after-ss-clock-wrap"><span>SS DWELL CLOCK</span><input id="after-ss-dwell-time" type="datetime-local" step="60" value="'+escAttr(afterSsFutureTimeValue)+'" title="SS cars in this table calculate arrival to this future time"></div>'+      '<button class="bowl-future-inbound-btn" type="button" data-future-inbound-add><span>+</span><span>ADD FUTURE INBOUND</span></button>';
     wrap.appendChild(afterTitle);
 
     const postOutboundBoard=buildBoard('POST OUTBOUND CONSIST','CURRENT',selectedIds);
@@ -26195,7 +26425,9 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     nextDayTitle.className='bowl-next-day-title';
     nextDayTitle.innerHTML='<span>NEXT DAY OUTLOOK</span>';
     wrap.appendChild(nextDayTitle);
-    wrap.appendChild(buildBoard('NEXT DAY OUTLOOK','CURRENT',selectedIds));
+    const nextDayBoard=buildBoard('NEXT DAY OUTLOOK','CURRENT',selectedIds);
+    wrap.appendChild(nextDayBoard);
+    if(showOutboundTracksTable) wrap.appendChild(buildNextDayOutboundTracksBoard(nextDayBoard));
   }
 
   // Attach the generated bowl turnover boards to the requested container.
@@ -48052,14 +48284,14 @@ table.bowl-board td.bowl-delta.good{
 
   document.addEventListener('pointerdown',function(e){
     if(!isOutboundTarget(e.target)) return;
-    if(e.target.closest('.bowl-block,button,input,select,textarea,a,label,.bowl-control-dropdown')) return;
+    if(e.target.closest('.bowl-block,button,input,select,textarea,a,label,.bowl-control-dropdown,.bowl-after-title')) return;
     clearSelection();
   },true);
 
   ['renderOB','renderBowlTurnover'].forEach(function(name){
     var fn=window[name];
     if(typeof fn==='function' && !fn.__outboundDragSelectWrapped){
-      var wrapped=function(){ var result=fn.apply(this,arguments); clearSelection(); clearDrag(); return result; };
+      var wrapped=function(){ var result=fn.apply(this,arguments); clearDrag(); return result; };
       wrapped.__outboundDragSelectWrapped=true;
       window[name]=wrapped;
     }
@@ -54369,6 +54601,136 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     cursor:pointer!important;
     filter:saturate(.45)!important;
   }
+  #resolve-ss-modal .rss-paste-panel{
+    border:1px solid rgba(148,163,184,.22)!important;
+    border-radius:10px!important;
+    background:rgba(2,6,23,.28)!important;
+    padding:10px!important;
+    display:grid!important;
+    gap:9px!important;
+  }
+  #resolve-ss-modal .rss-paste-title{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:10px!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:8px!important;
+    font-weight:900!important;
+    letter-spacing:1.4px!important;
+    text-transform:uppercase!important;
+    color:#c4b5fd!important;
+  }
+  #resolve-ss-modal #rss-paste-text{
+    width:100%!important;
+    min-height:132px!important;
+    max-height:260px!important;
+    resize:vertical!important;
+    box-sizing:border-box!important;
+    border:1px solid rgba(96,165,250,.28)!important;
+    border-radius:8px!important;
+    background:#06101f!important;
+    color:#dbeafe!important;
+    padding:9px 10px!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:750!important;
+    line-height:1.45!important;
+    white-space:pre!important;
+  }
+  #resolve-ss-modal #rss-paste-text:focus{
+    border-color:#fbbf24!important;
+    box-shadow:0 0 0 2px rgba(251,191,36,.24)!important;
+    outline:none!important;
+  }
+  #resolve-ss-modal #rss-paste-clear{
+    height:28px!important;
+    padding:0 10px!important;
+    border-radius:7px!important;
+    border:1px solid rgba(248,113,113,.46)!important;
+    background:rgba(127,29,29,.36)!important;
+    color:#fecaca!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:1px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+  }
+  #resolve-ss-modal .rss-paste-buttons{
+    display:inline-flex!important;
+    align-items:center!important;
+    gap:7px!important;
+    margin-left:auto!important;
+  }
+  #resolve-ss-modal #rss-paste-preview{
+    max-height:150px!important;
+    overflow:auto!important;
+    border:1px solid rgba(148,163,184,.18)!important;
+    border-radius:8px!important;
+    background:#020617!important;
+    color:#94a3b8!important;
+    padding:7px 8px!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:750!important;
+    line-height:1.45!important;
+    white-space:pre!important;
+  }
+  #resolve-ss-modal #rss-paste-preview .rss-line-hit-start{
+    display:block!important;
+    color:#bbf7d0!important;
+    background:rgba(22,101,52,.34)!important;
+    box-shadow:inset 3px 0 0 #22c55e!important;
+    padding-left:6px!important;
+  }
+  #resolve-ss-modal #rss-paste-preview .rss-line-hit-end{
+    display:block!important;
+    color:#bfdbfe!important;
+    background:rgba(30,64,175,.36)!important;
+    box-shadow:inset 3px 0 0 #60a5fa!important;
+    padding-left:6px!important;
+  }
+  #resolve-ss-modal .rss-paste-results{
+    display:flex!important;
+    flex-wrap:wrap!important;
+    gap:8px!important;
+    align-items:center!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:.5px!important;
+  }
+  #resolve-ss-modal .rss-paste-pill{
+    display:inline-flex!important;
+    align-items:center!important;
+    gap:6px!important;
+    border-radius:999px!important;
+    padding:4px 8px!important;
+    border:1px solid rgba(148,163,184,.28)!important;
+    background:rgba(15,23,42,.72)!important;
+    color:#e5e7eb!important;
+  }
+  #resolve-ss-modal .rss-paste-pill.start{border-color:rgba(34,197,94,.55)!important;color:#bbf7d0!important;}
+  #resolve-ss-modal .rss-paste-pill.end{border-color:rgba(96,165,250,.55)!important;color:#bfdbfe!important;}
+  #resolve-ss-modal #rss-paste-apply{
+    height:28px!important;
+    padding:0 10px!important;
+    border-radius:7px!important;
+    border:1px solid rgba(168,85,247,.55)!important;
+    background:linear-gradient(180deg,rgba(88,28,135,.86),rgba(59,7,100,.94))!important;
+    color:#f3e8ff!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:1px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+  }
+  #resolve-ss-modal #rss-paste-apply:disabled{
+    opacity:.42!important;
+    cursor:not-allowed!important;
+  }
 </style>
 <script id="resolve-ss-final-authority-js">
 (function(){
@@ -54633,6 +54995,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
             '<div class="rss-field full"><label>IMPORTED ARRIVAL</label><input id="rss-arrival" readonly></div>',
             '<div class="rss-field full"><label>SS START</label><input id="rss-ss-start" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
             '<div class="rss-field full"><label>SS END</label><input id="rss-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+            '<div class="rss-field full rss-paste-panel">',
+              '<div class="rss-paste-title"><span>Paste SS Event History</span><span class="rss-paste-buttons"><button id="rss-paste-clear" type="button">Clear</button><button id="rss-paste-apply" type="button" disabled>Confirm Times</button></span></div>',
+              '<textarea id="rss-paste-text" spellcheck="false" placeholder="Paste event history here..."></textarea>',
+              '<div class="rss-paste-results" id="rss-paste-results"><span class="rss-paste-pill start">SS START: -</span><span class="rss-paste-pill end">SS END: -</span></div>',
+              '<div id="rss-paste-preview">Paste event history to preview SS and RH SS matches.</div>',
+            '</div>',
             '<div class="rss-field full"><label>CALCULATED NET DWELL</label><input id="rss-net" readonly></div>',
             '<div class="rss-field full" style="flex-direction:row;align-items:center;gap:8px;"><label style="margin:0;white-space:nowrap;">EXAMPLE CAR</label><input id="rss-sample-car" style="flex:1;" placeholder=""><button class="rss-copy-btn" id="rss-copy-btn" type="button">COPY</button></div>',
             '<div class="rss-field full" id="rss-preview-wrap"><div style="display:flex;gap:16px;align-items:flex-start;"><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">CURRENT</label><div id="rss-before-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div><div style="padding-top:20px;color:#64748b;font-size:18px;">-></div><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">NEW</label><div id="rss-after-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div></div></div>',
@@ -54656,7 +55024,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
         ['rss-next', function(e){ skipCurrent(); }],
         ['rss-cancel', function(e){ closeModal(); }],
         ['rss-close', function(e){ closeModal(); }],
-        ['rss-copy-btn', function(e){ copySample(); }]
+        ['rss-copy-btn', function(e){ copySample(); }],
+        ['rss-paste-apply', function(e){ applyParsedPasteTimes(); }],
+        ['rss-paste-clear', function(e){ clearPasteBox(); }]
       ].forEach(function(pair){
         var btn = document.getElementById(pair[0]);
         if(!btn) return;
@@ -54668,8 +55038,110 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
           return false;
         }, true);
       });
+      var pasteBox = document.getElementById('rss-paste-text');
+      if(pasteBox){
+        pasteBox.addEventListener('input', updatePastePreview, true);
+        pasteBox.addEventListener('paste', function(){ setTimeout(updatePastePreview, 0); }, true);
+        pasteBox.addEventListener('focus', function(){
+          if(!pasteBox.value) return;
+          setTimeout(function(){ pasteBox.select(); }, 0);
+        }, true);
+      }
     }
     return m;
+  }
+  function clearPasteBox(){
+    var box = document.getElementById('rss-paste-text');
+    if(box){
+      box.value = '';
+      box.focus();
+      updatePastePreview();
+    }
+  }
+  function parseEventLine(line, index){
+    var raw = String(line == null ? '' : line);
+    var dateMatch = raw.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2})(?:\s+[A-Z]{2,4})?/i);
+    if(!dateMatch) return null;
+    var event = '';
+    var fields = raw.split(/\t+/).map(function(part){ return clean(part); });
+    if(fields.length > 1) event = fields[1];
+    if(!event){
+      var m = raw.match(/^\s*\S+\s+(.+?)(?:\s{2,}|\t)/);
+      event = m ? clean(m[1]) : '';
+    }
+    var normalizedEvent = clean(event).toUpperCase();
+    var kind = '';
+    if(normalizedEvent === 'SS') kind = 'start';
+    else if(normalizedEvent === 'RH SS') kind = 'end';
+    if(!kind) return null;
+    var iso = toIso(dateMatch[1]+' '+dateMatch[2]);
+    if(!iso) return null;
+    return {kind:kind, iso:iso, display:fmtDisplay(iso), lineIndex:index, raw:raw, event:normalizedEvent};
+  }
+  function parseSsPasteText(text){
+    var lines = String(text || '').replace(/\r/g,'').split('\n');
+    var hits = [];
+    lines.forEach(function(line,index){
+      var parsed = parseEventLine(line,index);
+      if(parsed) hits.push(parsed);
+    });
+    var startHits = hits.filter(function(hit){ return hit.kind === 'start'; });
+    var endHits = hits.filter(function(hit){ return hit.kind === 'end'; });
+    return {
+      lines:lines,
+      hits:hits,
+      start:startHits.length ? startHits[startHits.length - 1] : null,
+      end:endHits.length ? endHits[0] : null
+    };
+  }
+  function escapeRawLine(line){
+    return String(line == null ? '' : line).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; });
+  }
+  function renderPastePreview(parsed){
+    var preview = document.getElementById('rss-paste-preview');
+    var results = document.getElementById('rss-paste-results');
+    var apply = document.getElementById('rss-paste-apply');
+    if(!preview || !results || !apply) return;
+    var start = parsed && parsed.start;
+    var end = parsed && parsed.end;
+    results.innerHTML =
+      '<span class="rss-paste-pill start">SS START: '+esc(start ? start.display : '-')+'</span>'+
+      '<span class="rss-paste-pill end">SS END: '+esc(end ? end.display : '-')+'</span>';
+    apply.disabled = !(start || end);
+    if(!parsed || !parsed.lines || !parsed.lines.join('').trim()){
+      preview.textContent = 'Paste event history to preview SS and RH SS matches.';
+      return;
+    }
+    var html = parsed.lines.map(function(line,index){
+      var cls = '';
+      if(start && index === start.lineIndex) cls = 'rss-line-hit-start';
+      if(end && index === end.lineIndex) cls = 'rss-line-hit-end';
+      return '<span class="'+cls+'">'+escapeRawLine(line || ' ')+'</span>';
+    }).join('\n');
+    preview.innerHTML = html || 'No SS or RH SS times found.';
+  }
+  function updatePastePreview(){
+    var box = document.getElementById('rss-paste-text');
+    renderPastePreview(parseSsPasteText(box ? box.value : ''));
+  }
+  function applyParsedPasteTimes(){
+    var box = document.getElementById('rss-paste-text');
+    var parsed = parseSsPasteText(box ? box.value : '');
+    if(parsed.start){
+      var start = document.getElementById('rss-ss-start');
+      if(start){ start.value = fmtDisplay(parsed.start.iso); start.classList.remove('rss-required-missing'); }
+    }
+    if(parsed.end){
+      var end = document.getElementById('rss-ss-end');
+      if(end) end.value = fmtDisplay(parsed.end.iso);
+    }
+    updatePastePreview();
+    updateNet();
+    syncSaveState();
+    if(parsed.start && parsed.end) toastMsg('Imported SS start and RH SS end');
+    else if(parsed.start) toastMsg('Imported SS start');
+    else if(parsed.end) toastMsg('Imported RH SS end');
+    else toastMsg('No SS or RH SS times found');
   }
   function currentInfo(){ return queue[idx] || null; }
   function syncSaveState(){
@@ -54737,6 +55209,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(end){ end.value = info.ssEnd ? fmtDisplay(info.ssEnd) : ''; }
     if(sample) sample.value = info.sampleCar || '';
     if(next) next.style.display = (idx < queue.length-1) ? '' : 'none';
+    var paste = document.getElementById('rss-paste-text');
+    if(paste) paste.value = '';
+    renderPastePreview(null);
     updateProgress();
     updateNet();
     syncSaveState();
@@ -54806,7 +55281,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     return true;
   }
   function advance(){
-    if(idx < queue.length-1){ idx++; loadEntry(); }
+    if(idx < queue.length-1){ idx++; loadEntry(); copyCurrentExampleCar(); }
     else { closeModal(); try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){} toastMsg('Resolve SS complete'); }
   }
   function saveAndAdvanceCurrent(){
@@ -54839,9 +55314,48 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   function copySample(){
     var val = rawClean((document.getElementById('rss-sample-car')||{}).value);
     if(!val) return;
-    try{ navigator.clipboard && navigator.clipboard.writeText(val).catch(function(){}); }catch(e){}
+    var copied = copyText(val);
     var btn = document.getElementById('rss-copy-btn');
-    if(btn){ btn.textContent = 'OK'; setTimeout(function(){ btn.textContent = 'COPY'; }, 1000); }
+    if(btn){ btn.textContent = copied ? 'OK' : 'FAIL'; setTimeout(function(){ btn.textContent = 'COPY'; }, 1000); }
+    toastMsg(copied ? ('Copied example car: '+val) : 'Copy failed - selected example car text');
+  }
+  function copyText(val){
+    val = rawClean(val);
+    if(!val) return false;
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = val;
+      ta.setAttribute('readonly','readonly');
+      ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;z-index:-1;';
+      document.body.appendChild(ta);
+      ta.focus({preventScroll:true});
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      var ok = document.execCommand('copy');
+      ta.remove();
+      if(ok) return true;
+    }catch(e){}
+    try{
+      var field = document.getElementById('rss-sample-car');
+      if(field && field.value){
+        field.focus({preventScroll:true});
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        if(document.execCommand('copy')) return true;
+      }
+    }catch(e){}
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(val).catch(function(){});
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+  function copyCurrentExampleCar(){
+    var info = currentInfo();
+    var sample = info && (info.sampleCar || rawClean((document.getElementById('rss-sample-car')||{}).value));
+    if(copyText(sample)) toastMsg('Copied next example car: '+sample);
   }
 
   function findRampHead(){ return document.querySelector('#tab-outbound .bowl-ramp-head'); }
@@ -55956,6 +56470,11 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     border-color:rgba(96,165,250,.72)!important;
     background:linear-gradient(180deg,rgba(30,64,175,.76),rgba(15,42,95,.92))!important;
   }
+  html body #tab-outbound .bowl-after-title .post-assign-clear-btn{
+    color:#fee2e2!important;
+    border-color:rgba(248,113,113,.72)!important;
+    background:linear-gradient(180deg,rgba(127,29,29,.76),rgba(69,10,10,.92))!important;
+  }
 </style>
 <script id="post-outbound-selected-assign-buttons-final-js">
 (function(){
@@ -55977,7 +56496,16 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     btn.className = 'post-assign-train-btn';
     btn.dataset.postAssignTrain = kind;
     btn.textContent = kind;
-    btn.title = 'Assign selected Post Outbound blocks to ' + kind;
+    btn.title = 'Assign selected Post Outbound blocks to ' + kind + '2';
+    return btn;
+  }
+  function makeClearBtn(){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'post-assign-train-btn post-assign-clear-btn';
+    btn.dataset.postAssignClearAll = '1';
+    btn.textContent = 'UNTAG';
+    btn.title = 'Remove all IHOSA/MHOAS tags from current, post outbound, and next day';
     return btn;
   }
   function ensureButtons(){
@@ -55999,6 +56527,16 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
           else title.appendChild(btn);
         }
       });
+      if(!title.querySelector(':scope > [data-post-assign-clear-all]')){
+        var clearBtn = makeClearBtn();
+        var mhoas = title.querySelector(':scope > [data-post-assign-train="MHOAS"]');
+        var future = title.querySelector(':scope > [data-post-future-block-head-toggle]');
+        var clock = title.querySelector(':scope > .after-ss-clock-wrap');
+        if(mhoas) mhoas.insertAdjacentElement('afterend', clearBtn);
+        else if(clock) clock.insertAdjacentElement('beforebegin', clearBtn);
+        else if(future) future.insertAdjacentElement('beforebegin', clearBtn);
+        else title.appendChild(clearBtn);
+      }
     });
   }
   function removeOldBadges(block){
@@ -56012,22 +56550,214 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function isPostOutboundAssignBlock(block){
     return !!(block && block.closest && block.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)'));
   }
-  function postAssignKeyFromBlock(block){
-    if(!isPostOutboundAssignBlock(block)) return '';
+  function postAssignKeysFromBlock(block){
+    if(!isPostOutboundAssignBlock(block)) return [];
     var groupKey = normText(block && block.dataset && block.dataset.bowlGroupKey);
-    var label = normText(block && block.dataset && (block.dataset.sourceBlockLabel || block.dataset.afterStatus || ''));
-    if(!groupKey || !label) return '';
-    return [blockTrack(block), groupKey, label].join('||');
+    var sampleCar = normText(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || ''));
+    var label = labelFromBlock(block);
+    if(!label) return [];
+    var keys = [];
+    [groupKey,sampleCar].forEach(function(keyPart){
+      if(!keyPart) return;
+      var key = [blockTrack(block), keyPart, label].join('||');
+      if(keys.indexOf(key) === -1) keys.push(key);
+      var looseKey = [blockTrack(block), keyPart].join('||');
+      if(keys.indexOf(looseKey) === -1) keys.push(looseKey);
+    });
+    return keys;
+  }
+  function postAssignKeyFromBlock(block){
+    var keys = postAssignKeysFromBlock(block);
+    return keys[0] || '';
+  }
+  function blockFootage(block){
+    var raw = (block && block.querySelector && block.querySelector('b') && block.querySelector('b').textContent) || '';
+    var n = parseFloat(String(raw || '').replace(/,/g,''));
+    return isFinite(n) ? n : 0;
   }
   function savePostOutboundAssignment(block, kind){
-    var key = postAssignKeyFromBlock(block);
-    if(!key) return;
+    var keys = postAssignKeysFromBlock(block);
+    if(!keys.length) return;
     try{
       var store = JSON.parse(localStorage.getItem('dwellPostOutboundAssignments_v1') || '{}');
       if(!store || typeof store !== 'object') store = {};
-      store[key] = {kind:kind, display:displayKindForBlock(block, kind), savedAt:Date.now()};
+      var track = blockTrack(block);
+      var groupKey = normText(block && block.dataset && block.dataset.bowlGroupKey);
+      var sampleCar = normText(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || ''));
+      var label = labelFromBlock(block);
+      var display = displayKindForBlock(block, kind);
+      var saved = {
+        kind: kind,
+        display: display,
+        savedAt: Date.now(),
+        track: track,
+        groupKey: groupKey,
+        sampleCar: sampleCar,
+        label: label,
+        ft: blockFootage(block),
+        train: normText(block && block.dataset && (block.dataset.afterTrain || block.dataset.sourceTrain || '')),
+        ssStartRaw: String(block && block.dataset && block.dataset.afterSsStart || ''),
+        primaryId: [track, groupKey || sampleCar, label, kind].join('||')
+      };
+      keys.forEach(function(key){
+        store[key] = saved;
+      });
       localStorage.setItem('dwellPostOutboundAssignments_v1', JSON.stringify(store));
     }catch(e){ console.warn('Post outbound assignment save failed', e); }
+  }
+  function postAssignLookupKeysForBlock(block){
+    if(!isPostOutboundAssignBlock(block)) return [];
+    var track = blockTrack(block);
+    var groupKey = normText(block && block.dataset && block.dataset.bowlGroupKey);
+    var sampleCar = normText(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || ''));
+    var label = labelFromBlock(block);
+    var keys = [];
+    [groupKey,sampleCar].forEach(function(keyPart){
+      if(!keyPart) return;
+      if(label) keys.push([track,keyPart,label].join('||'));
+      keys.push([track,keyPart].join('||'));
+    });
+    return keys.filter(function(key,index,self){ return key && self.indexOf(key) === index; });
+  }
+  function savedPostAssignmentForBlock(block){
+    var keys = postAssignLookupKeysForBlock(block);
+    if(!keys.length) return null;
+    try{
+      var store = JSON.parse(localStorage.getItem('dwellPostOutboundAssignments_v1') || '{}');
+      if(!store || typeof store !== 'object') return null;
+      for(var i=0;i<keys.length;i++){
+        var saved = store[keys[i]];
+        if(saved && saved.kind){
+          var kind = normText(saved.kind);
+          if(kind === 'IHOSA' || kind === 'MHOAS'){
+            return {kind:kind, display:normText(saved.display || (kind + '2'))};
+          }
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+  var stampingPostAssignments = false;
+  function syncPostAssignmentDataset(block, saved){
+    block.dataset.outboundDeparture = saved.kind;
+    block.dataset.afterDepart = saved.kind;
+    block.dataset.afterDeparting = '1';
+    block.dataset.assignmentDepart = saved.kind;
+    block.dataset.outboundDisplayDeparture = saved.display;
+    block.classList.toggle('depart-ihosa', saved.kind === 'IHOSA');
+    block.classList.toggle('depart-mhoas', saved.kind === 'MHOAS');
+  }
+  function correctPostAssignmentBadge(block, saved){
+    var cls = saved.kind.toLowerCase();
+    var wanted = normText(saved.display);
+    var firstGood = null;
+    Array.from(block.querySelectorAll('.after-depart-badge.' + cls)).forEach(function(tag){
+      if(normText(tag.textContent) === wanted && !firstGood) firstGood = tag;
+      else tag.remove();
+    });
+    if(!firstGood) return null;
+    firstGood.dataset.postAssignRestored = '1';
+    firstGood.dataset.postSaAsRestored = '1';
+    firstGood.title = 'Selected assignment: ' + saved.display;
+    firstGood.textContent = saved.display;
+    block.querySelectorAll('.after-depart-badge.' + (saved.kind === 'IHOSA' ? 'mhoas' : 'ihosa')).forEach(function(tag){ tag.remove(); });
+    return firstGood;
+  }
+  function stampPostAssignmentBlock(block){
+    var saved = savedPostAssignmentForBlock(block);
+    if(!saved) return false;
+    syncPostAssignmentDataset(block, saved);
+    if(correctPostAssignmentBadge(block, saved)) return true;
+    removeOldBadges(block);
+    var span = block.querySelector(':scope > span') || block.querySelector('span') || block;
+    var badge = document.createElement('span');
+    badge.className = 'after-depart-badge ' + saved.kind.toLowerCase();
+    badge.dataset.postAssignRestored = '1';
+    badge.dataset.postSaAsRestored = '1';
+    badge.title = 'Selected assignment: ' + saved.display;
+    badge.textContent = saved.display;
+    span.appendChild(document.createTextNode(' '));
+    span.appendChild(badge);
+    return true;
+  }
+  function stampPostAssignmentBadges(){
+    if(stampingPostAssignments) return 0;
+    stampingPostAssignments = true;
+    var count = 0;
+    try{
+      document.querySelectorAll('#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block, table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+        if(stampPostAssignmentBlock(block)) count++;
+      });
+      return count;
+    }finally{
+      stampingPostAssignments = false;
+    }
+  }
+  var postAssignStampTimer = null;
+  function schedulePostAssignmentBadges(){
+    clearTimeout(postAssignStampTimer);
+    [0,60,180,420,720,1120,1800,2600].forEach(function(delay){
+      setTimeout(stampPostAssignmentBadges, delay);
+    });
+    postAssignStampTimer = setTimeout(stampPostAssignmentBadges, 3400);
+  }
+  var rememberedSelectedKeys = [];
+  function tableScopeForBlock(block){
+    if(block && block.closest && block.closest('.bowl-board-next-day')) return 'next';
+    if(isPostOutboundAssignBlock(block)) return 'post';
+    if(block && block.closest && block.closest('.bowl-outbound-track-table')) return 'track';
+    return 'current';
+  }
+  function labelFromBlock(block){
+    var ds = block && block.dataset || {};
+    var label = ds.sourceBlockLabel || ds.afterStatus || '';
+    if(!label){
+      var clone = block && block.cloneNode ? block.cloneNode(true) : null;
+      if(clone){
+        clone.querySelectorAll('b,.bowl-dwell,.after-depart-badge,.future-shove-badge,.manual-tag,.bowl-inbound-source-tag,button').forEach(function(el){ el.remove(); });
+        label = clone.textContent || '';
+      }
+    }
+    return normText(String(label || '')
+      .replace(/^\s*[\d,]+\s*\|\s*/,'')
+      .replace(/\b(?:IHOSA3|MHOAS3|IHOSA2|MHOAS2|IHOSA|MHOAS)\b/ig,' ')
+      .replace(/\s+\d+(?:\.\d+)?\s*(?:NET|HR|H)\b/ig,' ')
+      .replace(/\s*\[[^\]]+\]\s*/g,' ')
+      .replace(/\s+/g,' '));
+  }
+  function selectionKeyForBlock(block){
+    if(!block || !block.dataset) return '';
+    return [
+      tableScopeForBlock(block),
+      blockTrack(block),
+      normText(block.dataset.bowlGroupKey || block.dataset.sampleCar || block.dataset.sampleEquipId || ''),
+      labelFromBlock(block)
+    ].join('||');
+  }
+  function snapshotRememberedSelection(clearWhenEmpty){
+    var keys = [];
+    document.querySelectorAll('#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.outbound-dnd-selected, #tab-outbound .bowl-board .bowl-segments-cell .bowl-block.next-day-selected').forEach(function(block){
+      var key = selectionKeyForBlock(block);
+      if(key && keys.indexOf(key) === -1) keys.push(key);
+    });
+    if(keys.length) rememberedSelectedKeys = keys;
+    else if(clearWhenEmpty) rememberedSelectedKeys = [];
+  }
+  function blocksForRememberedSelection(){
+    if(!rememberedSelectedKeys.length) return [];
+    var wanted = new Set(rememberedSelectedKeys);
+    var out = [];
+    document.querySelectorAll('#tab-outbound .bowl-board .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(wanted.has(selectionKeyForBlock(block))) out.push(block);
+    });
+    return out;
+  }
+  function restoreRememberedSelection(){
+    if(!rememberedSelectedKeys.length) return;
+    blocksForRememberedSelection().forEach(function(block){
+      block.classList.add('outbound-dnd-selected');
+      if(block.closest && block.closest('.bowl-board-next-day')) block.classList.add('next-day-selected');
+    });
   }
   function addBadge(block, kind){
     removeOldBadges(block);
@@ -56120,6 +56850,100 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     }catch(e){ console.warn('Fast outbound track refresh failed', e); }
     return false;
   }
+  function stripAssignmentFromBlock(block){
+    if(!block || !block.dataset) return;
+    function isSaValue(value){
+      return /^(?:IHOSA|MHOAS)(?:[123])?$/.test(normText(value));
+    }
+    if(isSaValue(block.dataset.outboundDeparture)) delete block.dataset.outboundDeparture;
+    if(isSaValue(block.dataset.outboundDisplayDeparture)) delete block.dataset.outboundDisplayDeparture;
+    if(isSaValue(block.dataset.afterDepart)) delete block.dataset.afterDepart;
+    if(isSaValue(block.dataset.assignmentDepart)) delete block.dataset.assignmentDepart;
+    if(isSaValue(block.dataset.futureInboundTrain)) delete block.dataset.futureInboundTrain;
+    if(!block.dataset.outboundDeparture && !block.dataset.afterDepart && !block.dataset.assignmentDepart){
+      delete block.dataset.afterDeparting;
+    }
+    block.classList.remove('depart-ihosa','depart-mhoas','assignment-ihosa-border','assignment-mhoas-border');
+    block.querySelectorAll('.after-depart-badge.ihosa,.after-depart-badge.mhoas,.future-status-badge.ihosa,.future-status-badge.mhoas').forEach(function(tag){
+      tag.remove();
+    });
+  }
+  function scrubNextDayHtml(html){
+    var box = document.createElement('div');
+    box.innerHTML = html || '';
+    box.querySelectorAll('.bowl-block').forEach(stripAssignmentFromBlock);
+    box.querySelectorAll('.after-depart-badge.ihosa,.after-depart-badge.mhoas,.future-status-badge.ihosa,.future-status-badge.mhoas').forEach(function(tag){
+      tag.remove();
+    });
+    box.innerHTML = box.innerHTML
+      .replace(/\s+\b(?:IHOSA3|MHOAS3|IHOSA2|MHOAS2|IHOSA|MHOAS)\b(?=\s*<)/ig,'')
+      .replace(/\b(?:IHOSA3|MHOAS3|IHOSA2|MHOAS2)\b/ig,'');
+    return box.innerHTML;
+  }
+  function clearManualSaSelections(){
+    var cleared = 0;
+    try{
+      Object.keys(manualSel || {}).forEach(function(track){
+        var carMap = manualSel[track] || {};
+        Object.keys(carMap).forEach(function(carId){
+          var entry = carMap[carId] || {};
+          var train = normText(entry._saTrain || (entry._group && (entry._group.train || entry._group.outbound)) || entry.train || '');
+          if(entry._sa || train === 'IHOSA' || train === 'MHOAS'){
+            delete carMap[carId];
+            cleared++;
+          }
+        });
+        if(!Object.keys(carMap).length) delete manualSel[track];
+      });
+      localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {}));
+    }catch(e){ console.warn('Unable to clear manual IHOSA/MHOAS selections', e); }
+    return cleared;
+  }
+  function clearNextDayAssignments(){
+    try{
+      var rows = JSON.parse(localStorage.getItem('dwellNextDayOutlookRows_v1') || '[]');
+      if(!Array.isArray(rows)) return 0;
+      var touched = 0;
+      rows.forEach(function(row){
+        var before = String(row && row.html || '');
+        var after = scrubNextDayHtml(before);
+        if(row && after !== before){
+          row.html = after;
+          touched++;
+        }
+      });
+      localStorage.setItem('dwellNextDayOutlookRows_v1', JSON.stringify(rows));
+      return touched;
+    }catch(e){ console.warn('Unable to clear next day IHOSA/MHOAS assignments', e); }
+    return 0;
+  }
+  function clearAllIhosaMhoasTags(){
+    var clearedManual = clearManualSaSelections();
+    var clearedNext = clearNextDayAssignments();
+    try{ localStorage.removeItem('dwellPostOutboundAssignments_v1'); }catch(e){}
+    try{
+      if(Array.isArray(data)){
+        data.forEach(function(row){
+          if(row){
+            delete row._afterDepartTrain;
+            delete row._afterDepartDisplayTrain;
+          }
+        });
+      }
+    }catch(e){}
+    document.querySelectorAll('#tab-outbound .bowl-board .bowl-segments-cell .bowl-block').forEach(stripAssignmentFromBlock);
+    rememberedSelectedKeys = [];
+    try{ if(typeof window.syncNextDayOutlookNow === 'function') window.syncNextDayOutlookNow(); }catch(e){}
+    try{ if(typeof window.applyAfterDepartHideAuthority === 'function') window.applyAfterDepartHideAuthority(); }catch(e){}
+    var fastRefreshed = refreshOutboundTrackTablesNow();
+    try{
+      if(typeof window.renderOB === 'function'){
+        setTimeout(function(){ window.renderOB(); }, fastRefreshed ? 250 : 0);
+      }
+    }catch(e){}
+    toastMsg('Cleared IHOSA/MHOAS tags');
+    return clearedManual + clearedNext;
+  }
   function sanitizeNextDayTagHtml(html){
     var box = document.createElement('div');
     box.innerHTML = html || '';
@@ -56157,6 +56981,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     addBadge(block, kind);
     savePostOutboundAssignment(block, kind);
     assignBlockCars(block, kind);
+    stampPostAssignmentBlock(block);
   }
   function selectedOutboundBlocks(){
     var seen = new Set();
@@ -56167,28 +56992,54 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
       seen.add(block);
       blocks.push(block);
     });
+    if(!blocks.length){
+      blocksForRememberedSelection().forEach(function(block){
+        if(!block || seen.has(block)) return;
+        seen.add(block);
+        blocks.push(block);
+      });
+    }else{
+      snapshotRememberedSelection();
+    }
     return blocks;
   }
   function assignSelected(kind){
     var selected = selectedOutboundBlocks();
     if(!selected.length){ toastMsg('Select blocks first'); return; }
+    snapshotRememberedSelection();
+    var displayKinds = selected.map(function(block){ return displayKindForBlock(block, kind); });
+    var toastKind = displayKinds.indexOf(kind+'2') !== -1 ? kind+'2' : (displayKinds.indexOf(kind+'3') !== -1 ? kind+'3' : kind);
     var hasNextDay = selected.some(function(block){ return !!(block && block.closest && block.closest('.bowl-board-next-day')); });
     try{ assignBlockCars._groups = (typeof buildGroups === 'function') ? buildGroups() : null; }catch(e){ assignBlockCars._groups = null; }
     selected.forEach(function(block){ assignBlock(block, kind); block.classList.remove('outbound-dnd-selected','next-day-selected'); });
     assignBlockCars._groups = null;
+    rememberedSelectedKeys = [];
     if(hasNextDay) persistNextDayBoard();
     try{ if(typeof window.flushAssignmentBadgeSpacing === 'function') window.flushAssignmentBadgeSpacing(); }catch(e){}
     try{ if(typeof window.applyAfterDepartHideAuthority === 'function') window.applyAfterDepartHideAuthority(); }catch(e){}
     var fastRefreshed = refreshOutboundTrackTablesNow();
+    schedulePostAssignmentBadges();
     try{
       if(typeof window.renderOB === 'function'){
-        setTimeout(function(){ window.renderOB(); }, fastRefreshed ? 450 : 0);
+        setTimeout(function(){ window.renderOB(); schedulePostAssignmentBadges(); }, fastRefreshed ? 450 : 0);
       }
     }catch(e){}
-    toastMsg('Assigned '+selected.length+' block'+(selected.length===1?'':'s')+' to '+kind);
+    toastMsg('Assigned '+selected.length+' block'+(selected.length===1?'':'s')+' to '+toastKind);
   }
   function schedule(){ clearTimeout(schedule._t); schedule._t = setTimeout(ensureButtons, 60); }
+  document.addEventListener('pointerdown', function(e){
+    if(!(e.target && e.target.closest && e.target.closest('#tab-outbound'))) return;
+    if(e.target.closest('[data-post-assign-train]')) return;
+    setTimeout(function(){ snapshotRememberedSelection(true); }, 0);
+  }, true);
   document.addEventListener('click', function(e){
+    var clearBtn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-post-assign-clear-all]');
+    if(clearBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      clearAllIhosaMhoasTags();
+      return;
+    }
     var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-post-assign-train]');
     if(!btn) return;
     e.preventDefault();
@@ -56196,10 +57047,144 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     assignSelected(btn.dataset.postAssignTrain);
   }, true);
   try{ new MutationObserver(schedule).observe(document.documentElement, {subtree:true, childList:true}); }catch(e){}
+  function wrapPostAssignRestore(name){
+    var fn = window[name];
+    if(typeof fn === 'function' && !fn.__postAssignSelectionRestoreWrapped){
+      var wrapped = function(){
+        var result = fn.apply(this, arguments);
+        setTimeout(restoreRememberedSelection, 0);
+        schedulePostAssignmentBadges();
+        return result;
+      };
+      wrapped.__postAssignSelectionRestoreWrapped = true;
+      window[name] = wrapped;
+    }
+  }
+  function wrapPostAssignRestoreAll(){
+    [
+      'renderOB',
+      'renderBowlTurnover',
+      'normalizePostOutboundBlockDisplay',
+      'normalizePostOutboundSingleDisplayOwner',
+      'normalizePostOutboundDisplayLiveOwner',
+      'restoreFinalPostOutboundDwell',
+      'restoreMissingPostOutboundDwell',
+      'applyPostOutboundSsNetDwellAuthority',
+      'applyPostOutboundLeftoverAuthority',
+      'syncPostOutboundBlockSpacingAuthority',
+      'syncPostOutboundCurrentRampSpacingMatch',
+      'syncPostOutboundTightSpacingCorrection',
+      'syncPostOutboundTightSpacingStableOwner',
+      'syncPostOutboundSingleDwellAuthority',
+      'syncStableCurrentEditsToPostOutbound',
+      'syncCurrentEditsToPostOutbound',
+      'restoreRampAndPostEditControls'
+    ].forEach(wrapPostAssignRestore);
+  }
+  wrapPostAssignRestoreAll();
+  [120,520,1300,2600].forEach(function(delay){
+    setTimeout(function(){ wrapPostAssignRestoreAll(); schedulePostAssignmentBadges(); }, delay);
+  });
+  try{
+    var postAssignObserverRoot = document.getElementById('tab-outbound') || document.documentElement;
+    new MutationObserver(function(mutations){
+      if(stampingPostAssignments) return;
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)')){
+          schedulePostAssignmentBadges();
+          return;
+        }
+      }
+    }).observe(postAssignObserverRoot, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['class','data-outbound-display-departure','data-outbound-departure','data-after-depart']});
+  }catch(e){}
   document.addEventListener('DOMContentLoaded', schedule);
   window.addEventListener('load', schedule, {once:true});
   schedule();
+  schedulePostAssignmentBadges();
 })();
 </script>
+<script id="outbound-table-selection-isolation-js">
+(function(){
+  'use strict';
+  if(window.__outboundTableSelectionIsolationInstalled) return;
+  window.__outboundTableSelectionIsolationInstalled = true;
 
+  var activeTable = null;
+  var isolating = false;
 
+  function blockFromTarget(target){
+    var block = target && target.closest && target.closest('#tab-outbound .bowl-board .bowl-segments-cell .bowl-block');
+    if(!block) return null;
+    if(target.closest('button,input,select,textarea,a,label')) return null;
+    return block;
+  }
+  function selectableTableFor(block){
+    var table = block && block.closest && block.closest('#tab-outbound table.bowl-board');
+    if(!table || table.classList.contains('bowl-outbound-track-table')) return null;
+    return table;
+  }
+  function selectedBlockSelector(){
+    return '#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.outbound-dnd-selected,'+
+      '#tab-outbound .bowl-board .bowl-segments-cell .bowl-block.next-day-selected';
+  }
+  function clearOutside(table){
+    if(!table || isolating) return;
+    isolating = true;
+    try{
+      document.querySelectorAll(selectedBlockSelector()).forEach(function(block){
+        var owner = selectableTableFor(block);
+        if(owner && owner !== table){
+          block.classList.remove('outbound-dnd-selected','next-day-selected','outbound-dnd-dragging');
+        }
+      });
+    }finally{
+      isolating = false;
+    }
+  }
+  function scheduleClear(table){
+    if(!table) return;
+    activeTable = table;
+    [0,40,120,300,700].forEach(function(delay){
+      setTimeout(function(){
+        if(activeTable === table) clearOutside(table);
+      }, delay);
+    });
+  }
+  function selectedTables(){
+    var tables = [];
+    document.querySelectorAll(selectedBlockSelector()).forEach(function(block){
+      var table = selectableTableFor(block);
+      if(table && tables.indexOf(table) === -1) tables.push(table);
+    });
+    return tables;
+  }
+
+  document.addEventListener('pointerdown', function(e){
+    if(e.button !== 0) return;
+    var block = blockFromTarget(e.target);
+    var table = selectableTableFor(block);
+    if(table) scheduleClear(table);
+  }, true);
+
+  document.addEventListener('click', function(e){
+    var block = blockFromTarget(e.target);
+    var table = selectableTableFor(block);
+    if(table) scheduleClear(table);
+  }, true);
+
+  try{
+    new MutationObserver(function(){
+      if(isolating) return;
+      var tables = selectedTables();
+      if(tables.length <= 1) return;
+      scheduleClear(activeTable && document.documentElement.contains(activeTable) ? activeTable : tables[tables.length - 1]);
+    }).observe(document.getElementById('tab-outbound') || document.documentElement, {
+      subtree:true,
+      childList:true,
+      attributes:true,
+      attributeFilter:['class']
+    });
+  }catch(e){}
+})();
+</script>
