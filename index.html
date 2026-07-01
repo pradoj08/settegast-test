@@ -36717,7 +36717,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function calcArrivalToSS(train,ssStart,arrivalOverride){const arr=getArrivalForTrain(train,arrivalOverride); const ss=parseAny(ssStart); if(!arr||!ss) return null; const hrs=(ss-arr)/3600000; return Number.isFinite(hrs)?Math.max(0,hrs):null;}
   function getCurrentReleaseDate(block){block=normBlock(block); if(block==='SS') return null; return new Date(getDepDtForTrain(block));}
   function calcArrivalToOutbound(train, block, arrivalOverride){const arr=getArrivalForTrain(train,arrivalOverride); const rel=getCurrentReleaseDate(block); if(!arr||!rel) return null; const hrs=(rel-arr)/3600000; return Number.isFinite(hrs)?Math.max(0,hrs):null;}
-  function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const sourceTrain=clean(block.dataset.sourceTrain||block.dataset.currentTrain||'').toUpperCase(); const train=safeTrainValue(sourceTrain, block, txt); const displayLabel=(type==='SS' && isSSLabel(txt)) ? txt : makeLabel(train,type); return {ft:ft,label:displayLabel,train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||'')};}
+  function parseBlock(block){const clone=block.cloneNode(true); clone.querySelectorAll('button,.current-edit-badge,.current-edit-ss-start-badge,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(x=>x.remove()); const ft=n(clone.querySelector('b')?clone.querySelector('b').textContent:'0'); const dwellEl=clone.querySelector('.bowl-dwell'); const dwell=clean(dwellEl?dwellEl.textContent:''); if(dwellEl) dwellEl.remove(); clone.querySelectorAll('b,.bowl-oldest-flag,.after-depart-badge').forEach(x=>x.remove()); let txt=clean(clone.textContent).replace(/^\|\s*/,'').replace(/\|\s*\[\d{3}\]\s*$/,'').replace(/\s+/g,' '); txt=txt.replace(/\|\s*$/,'').trim(); const type=blockTypeFromLabel(txt); const sourceTrain=clean(block.dataset.sourceTrain||block.dataset.currentTrain||'').toUpperCase(); const train=safeTrainValue(sourceTrain, block, txt); const displayLabel=(type==='SS' && isSSLabel(txt)) ? txt : makeLabel(train,type); return {ft:ft,label:displayLabel,train:train,blockType:type,dwell:dwell,arrival:toLocalValue(block.dataset.currentArrival||''),ssStart:toLocalValue(block.dataset.currentSsStart||''),ssEnd:toLocalValue(block.dataset.currentSsEnd||block.dataset.ssEnd||'')};}
   function renderBlock(block,ov){const ft=fmt(ov.ft); const liveBefore=parseBlock(block).label; const blockType=normBlock(ov.blockType||blockTypeFromLabel(ov.label)); if(!block.dataset.sourceTrain){const src=clean(block.dataset.currentTrain||block.dataset.afterTrain||'').toUpperCase(); if(src && !looksLikeHoldCodeNotTrain(src)) block.dataset.sourceTrain=src;} const train=safeTrainValue(ov.train, block, ov.label); const rawLabel=clean(ov.label);
     // For the display label: SS blocks keep their compound label; all others use the original source label (block code only, no train prefix)
     let label;
@@ -36736,12 +36736,12 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
       const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival);
       if(calc!==null) dwell=Math.round(calc)+'H NET';
     }
-    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b><span class="bowl-block-pipe-dim">|</span>${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
+    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentSsEnd=clean(ov.ssEnd||''); block.dataset.ssEnd=clean(ov.ssEnd||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b><span class="bowl-block-pipe-dim">|</span>${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
   function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button>');}}); recalcRow(tr);});}
   function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>x</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">-</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS START ENTERED':Math.round(val)+'H NET') : 'ENTER SS START';}
-  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toLocalValue(base.ssStart||block.dataset.currentSsStart||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
+  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toLocalValue(base.ssStart||block.dataset.currentSsStart||''); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toLocalValue(base.ssEnd||block.dataset.currentSsEnd||block.dataset.ssEnd||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
   function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
   function saveModal(){if(!activeBlock||!activeKey)return; const m=document.getElementById('current-block-edit-modal'); const ft=n(m.querySelector('#current-edit-ft').value); const outTrack=clean(m.querySelector('#current-edit-outtrack').value).replace(/[^0-9]/g,'')||m.dataset.originalTrack||''; const train=clean(m.querySelector('#current-edit-train').value).toUpperCase(); const blockType=normBlock(m.querySelector('#current-edit-block').value); const time=clean(m.querySelector('#current-edit-time').value); if(!ft||ft<=0){toastMsg('Enter valid footage'); m.querySelector('#current-edit-ft').focus(); return;} if(!train || looksLikeHoldCodeNotTrain(train)){toastMsg('Train / inbound must be the inbound train value, not a BK/YD hold code'); m.querySelector('#current-edit-train').focus(); return;}
     // Read dwell directly from the net field (already computed correctly by updateCurrentNet/updatePreview)
@@ -40463,6 +40463,107 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
 })();
 </script>
 
+<style id="current-display-track-inline-text-final-css">
+  html body #tab-outbound .bowl-board .bowl-block > span[data-current-display-track-label]::after{
+    content:" " attr(data-current-display-track-label)!important;
+    display:inline!important;
+    align-items:unset!important;
+    justify-content:unset!important;
+    flex:unset!important;
+    min-width:0!important;
+    height:auto!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    color:inherit!important;
+    -webkit-text-fill-color:inherit!important;
+    font:inherit!important;
+    font-size:inherit!important;
+    font-weight:inherit!important;
+    letter-spacing:inherit!important;
+    line-height:inherit!important;
+    text-shadow:inherit!important;
+    box-shadow:none!important;
+    vertical-align:baseline!important;
+  }
+</style>
+
+<style id="ss-hours-inline-text-final-tail-css">
+  html body #tab-outbound .bowl-block .ss-hours-in-ss,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss]{
+    display:inline!important;
+    align-items:unset!important;
+    justify-content:unset!important;
+    flex:unset!important;
+    align-self:baseline!important;
+    min-width:0!important;
+    width:auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    font:inherit!important;
+    font-size:inherit!important;
+    font-weight:inherit!important;
+    letter-spacing:inherit!important;
+    line-height:inherit!important;
+    text-shadow:inherit!important;
+    vertical-align:baseline!important;
+  }
+  html body #tab-outbound .bowl-block .ss-hours-in-ss.ss-age-warn,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss].ss-age-warn{
+    color:#ff4d5e!important;
+    -webkit-text-fill-color:#ff4d5e!important;
+  }
+  html body #tab-outbound .bowl-block .ss-hours-in-ss.ss-age-ok,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss].ss-age-ok{
+    color:#32f078!important;
+    -webkit-text-fill-color:#32f078!important;
+  }
+  html body #tab-outbound .bowl-board-after .bowl-block[data-ss-hours-label]::after{
+    content:" " attr(data-ss-hours-label)!important;
+    display:inline!important;
+    align-items:unset!important;
+    justify-content:unset!important;
+    flex:unset!important;
+    align-self:baseline!important;
+    min-width:0!important;
+    width:auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    font:inherit!important;
+    font-size:inherit!important;
+    font-weight:inherit!important;
+    letter-spacing:inherit!important;
+    line-height:inherit!important;
+    text-shadow:inherit!important;
+    vertical-align:baseline!important;
+    transform:none!important;
+  }
+  html body #tab-outbound .bowl-board-after .bowl-block[data-ss-hours-tone="warn"]::after{
+    color:#ff4d5e!important;
+    -webkit-text-fill-color:#ff4d5e!important;
+  }
+  html body #tab-outbound .bowl-board-after .bowl-block[data-ss-hours-tone="ok"]::after{
+    color:#32f078!important;
+    -webkit-text-fill-color:#32f078!important;
+  }
+</style>
+
 
 <!-- FINAL PATCH: restore post-outbound edit button and fill missing post-outbound dwell pills -->
 <script type="text/plain" id="final-post-outbound-edit-and-dwell-fix">
@@ -40954,7 +41055,10 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     netEl.value=txt;
   }
   function applyOverrideToDom(key,ov){
-    document.querySelectorAll('.bowl-board-after .bowl-segments-cell .bowl-block,.bowl-outbound-track-table .bowl-segments-cell .bowl-block').forEach(function(block){
+    // Saved post-outbound edits belong to the Post Outbound board only. Let the
+    // outbound-track tables render from the live selected current-ramp rows so
+    // their net dwell stays in sync with Current Ramp Blocking.
+    document.querySelectorAll('.bowl-board-after:not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
       if(keyFor(block)!==key) return;
       var label=ov.label||'';
       if(clean(ov.blockType).toUpperCase()==='SS' && clean(label).toUpperCase()==='SS'){
@@ -41145,7 +41249,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   function fmt(v){return Math.round(num(v)).toLocaleString();}
   function esc(s){return clean(s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
   function trackFromRow(tr){var t=clean(tr&&tr.querySelector('.bowl-track')&&tr.querySelector('.bowl-track').textContent);var m=t.match(/06-(\d{3})/);return m?m[1]:'';}
-  function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);}
+  function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\b\d+H(?:\s+NET)?\b/gi,'').replace(/\bNET\b/gi,'').replace(/\[\d{3}\]/g,'').replace(/\s+/g,' ').slice(0,220);}
   function blockKey(block){return [trackFromRow(block&&block.closest('tr')), normalizeText(block&&block.textContent)].join('||');}
   function load(){try{return JSON.parse(localStorage.getItem(STORE)||'{}')||{};}catch(e){return {};}}
   function save(o){try{localStorage.setItem(STORE,JSON.stringify(o||{}));}catch(e){}}
@@ -46927,6 +47031,51 @@ table.bowl-board td.bowl-delta.good{
     if(!block) return '';
     return block.dataset.currentEditKey || '';
   }
+  function trackFromBlock(block){
+    var tr = block && block.closest && block.closest('tr');
+    var cell = tr && tr.querySelector('.bowl-track');
+    var m = clean(cell && cell.textContent).match(/(\d{3})/);
+    return m ? m[1] : '';
+  }
+  function sampleFromBlock(block){
+    var ds = block && block.dataset || {};
+    return clean(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase();
+  }
+  function normalizeBlockText(block){
+    if(!block) return '';
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .replace(/[EDITx]/g,'')
+      .replace(/EDITED/gi,'')
+      .replace(/WENT INTO SS\s*[^|]*/gi,'')
+      .replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/gi,'')
+      .replace(/\bNET\b/gi,'')
+      .replace(/\[\d{3}\]/g,'')
+      .replace(/\s+/g,' ')
+      .slice(0,220);
+  }
+  function newestCurrentEdit(edits, block, preferredKey){
+    var keys = [];
+    function add(k){ k = clean(k); if(k && keys.indexOf(k) < 0) keys.push(k); }
+    var ds = block && block.dataset || {};
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    add(preferredKey);
+    add(ds.currentEditKey);
+    if(track && sample) add(track + '||' + sample);
+    if(track) add(track + '||' + normalizeBlockText(block));
+    var best = {}, bestTime = -1;
+    keys.forEach(function(k){
+      var edit = edits[k];
+      if(!edit) return;
+      var t = Date.parse(clean(edit.updatedAt || ''));
+      if(!Number.isFinite(t)) t = 0;
+      if(!bestTime || t >= bestTime){ best = edit; bestTime = t; }
+    });
+    return best || {};
+  }
   function postKey(block){
     if(!block) return '';
     if(block.dataset.finalAfterEditKey) return block.dataset.finalAfterEditKey;
@@ -46941,13 +47090,13 @@ table.bowl-board td.bowl-delta.good{
     var end = ensureAfterInput(modal, start, 'current-edit-ss-end', 'SS End');
     var block = currentCtx.block;
     var edits = getJSON('dwellCurrentBoardBlockEditsV2');
-    var edit = currentCtx.key ? edits[currentCtx.key] || {} : {};
+    var edit = newestCurrentEdit(edits, block, currentCtx.key);
     var importedArrival = importedArrivalFor(trainValue(modal, block, 'current-edit')) || toLocalValue(edit.arrival || (block && (block.dataset.currentArrival || block.dataset.arrival)) || modal.dataset.currentArrival || '');
     if(arr) arr.value = importedArrival;
-    if(start && !start.dataset.userTouched){
+    if(start && (!start.dataset.userTouched || !clean(start.value))){
       setDateText(start, edit.ssStart || (block && (block.dataset.currentSsStart || block.dataset.afterSsStart)) || '');
     }
-    if(end && !end.dataset.userTouched){
+    if(end && (!end.dataset.userTouched || !clean(end.value))){
       setDateText(end, edit.ssEnd || (block && (block.dataset.currentSsEnd || block.dataset.afterSsEnd)) || '');
     }
     flagMissing(start, !clean(start && start.value));
@@ -47018,7 +47167,12 @@ table.bowl-board td.bowl-delta.good{
     window.openCurrentRampBlockEdit = function(block){
       currentCtx.block = block || null;
       currentCtx.key = currentKey(block);
+      var priorStart = document.getElementById('current-edit-time');
+      var priorEnd = document.getElementById('current-edit-ss-end');
+      if(priorStart) delete priorStart.dataset.userTouched;
+      if(priorEnd) delete priorEnd.dataset.userTouched;
       var result = oldCurrent.apply(this, arguments);
+      if(!currentCtx.key && block) currentCtx.key = currentKey(block);
       setTimeout(patchCurrentModal, 0);
       setTimeout(patchCurrentModal, 80);
       return result;
@@ -55191,7 +55345,16 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     return m ? m[1] : '';
   }
   function normalizeKeyText(txt){
-    return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);
+    return clean(txt)
+      .replace(/[EDITx]/g,'')
+      .replace(/EDITED/gi,'')
+      .replace(/WENT INTO SS\s*[^|]*/gi,'')
+      .replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/gi,'')
+      .replace(/\bNET\b/gi,'')
+      .replace(/\[\d{3}\]/g,'')
+      .replace(/\s+/g,' ')
+      .slice(0,220);
   }
   function blockKey(block){ return [trackFromRow(block && block.closest ? block.closest('tr') : null), normalizeKeyText(block ? block.textContent : '')].join('||'); }
   function stableEditKey(block, sample, fallbackTrack){
@@ -55200,6 +55363,21 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var track = clean(fallbackTrack || trackFromRow(tr));
     var car = clean(sample || ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase();
     return track && car ? track+'||'+car : '';
+  }
+  function editKeysForSave(info, sampleCar, full){
+    var keys = [];
+    function add(k){
+      k = clean(k);
+      if(k && keys.indexOf(k) < 0) keys.push(k);
+    }
+    var block = info && info.block;
+    var ds = block && block.dataset ? block.dataset : {};
+    add(info && info.key);
+    add(ds.currentEditKey);
+    add(ds.afterEditKey);
+    add(stableEditKey(block || null, sampleCar || (full && full.sampleCar) || (info && info.sampleCar), info && info.track));
+    if(block) add(blockKey(block));
+    return keys;
   }
   function hasCuRamp(v){ return /(^|[^A-Z0-9])(CU|RAMP)([^A-Z0-9]|$)/.test(clean(v).toUpperCase()); }
   function hasSsToken(v){ return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(v).toUpperCase()) || clean(v).toUpperCase() === 'SS' || clean(v).toUpperCase().indexOf('_SS') >= 0; }
@@ -55231,7 +55409,23 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   }
   function existingEditFor(block, key){
     var edits = loadEdits();
-    return edits[key] || {};
+    var keys = [];
+    function add(k){ k = clean(k); if(k && keys.indexOf(k) < 0) keys.push(k); }
+    var ds = block && block.dataset ? block.dataset : {};
+    add(key);
+    add(ds.currentEditKey);
+    add(stableEditKey(block));
+    add(blockKey(block));
+    var best = null;
+    var bestTime = -1;
+    keys.forEach(function(k){
+      var edit = edits[k];
+      if(!edit) return;
+      var t = Date.parse(clean(edit.updatedAt || ''));
+      if(!Number.isFinite(t)) t = 0;
+      if(!best || t >= bestTime){ best = edit; bestTime = t; }
+    });
+    return best || {};
   }
   function hasSsStart(block, key){
     var ds = block.dataset || {};
@@ -55325,6 +55519,39 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     }
     badge.className = 'bowl-dwell '+cls;
     badge.textContent = text;
+  }
+  function updateSavedBlockSsHours(block, ssStart){
+    if(!block) return;
+    var dt = parseAnyDate(ssStart);
+    var span = block.querySelector('span') || block;
+    block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
+    if(!dt) return;
+    var hrs = Math.max(0, (new Date() - dt) / 3600000);
+    if(!Number.isFinite(hrs)) return;
+    var badge = document.createElement('span');
+    badge.className = 'ss-hours-in-ss ' + (hrs >= 24 ? 'ss-age-ok' : 'ss-age-warn');
+    badge.dataset.ssHoursInSs = '1';
+    badge.title = 'Hours in SS';
+    badge.textContent = Math.floor(hrs) + 'H';
+    var dwell = span.querySelector('.bowl-dwell');
+    if(dwell) span.insertBefore(badge, dwell);
+    else span.appendChild(badge);
+  }
+  function saveResolveSsToGroupStore(block, ssStart, ssEnd){
+    if(!block || !block.dataset) return;
+    var groupKey = clean(block.dataset.bowlGroupKey || block.dataset.groupKey || '');
+    if(!groupKey) return;
+    var startDate = parseAnyDate(ssStart);
+    var endDate = parseAnyDate(ssEnd);
+    try{
+      if(typeof ssStore !== 'object' || !ssStore) return;
+      ssStore[groupKey] = {
+        start: startDate && Number.isFinite(startDate.getTime()) ? startDate : null,
+        end: endDate && Number.isFinite(endDate.getTime()) ? endDate : null,
+        autoDetected: false
+      };
+      if(typeof saveManualSSStore === 'function') saveManualSSStore();
+    }catch(e){ console.warn('Resolve SS group store save failed', e); }
   }
 
   function ensureModal(){
@@ -55597,16 +55824,19 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       sampleCar: sampleCar || clean(existing.sampleCar || info.sampleCar),
       updatedAt: new Date().toISOString()
     };
-    edits[info.key] = full;
     var stableKey = stableEditKey(info.block || null, sampleCar || full.sampleCar || info.sampleCar, info.track);
-    if(stableKey) edits[stableKey] = full;
+    var editKeys = editKeysForSave(info, sampleCar, full);
+    if(stableKey && editKeys.indexOf(stableKey) < 0) editKeys.push(stableKey);
+    editKeys.forEach(function(key){ edits[key] = full; });
     saveEdits(edits);
 
     var block = info.block;
     if(block){
-      block.dataset.currentEditKey = stableKey || info.key;
+      block.dataset.currentEditKey = stableKey || editKeys[0] || info.key;
       block.dataset.currentSsStart = ssStart;
       block.dataset.currentSsEnd = ssEnd;
+      block.dataset.ssStart = ssStart;
+      block.dataset.ssEnd = ssEnd;
       block.dataset.currentArrival = full.arrival;
       block.dataset.currentTrain = full.train;
       block.dataset.sourceTrain = full.train;
@@ -55617,11 +55847,15 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       delete block.dataset.missingSsStart;
       block.dataset.missingSsStartAuthority = '0';
       applySavedBlockVisual(block, arrToSS);
+      updateSavedBlockSsHours(block, ssStart);
+      saveResolveSsToGroupStore(block, ssStart, ssEnd);
     }
 
     try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
     try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
     try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+    try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
     scheduleButtonSync();
     toastMsg('Saved SS times for 06-'+(info.track || '')+' - moving to next');
     return true;
@@ -56721,11 +56955,20 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function save(o){try{localStorage.setItem(STORE,JSON.stringify(o||{}));}catch(e){}}
   function trackFromBlock(block){var tr=block&&block.closest&&block.closest('tr');var cell=tr&&tr.querySelector('.bowl-track');return clean(cell?cell.textContent:'').replace(/[^0-9]/g,'');}
   function sampleFromBlock(block){var ds=block&&block.dataset||{};return clean(ds.sampleCar||ds.sampleEquipId||ds.equipId||ds.equipmentId||ds.carId||'').toUpperCase();}
-  function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\s+/g,' ').slice(0,220);}
+  function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\b\d+H(?:\s+NET)?\b/gi,'').replace(/\bNET\b/gi,'').replace(/\[\d{3}\]/g,'').replace(/\s+/g,' ').slice(0,220);}
   function visualKey(block){return trackFromBlock(block)+'||'+normalizeText(block&&block.textContent||'');}
   function stableKey(block){var track=trackFromBlock(block), sample=sampleFromBlock(block);return track&&sample ? track+'||'+sample : '';}
   function keysFor(block){var ds=block&&block.dataset||{}, out=[];[ds.currentEditKey, stableKey(block), visualKey(block)].forEach(function(k){k=clean(k);if(k&&out.indexOf(k)<0)out.push(k);});return out;}
-  function findEdit(block, edits){var found=null, foundKey='';keysFor(block).some(function(k){if(edits[k]){found=edits[k];foundKey=k;return true;}return false;});return {edit:found,key:foundKey};}
+  function editTime(edit){var t=Date.parse(clean(edit&&edit.updatedAt||''));return Number.isFinite(t)?t:0;}
+  function findEdit(block, edits){
+    var found=null, foundKey='', foundTime=-1;
+    keysFor(block).forEach(function(k){
+      if(!edits[k]) return;
+      var t=editTime(edits[k]);
+      if(!found || t>=foundTime){found=edits[k];foundKey=k;foundTime=t;}
+    });
+    return {edit:found,key:foundKey};
+  }
   function dwellClass(txt){var h=parseFloat(clean(txt));if(!Number.isFinite(h))return '';return h<7?'dw-green':(h<11?'dw-gold':'dw-red');}
   function labelFor(block, edit){var label=clean(edit.sourceBlockLabel||edit.label);if(label)return label;var ds=block.dataset||{};return clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||block.textContent).replace(/^\s*[\d,]+\s*\|\s*/,'');}
   function parseDate(raw){
