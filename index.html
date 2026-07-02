@@ -36711,6 +36711,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function parseCompact(raw){const s=clean(raw).replace(/\D/g,''); if(!(s.length===7||s.length===8)) return null; const yr=new Date().getFullYear(); let mo,dd,hh,mm; if(s.length===7){mo=+s[0];dd=+s.slice(1,3);hh=+s.slice(3,5);mm=+s.slice(5,7);}else{mo=+s.slice(0,2);dd=+s.slice(2,4);hh=+s.slice(4,6);mm=+s.slice(6,8);} if(mo<1||mo>12||dd<1||dd>31||hh>23||mm>59) return null; const d=new Date(yr,mo-1,dd,hh,mm,0,0); return Number.isNaN(d.getTime())?null:d;}
   function parseAny(raw){const s=clean(raw); if(!s) return null; const local=s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); if(local){const d=new Date(+local[1],+local[2]-1,+local[3],+local[4],+local[5],0,0); return Number.isNaN(d.getTime())?null:d;} if(typeof parseCompactDate==='function'){try{const d=parseCompactDate(s); if(d&&!Number.isNaN(d.getTime())) return d;}catch(e){}} const c=parseCompact(s); if(c) return c; const d=new Date(s); return Number.isNaN(d.getTime())?null:d;}
   function toLocalValue(raw){const d=parseAny(raw); if(!d) return ''; const pad=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+  function toDisplayValue(raw){const d=parseAny(raw); if(!d) return clean(raw||''); const pad=x=>String(x).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
   function ssHoursInSsBadge(start){const d=parseAny(start); if(!d)return ''; const hrs=Math.max(0,(new Date()-d)/3600000); if(!Number.isFinite(hrs))return ''; const cls=hrs>=24?'ss-age-ok':'ss-age-warn'; return ` <span class="ss-hours-in-ss ${cls}" data-ss-hours-in-ss="1" title="Hours in SS">${Math.floor(hrs)}H</span>`;}
   function fmtShort(raw){const d=parseAny(raw); if(!d) return ''; const pad=x=>String(x).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
   function getArrivalForTrain(train, override){const o=parseAny(override); if(o) return o; const t=clean(train); if(!t) return null; if(typeof getArrival==='function'){try{const d=getArrival(t); if(d&&!Number.isNaN(new Date(d).getTime())) return new Date(d);}catch(e){}} if(window.arrOverrides && window.arrOverrides[t.toUpperCase()]){const d=new Date(window.arrOverrides[t.toUpperCase()]); if(!Number.isNaN(d.getTime())) return d;} return null;}
@@ -36741,7 +36742,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button>');}}); recalcRow(tr);});}
   function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>x</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">-</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS START ENTERED':Math.round(val)+'H NET') : 'ENTER SS START';}
-  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toLocalValue(base.ssStart||block.dataset.currentSsStart||''); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toLocalValue(base.ssEnd||block.dataset.currentSsEnd||block.dataset.ssEnd||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
+  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toDisplayValue(base.ssStart||block.dataset.currentSsStart||''); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toDisplayValue(base.ssEnd||block.dataset.currentSsEnd||block.dataset.ssEnd||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
   function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
   function saveModal(){if(!activeBlock||!activeKey)return; const m=document.getElementById('current-block-edit-modal'); const ft=n(m.querySelector('#current-edit-ft').value); const outTrack=clean(m.querySelector('#current-edit-outtrack').value).replace(/[^0-9]/g,'')||m.dataset.originalTrack||''; const train=clean(m.querySelector('#current-edit-train').value).toUpperCase(); const blockType=normBlock(m.querySelector('#current-edit-block').value); const time=clean(m.querySelector('#current-edit-time').value); if(!ft||ft<=0){toastMsg('Enter valid footage'); m.querySelector('#current-edit-ft').focus(); return;} if(!train || looksLikeHoldCodeNotTrain(train)){toastMsg('Train / inbound must be the inbound train value, not a BK/YD hold code'); m.querySelector('#current-edit-train').focus(); return;}
     // Read dwell directly from the net field (already computed correctly by updateCurrentNet/updatePreview)
@@ -36773,6 +36774,74 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start); else start();
   window.addEventListener('load',start);
   window.enhanceCurrentBoardEditIcons=enhance;
+})();
+</script>
+
+<script id="ss-modal-visible-date-format-final-js">
+(function(){
+  'use strict';
+  if(window.__ssModalVisibleDateFormatFinalInstalled) return;
+  window.__ssModalVisibleDateFormatFinalInstalled = true;
+
+  var IDS = ['rss-ss-start','rss-ss-end','current-edit-time','current-edit-ss-end','final-after-time','final-after-ss-end'];
+  function clean(v){ return String(v == null ? '' : v).trim(); }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function parseDate(raw){
+    var s = clean(raw);
+    if(!s) return null;
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s+)(\d{1,2}):(\d{2})$/);
+    if(m){
+      var d1 = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+      return Number.isFinite(d1.getTime()) ? d1 : null;
+    }
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s+(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/i);
+    if(m){
+      var yr = m[3] == null ? new Date().getFullYear() : +m[3];
+      if(yr < 100) yr += 2000;
+      var hr = +m[4], mi = m[5] == null ? 0 : +m[5], ap = (m[6] || '').toUpperCase();
+      if(ap === 'PM' && hr < 12) hr += 12;
+      if(ap === 'AM' && hr === 12) hr = 0;
+      var d2 = new Date(yr, +m[1]-1, +m[2], hr, mi, 0, 0);
+      return Number.isFinite(d2.getTime()) ? d2 : null;
+    }
+    var d = new Date(s);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function formatDate(raw){
+    var d = parseDate(raw);
+    if(!d) return clean(raw);
+    return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function normalizeInput(input){
+    if(!input) return;
+    var raw = clean(input.value);
+    if(!raw) return;
+    var formatted = formatDate(raw);
+    if(formatted && formatted !== raw){
+      var d = parseDate(raw);
+      if(d) input.dataset.isoValue = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      input.value = formatted;
+    }
+  }
+  function normalizeAll(){
+    IDS.forEach(function(id){ normalizeInput(document.getElementById(id)); });
+  }
+  document.addEventListener('blur', function(e){
+    if(e.target && IDS.indexOf(e.target.id) >= 0) normalizeInput(e.target);
+  }, true);
+  document.addEventListener('change', function(e){
+    if(e.target && IDS.indexOf(e.target.id) >= 0) normalizeInput(e.target);
+  }, true);
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('.resolve-ss-final-btn,.current-block-edit-btn,.after-block-edit-btn,.bowl-block')){
+      setTimeout(normalizeAll, 0);
+      setTimeout(normalizeAll, 80);
+      setTimeout(normalizeAll, 220);
+    }
+  }, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', normalizeAll, {once:true});
+  else normalizeAll();
+  window.addEventListener('load', normalizeAll, {once:true});
 })();
 </script>
 
@@ -58551,4 +58620,87 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel{position:absolute!important;top:calc(100% + 7px)!important;left:0!important;right:auto!important;display:none!important;flex-direction:column!important;align-items:stretch!important;gap:7px!important;min-width:236px!important;max-width:320px!important;padding:9px!important;border:1px solid rgba(96,165,250,.52)!important;border-radius:10px!important;background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98))!important;box-shadow:0 18px 34px rgba(0,0,0,.46)!important;z-index:2147482500!important;}
   html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu.open > .bowl-options-panel{display:flex!important;}
   html body #tab-outbound .bowl-ramp-head > .bowl-current-options-menu > .bowl-options-panel > button{appearance:none!important;-webkit-appearance:none!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;height:31px!important;min-height:31px!important;padding:0 10px!important;border:1px solid rgba(96,165,250,.35)!important;border-radius:8px!important;background:rgba(15,23,42,.92)!important;color:#bfdbfe!important;font-family:var(--mono,monospace)!important;font-size:10px!important;font-weight:900!important;line-height:1!important;letter-spacing:1px!important;text-align:left!important;text-transform:uppercase!important;white-space:nowrap!important;box-shadow:none!important;}
+</style>
+
+<style id="ss-hours-black-pill-final-css">
+  html body .bowl-block .ss-hours-in-ss,
+  html body .bowl-block [data-ss-hours-in-ss],
+  html body #tab-outbound .bowl-block .ss-hours-in-ss,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss]{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    box-sizing:border-box!important;
+    flex:0 0 auto!important;
+    min-width:0!important;
+    width:auto!important;
+    height:18px!important;
+    min-height:18px!important;
+    max-height:18px!important;
+    margin:0 0 0 5px!important;
+    padding:0 6px!important;
+    border-radius:999px!important;
+    border:0!important;
+    background:#020617!important;
+    background-image:none!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10)!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:.2px!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+  }
+  html body .bowl-block .ss-hours-in-ss.ss-age-warn,
+  html body .bowl-block [data-ss-hours-in-ss].ss-age-warn,
+  html body #tab-outbound .bowl-block .ss-hours-in-ss.ss-age-warn,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss].ss-age-warn{
+    color:#f87171!important;
+    border-color:transparent!important;
+  }
+  html body .bowl-block .ss-hours-in-ss.ss-age-ok,
+  html body .bowl-block [data-ss-hours-in-ss].ss-age-ok,
+  html body #tab-outbound .bowl-block .ss-hours-in-ss.ss-age-ok,
+  html body #tab-outbound .bowl-block [data-ss-hours-in-ss].ss-age-ok{
+    color:#4ade80!important;
+    border-color:transparent!important;
+  }
+</style>
+
+<style id="block-font-size-plus-one-final-css">
+  html body #tab-outbound .bowl-board .bowl-block,
+  html body #tab-outbound .bowl-outbound-track-table .bowl-block,
+  html body .bowl-board .bowl-block,
+  html body .bowl-outbound-track-table .bowl-block{
+    font-size:12px!important;
+  }
+  html body #tab-outbound .bowl-board .bowl-block > span,
+  html body #tab-outbound .bowl-board .bowl-block b,
+  html body #tab-outbound .bowl-outbound-track-table .bowl-block > span,
+  html body #tab-outbound .bowl-outbound-track-table .bowl-block b,
+  html body .bowl-board .bowl-block > span,
+  html body .bowl-board .bowl-block b,
+  html body .bowl-outbound-track-table .bowl-block > span,
+  html body .bowl-outbound-track-table .bowl-block b{
+    font-size:inherit!important;
+  }
+</style>
+
+<style id="bowl-side-column-font-plus-two-final-css">
+  html body #tab-outbound .bowl-board td.bowl-track,
+  html body #tab-outbound .bowl-board td.bowl-current,
+  html body #tab-outbound .bowl-board td.bowl-delta,
+  html body #tab-outbound .bowl-outbound-track-table td.bowl-track,
+  html body #tab-outbound .bowl-outbound-track-table td.bowl-current,
+  html body #tab-outbound .bowl-outbound-track-table td.bowl-delta,
+  html body .bowl-board td.bowl-track,
+  html body .bowl-board td.bowl-current,
+  html body .bowl-board td.bowl-delta,
+  html body .bowl-outbound-track-table td.bowl-track,
+  html body .bowl-outbound-track-table td.bowl-current,
+  html body .bowl-outbound-track-table td.bowl-delta{
+    font-size:14px!important;
+    font-weight:900!important;
+  }
 </style>
