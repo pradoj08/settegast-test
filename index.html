@@ -25506,6 +25506,24 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     return '';
   };
   const isSSBlockText=v=>/(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(String(v||'').toUpperCase());
+  const isExactSSBlockText=v=>{
+    let s=clean(v).toUpperCase();
+    s=s.replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s==='SS';
+  };
+  const currentRampClearNonExactSSStartsActive=()=>{
+    try{
+      if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1')==='1') return true;
+      const old=JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1')||'{}')||{};
+      if(Object.keys(old).length){localStorage.setItem('dwellCurrentRampClearNonExactSsStartsV1','1');return true;}
+    }catch(err){}
+    return false;
+  };
   const ssDisplayLabel=row=>{
     // Display rule: never concatenate BK1 + BK2 + YD BLOCK into one label.
     // Use only the first populated hold-code cell in priority order: BK1 -> BK2 -> YD BLOCK.
@@ -25566,7 +25584,22 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     if(!trk||!equip) return '';
     return getManualSSStartByTrackEquip().get(`${trk}||${equip}`)||'';
   };
+  const currentRampSuppressedSSStartForRow=(row,group)=>{
+    if(currentRampClearNonExactSSStartsActive() && !isExactSSBlockText(rawBlockStatus(row))) return true;
+    try{
+      const suppress=JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1')||'{}')||{};
+      if(!Object.keys(suppress).length) return false;
+      const trk=clean(row&&row[CI.track]).replace(/^06-/,'').slice(-3);
+      const equip=clean(row&&row[CI.equipId]).toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const groupKey=clean(group&&group.key);
+      if(groupKey && suppress['group||'+groupKey]) return true;
+      if(groupKey && equip && suppress['group-sample||'+groupKey+'||'+equip]) return true;
+      if(trk && equip && suppress['sample||'+trk+'||'+equip]) return true;
+    }catch(err){}
+    return false;
+  };
   const confirmedSSStartForRow=(row,group)=>{
+    if(currentRampSuppressedSSStartForRow(row,group)) return '';
     const entry=group&&group.key&&ssStore[group.key];
     if(entry&&entry.start){
       const dt=new Date(entry.start);
@@ -25590,6 +25623,7 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     // Match the visible block status used by the final border authority so the
     // warning is present on first paint instead of appearing after its scan.
     if(!row || isDisplayedCuOrRampRow(row)) return false;
+    if(currentRampSuppressedSSStartForRow(row,group)) return false;
     return !confirmedSSStartForRow(row,group);
   };
   const isInboundWorkingRow=row=>inboundWorkingByYdBlock(row);
@@ -27564,6 +27598,41 @@ function isActiveSSCar(car){
   return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(status);
 }
 
+function isExactSSCarStatus(car){
+  let s=String(getCarBlockStatus(car)||'').trim().toUpperCase();
+  s=s.replace(/^\d[\d,]*\s*\|\s*/,'')
+    .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+    .replace(/\bNET\b/g,'')
+    .replace(/\[[^\]]+\]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+  return s==='SS';
+}
+
+function currentRampClearNonExactSSStartsActive(){
+  try{
+    if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1')==='1') return true;
+    const old=JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1')||'{}')||{};
+    if(Object.keys(old).length){localStorage.setItem('dwellCurrentRampClearNonExactSsStartsV1','1');return true;}
+  }catch(e){}
+  return false;
+}
+
+function isCurrentRampSuppressedSSCar(car,group){
+  if(currentRampClearNonExactSSStartsActive() && !isExactSSCarStatus(car)) return true;
+  try{
+    const suppress=JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1')||'{}')||{};
+    if(!Object.keys(suppress).length) return false;
+    const groupKey=String(group&&group.key||'').trim();
+    const equip=String(car&&car.equipId||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const trk=String(car&&car.track||'').trim().replace(/^06-/,'').slice(-3);
+    if(groupKey && suppress['group||'+groupKey]) return true;
+    if(groupKey && equip && suppress['group-sample||'+groupKey+'||'+equip]) return true;
+    if(trk && equip && suppress['sample||'+trk+'||'+equip]) return true;
+  }catch(e){}
+  return false;
+}
+
 function getCarSSStart(car){
   if(!car) return null;
   const raw=String(car.timeInHold||'').trim();
@@ -27586,10 +27655,12 @@ function getCarSSStart(car){
 function calcCarDwellWithSSState(arrDt,depDt,car,group){
   if(!arrDt||!depDt||!car)return null;
 
-  const entry=group && group.key && ssStore[group.key] ? ssStore[group.key] : null;
+  const suppressSS=isCurrentRampSuppressedSSCar(car,group);
+  const entry=!suppressSS && group && group.key && ssStore[group.key] ? ssStore[group.key] : null;
   const manualStart=entry && entry.start ? entry.start : null;
   const manualEnd=entry && entry.end ? entry.end : null;
   const raw=(depDt-arrDt)/3600000;
+  if(suppressSS) return isFinite(raw) ? Math.max(0,raw) : null;
   const boundedSSDeduction=(ssStart,ssEnd,totalSSHours)=>{
     if(!ssStart)return 0;
     totalSSHours=Number(totalSSHours)||0;
@@ -27612,7 +27683,7 @@ function calcCarDwellWithSSState(arrDt,depDt,car,group){
   }
 
   // If the car is still sitting in SS from imported TIME IN HOLD, dwell-to-SS is Arrival -> SS start.
-  if(isActiveSSCar(car)){
+  if(!suppressSS && isActiveSSCar(car)){
     const ssStart=getCarSSStart(car);
     if(ssStart){
       const importedSS=(car.holdDay||0)*24+(car.holdHr||0);
@@ -27863,6 +27934,7 @@ function getCarArrivalToNowValue(car, group){
 
 function getCarArrToSSValue(car, group){
   if(!car) return null;
+  if(typeof isCurrentRampSuppressedSSCar==='function' && isCurrentRampSuppressedSSCar(car,group)) return null;
   const trainName = (car.train || (group && group.train) || '');
   const arr = getArrival(trainName);
   if(!arr) return null;
@@ -36737,12 +36809,12 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
       const calc=calcArrivalToSS(train,ov.ssStart,ov.arrival);
       if(calc!==null) dwell=Math.round(calc)+'H NET';
     }
-    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.currentSsEnd=clean(ov.ssEnd||''); block.dataset.ssEnd=clean(ov.ssEnd||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b><span class="bowl-block-pipe-dim">|</span>${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
+    const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.ssStart=clean(ov.ssStart||''); block.dataset.currentSsEnd=clean(ov.ssEnd||''); block.dataset.ssEnd=clean(ov.ssEnd||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b><span class="bowl-block-pipe-dim">|</span>${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
   function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button>');}}); recalcRow(tr);});}
   function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>x</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">-</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const val=calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null?'SS START ENTERED':Math.round(val)+'H NET') : 'ENTER SS START';}
-  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; m.querySelector('#current-edit-time').value=toDisplayValue(base.ssStart||block.dataset.currentSsStart||''); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toDisplayValue(base.ssEnd||block.dataset.currentSsEnd||block.dataset.ssEnd||''); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
+  function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; const hasBaseSsStart=Object.prototype.hasOwnProperty.call(base,'ssStart'); const hasBaseSsEnd=Object.prototype.hasOwnProperty.call(base,'ssEnd'); m.querySelector('#current-edit-time').value=toDisplayValue(hasBaseSsStart?base.ssStart:(block.dataset.currentSsStart||'')); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toDisplayValue(hasBaseSsEnd?base.ssEnd:(block.dataset.currentSsEnd||block.dataset.ssEnd||'')); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
   function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
   function saveModal(){if(!activeBlock||!activeKey)return; const m=document.getElementById('current-block-edit-modal'); const ft=n(m.querySelector('#current-edit-ft').value); const outTrack=clean(m.querySelector('#current-edit-outtrack').value).replace(/[^0-9]/g,'')||m.dataset.originalTrack||''; const train=clean(m.querySelector('#current-edit-train').value).toUpperCase(); const blockType=normBlock(m.querySelector('#current-edit-block').value); const time=clean(m.querySelector('#current-edit-time').value); if(!ft||ft<=0){toastMsg('Enter valid footage'); m.querySelector('#current-edit-ft').focus(); return;} if(!train || looksLikeHoldCodeNotTrain(train)){toastMsg('Train / inbound must be the inbound train value, not a BK/YD hold code'); m.querySelector('#current-edit-train').focus(); return;}
     // Read dwell directly from the net field (already computed correctly by updateCurrentNet/updatePreview)
@@ -40556,6 +40628,1256 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     text-shadow:inherit!important;
     box-shadow:none!important;
     vertical-align:baseline!important;
+  }
+</style>
+
+<script id="current-ramp-clear-non-ss-absolute-last-authority-js">
+(function(){
+  'use strict';
+  if(window.__currentRampClearNonSsAbsoluteLastAuthorityInstalled) return;
+  window.__currentRampClearNonSsAbsoluteLastAuthorityInstalled = true;
+  var GLOBAL_KEY='dwellCurrentRampClearNonExactSsStartsV1';
+  var LEGACY_KEY='dwellCurrentRampNonSsSsStartSuppressionsV1';
+  function clean(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
+  function clearActive(){
+    try{
+      if(localStorage.getItem(GLOBAL_KEY)==='1') return true;
+      var old=JSON.parse(localStorage.getItem(LEGACY_KEY)||'{}')||{};
+      if(Object.keys(old).length){localStorage.setItem(GLOBAL_KEY,'1');return true;}
+    }catch(e){}
+    return false;
+  }
+  function forceActive(){
+    try{localStorage.setItem(GLOBAL_KEY,'1');}catch(e){}
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+  }
+  function label(block){
+    var ds=block&&block.dataset||{};
+    var explicit=clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||ds.afterBlockType||'');
+    if(explicit) return explicit;
+    var clone=block.cloneNode(true);
+    Array.prototype.slice.call(clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge,[data-current-display-track-label]')).forEach(function(el){el.remove();});
+    return clean(clone.textContent).replace(/^\d[\d,]*\s*\|\s*/,'');
+  }
+  function exactSS(block){
+    var s=clean(label(block)).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s==='SS';
+  }
+  function blocks(){
+    return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block,#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap .bowl-block'));
+  }
+  function scrub(block){
+    if(!block||exactSS(block)) return false;
+    var changed=false;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel','missingSsStart'].forEach(function(k){
+      if(block.dataset&&block.dataset[k]){block.dataset[k]='';changed=true;}
+    });
+    if(block.classList.contains('missing-ss-start')||block.classList.contains('current-ss-start-missing')) changed=true;
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    if(block.dataset) block.dataset.missingSsStartAuthority='0';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){el.remove();changed=true;});
+    return changed;
+  }
+  function purgeStores(){
+    var groupKeys={}, samples={};
+    blocks().forEach(function(block){
+      if(exactSS(block)) return;
+      var ds=block.dataset||{};
+      var group=clean(ds.bowlGroupKey||'');
+      var sample=clean(ds.sampleCar||ds.sampleEquipId||ds.equipId||ds.equipmentId||ds.carId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(group) groupKeys[group]=true;
+      if(sample) samples[sample]=true;
+    });
+    try{
+      var manual=JSON.parse(localStorage.getItem('dwellManualSSStoreV1')||'{}')||{}, changed=false;
+      Object.keys(groupKeys).forEach(function(group){
+        if(manual[group]){delete manual[group];changed=true;}
+        try{if(typeof ssStore==='object'&&ssStore&&ssStore[group]) ssStore[group]={start:null,end:null,autoDetected:false};}catch(e){}
+      });
+      if(changed) localStorage.setItem('dwellManualSSStoreV1',JSON.stringify(manual));
+      try{if(changed&&typeof saveManualSSStore==='function') saveManualSSStore();}catch(e){}
+    }catch(e){}
+    try{
+      var edits=JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')||{}, eChanged=false;
+      Object.keys(edits).forEach(function(key){
+        var edit=edits[key]||{};
+        var sample=clean(edit.sampleCar||edit.equipId||edit.equipmentId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        var hasSs=clean(edit.ssStart||edit.currentSsStart||edit.ssStartTime||edit.ssEnd||edit.currentSsEnd||edit.ssEndTime||edit.dwell);
+        if(!hasSs) return;
+        if((sample&&samples[sample])||Object.keys(samples).some(function(s){return key.toUpperCase().indexOf(s)>=0;})){delete edits[key];eChanged=true;}
+      });
+      if(eChanged) localStorage.setItem('dwellCurrentBoardBlockEditsV2',JSON.stringify(edits));
+    }catch(e){}
+  }
+  function apply(){
+    if(!clearActive()) return;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    blocks().forEach(scrub);
+    purgeStores();
+  }
+  function schedule(){
+    clearTimeout(window.__currentRampClearNonSsAbsoluteLastTimer);
+    window.__currentRampClearNonSsAbsoluteLastTimer=setTimeout(apply,10);
+    setTimeout(apply,80);
+    setTimeout(apply,240);
+  }
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      forceActive();
+      schedule();
+      setTimeout(function(){try{if(typeof renderOB==='function') renderOB();}catch(err){} schedule();},30);
+    }
+  },true);
+  try{new MutationObserver(function(){if(clearActive()) schedule();}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  setInterval(function(){if(clearActive()) apply();},150);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule,{once:true}); else schedule();
+  window.addEventListener('load',schedule,{once:true});
+})();
+</script>
+
+<style id="current-ramp-clear-non-ss-absolute-last-authority-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) [data-ss-hours-in-ss]{
+    display:none!important;
+  }
+</style>
+
+<script id="current-ramp-clear-non-ss-final-authority-js">
+(function(){
+  'use strict';
+  if(window.__currentRampClearNonSsFinalAuthorityInstalled) return;
+  window.__currentRampClearNonSsFinalAuthorityInstalled = true;
+
+  var GLOBAL_KEY = 'dwellCurrentRampClearNonExactSsStartsV1';
+  var LEGACY_KEY = 'dwellCurrentRampNonSsSsStartSuppressionsV1';
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function active(){
+    try{
+      if(localStorage.getItem(GLOBAL_KEY) === '1') return true;
+      var old = JSON.parse(localStorage.getItem(LEGACY_KEY) || '{}') || {};
+      if(Object.keys(old).length){
+        localStorage.setItem(GLOBAL_KEY, '1');
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+  function setActive(){
+    try{ localStorage.setItem(GLOBAL_KEY, '1'); }catch(e){}
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+  }
+  function labelText(block){
+    if(!block) return '';
+    var ds = block.dataset || {};
+    var explicit = clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterStatus || ds.afterBlockType || '');
+    if(explicit) return explicit;
+    var clone = block.cloneNode(true);
+    Array.prototype.slice.call(clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge,[data-current-display-track-label]')).forEach(function(el){ el.remove(); });
+    return clean(clone.textContent).replace(/^\d[\d,]*\s*\|\s*/,'');
+  }
+  function isExactSs(block){
+    var s = clean(labelText(block)).toUpperCase();
+    s = s
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s === 'SS';
+  }
+  function currentBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll(
+      '#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-cell .bowl-block,' +
+      '#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-wrap .bowl-block'
+    ));
+  }
+  function scrubBlock(block){
+    if(!block || isExactSs(block)) return false;
+    var changed = false;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel','missingSsStart'].forEach(function(k){
+      if(block.dataset && block.dataset[k]){
+        block.dataset[k] = '';
+        changed = true;
+      }
+    });
+    if(block.classList.contains('missing-ss-start') || block.classList.contains('current-ss-start-missing')) changed = true;
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    if(block.dataset) block.dataset.missingSsStartAuthority = '0';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){
+      el.remove();
+      changed = true;
+    });
+    return changed;
+  }
+  function clearSavedStoresForVisibleBlocks(){
+    var blocks = currentBlocks().filter(function(block){ return !isExactSs(block); });
+    if(!blocks.length) return;
+    var groups = {};
+    var samples = {};
+    blocks.forEach(function(block){
+      var ds = block.dataset || {};
+      var group = clean(ds.bowlGroupKey || '');
+      var sample = clean(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(group) groups[group] = true;
+      if(sample) samples[sample] = true;
+    });
+    try{
+      var manual = JSON.parse(localStorage.getItem('dwellManualSSStoreV1') || '{}') || {};
+      var manualChanged = false;
+      Object.keys(groups).forEach(function(group){
+        if(manual[group]){ delete manual[group]; manualChanged = true; }
+        try{
+          if(typeof ssStore === 'object' && ssStore && ssStore[group]){
+            ssStore[group] = {start:null,end:null,autoDetected:false};
+            if(typeof saveManualSSStore === 'function') saveManualSSStore();
+          }
+        }catch(e){}
+      });
+      if(manualChanged) localStorage.setItem('dwellManualSSStoreV1', JSON.stringify(manual));
+    }catch(e){}
+    try{
+      var edits = JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2') || '{}') || {};
+      var editChanged = false;
+      Object.keys(edits).forEach(function(key){
+        var edit = edits[key] || {};
+        var sample = clean(edit.sampleCar || edit.equipId || edit.equipmentId || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        var hasSs = clean(edit.ssStart || edit.currentSsStart || edit.ssStartTime || edit.ssEnd || edit.currentSsEnd || edit.ssEndTime || edit.dwell);
+        if(hasSs && (samples[sample] || Object.keys(samples).some(function(s){ return key.toUpperCase().indexOf(s) >= 0; }))){
+          delete edits[key];
+          editChanged = true;
+        }
+      });
+      if(editChanged) localStorage.setItem('dwellCurrentBoardBlockEditsV2', JSON.stringify(edits));
+    }catch(e){}
+  }
+  function apply(){
+    if(!active()) return;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    var changed = false;
+    currentBlocks().forEach(function(block){ changed = scrubBlock(block) || changed; });
+    clearSavedStoresForVisibleBlocks();
+    return changed;
+  }
+  function schedule(){
+    clearTimeout(window.__currentRampClearNonSsFinalAuthorityTimer);
+    window.__currentRampClearNonSsFinalAuthorityTimer = setTimeout(apply, 20);
+    setTimeout(apply, 120);
+    setTimeout(apply, 360);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__currentRampClearNonSsFinalAuthorityWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__currentRampClearNonSsFinalAuthorityWrapped = true;
+    window[name] = wrapped;
+  }
+  ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound','applyCurrentRampMissingSSStartWarning'].forEach(wrap);
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start], #tab-outbound .clear-current-non-ss-start-btn');
+    if(!btn) return;
+    setActive();
+    setTimeout(function(){
+      apply();
+      try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(err){}
+      setTimeout(apply, 80);
+    }, 0);
+  }, true);
+  try{
+    var observer = new MutationObserver(function(){ if(active()) schedule(); });
+    observer.observe(document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+  setInterval(function(){ if(active()) apply(); }, 350);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  else schedule();
+  window.addEventListener('load', schedule, {once:true});
+})();
+</script>
+
+<style id="current-ramp-clear-non-ss-final-authority-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) [data-ss-hours-in-ss]{
+    display:none!important;
+  }
+</style>
+
+<style id="resolve-ss-bulk-action-pills-final-css">
+  html body #resolve-ss-modal .rss-paste-buttons{
+    display:inline-flex!important;
+    align-items:center!important;
+    gap:7px!important;
+  }
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-copy-missing,
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-clear,
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-parse{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    height:28px!important;
+    min-height:28px!important;
+    padding:0 13px!important;
+    border-radius:999px!important;
+    border:1px solid rgba(148,163,184,.34)!important;
+    background:linear-gradient(180deg,rgba(30,41,59,.92),rgba(15,23,42,.98))!important;
+    color:#e5e7eb!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    letter-spacing:.75px!important;
+    line-height:1!important;
+    text-transform:uppercase!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.22)!important;
+    cursor:pointer!important;
+  }
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-copy-missing{
+    border-color:rgba(96,165,250,.48)!important;
+    color:#bfdbfe!important;
+  }
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-clear{
+    border-color:rgba(248,113,113,.50)!important;
+    color:#fecaca!important;
+  }
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-parse{
+    border-color:rgba(168,85,247,.58)!important;
+    color:#e9d5ff!important;
+  }
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-copy-missing:hover,
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-clear:hover,
+  html body #resolve-ss-modal .rss-paste-buttons #rss-bulk-parse:hover{
+    filter:brightness(1.12)!important;
+    transform:translateY(-1px)!important;
+  }
+</style>
+
+<script id="current-ramp-clear-non-ss-start-button-final-js">
+(function(){
+  'use strict';
+  if(window.__currentRampClearNonSsStartButtonFinalInstalled) return;
+  window.__currentRampClearNonSsStartButtonFinalInstalled = true;
+
+  var STORE = 'dwellCurrentBoardBlockEditsV2';
+  var SUPPRESS_STORE = 'dwellCurrentRampNonSsSsStartSuppressionsV1';
+  var MANUAL_SS_STORE = 'dwellManualSSStoreV1';
+  var GLOBAL_CLEAR_STORE = 'dwellCurrentRampClearNonExactSsStartsV1';
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function norm(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function loadStore(){
+    try{ return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; }catch(e){ return {}; }
+  }
+  function saveStore(store){
+    try{ localStorage.setItem(STORE, JSON.stringify(store || {})); }catch(e){}
+  }
+  function loadSuppressions(){
+    try{ return JSON.parse(localStorage.getItem(SUPPRESS_STORE) || '{}') || {}; }catch(e){ return {}; }
+  }
+  function saveSuppressions(store){
+    try{ localStorage.setItem(SUPPRESS_STORE, JSON.stringify(store || {})); }catch(e){}
+  }
+  function hasSuppressions(){
+    try{ return localStorage.getItem(GLOBAL_CLEAR_STORE) === '1' || Object.keys(loadSuppressions()).length > 0; }catch(e){ return false; }
+  }
+  function globalClearActive(){
+    try{ return localStorage.getItem(GLOBAL_CLEAR_STORE) === '1'; }catch(e){ return false; }
+  }
+  function loadManualSsStore(){
+    try{ return JSON.parse(localStorage.getItem(MANUAL_SS_STORE) || '{}') || {}; }catch(e){ return {}; }
+  }
+  function saveManualSsStore(store){
+    try{ localStorage.setItem(MANUAL_SS_STORE, JSON.stringify(store || {})); }catch(e){}
+  }
+  function toast(msg){
+    try{
+      if(typeof window.toastMsg === 'function'){ window.toastMsg(msg); return; }
+    }catch(e){}
+    try{ console.log(msg); }catch(e){}
+  }
+  function addUnique(list, value){
+    value = clean(value);
+    if(value && list.indexOf(value) < 0) list.push(value);
+  }
+  function hasStandaloneSs(text){
+    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(text).toUpperCase());
+  }
+  function isExactSsLabel(text){
+    var s = clean(text).toUpperCase();
+    if(!s) return false;
+    s = s
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    s = s.replace(/^[_\-\s]+|[_\-\s]+$/g,'');
+    return s === 'SS';
+  }
+  function activeCurrentRampBoard(){
+    var boards = Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table)'));
+    return boards.find(function(board){
+      var head = board.querySelector('.bowl-ramp-head');
+      return /CURRENT\s+RAMP\s+BLOCKING/i.test(clean(head && head.textContent || ''));
+    }) || boards[0] || null;
+  }
+  function trackFromBlock(block){
+    var row = block && block.closest && block.closest('tr');
+    var txt = clean(row && row.querySelector && (row.querySelector('.bowl-track') || {}).textContent || '');
+    var m = txt.match(/(?:06-)?(80[1-9]|\d{3})/);
+    return m ? m[1].slice(-3) : '';
+  }
+  function sampleFromBlock(block){
+    var ds = block && block.dataset || {};
+    return norm(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function normalizedVisibleText(block){
+    var clone = block.cloneNode(true);
+    Array.prototype.slice.call(clone.querySelectorAll('button,.current-block-edit-btn,.after-block-edit-btn,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.display-track-pill,.manual-tag')).forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .replace(/\b\d+H(?:\s+NET)?\b/gi,'')
+      .replace(/\bNET\b/gi,'')
+      .replace(/\[\d{3}\]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function visualKey(block){
+    var track = trackFromBlock(block);
+    var text = normalizedVisibleText(block).replace(/\s+/g,' ').slice(0,220);
+    return track && text ? track + '||' + text : '';
+  }
+  function stableKey(block){
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    return track && sample ? track + '||' + sample : '';
+  }
+  function keysForBlock(block){
+    var ds = block && block.dataset || {};
+    var keys = [];
+    addUnique(keys, ds.currentEditKey);
+    addUnique(keys, ds.afterEditKey);
+    addUnique(keys, ds.bowlGroupKey);
+    addUnique(keys, stableKey(block));
+    addUnique(keys, visualKey(block));
+    return keys;
+  }
+  function suppressionKeysForBlock(block){
+    var keys = keysForBlock(block);
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    var groupKey = clean((block && block.dataset && block.dataset.bowlGroupKey) || '');
+    var text = normalizedVisibleText(block);
+    var ft = clean((block && block.querySelector && (block.querySelector('b') || {}).textContent) || '').replace(/[^\d]/g,'');
+    if(groupKey) addUnique(keys, 'group||' + groupKey);
+    if(groupKey && sample) addUnique(keys, 'group-sample||' + groupKey + '||' + sample);
+    if(track && sample) addUnique(keys, 'sample||' + track + '||' + sample);
+    if(track && ft && text) addUnique(keys, 'visual||' + track + '||' + ft + '||' + norm(text));
+    return keys;
+  }
+  function markSuppressed(block, suppressions){
+    suppressions = suppressions || loadSuppressions();
+    var now = new Date().toISOString();
+    suppressionKeysForBlock(block).forEach(function(key){
+      suppressions[key] = now;
+    });
+    return suppressions;
+  }
+  function isSuppressed(block, suppressions){
+    if(globalClearActive() && !isSsBlock(block)) return true;
+    suppressions = suppressions || loadSuppressions();
+    return suppressionKeysForBlock(block).some(function(key){ return !!suppressions[key]; });
+  }
+  function entryHasSsFields(entry){
+    if(!entry) return false;
+    return !!clean(entry.ssStart || entry.currentSsStart || entry.ssStartTime || entry.ssEnd || entry.currentSsEnd || entry.ssEndTime || entry.dwell);
+  }
+  function blockHasSsFields(block, store){
+    var ds = block && block.dataset || {};
+    var groupKey = clean(ds.bowlGroupKey || '');
+    var manual = groupKey ? loadManualSsStore()[groupKey] : null;
+    if(manual && clean(manual.start || manual.end)) return true;
+    try{
+      if(groupKey && typeof ssStore === 'object' && ssStore && ssStore[groupKey] && (ssStore[groupKey].start || ssStore[groupKey].end)) return true;
+    }catch(e){}
+    if(clean(ds.currentSsStart || ds.ssStart || ds.ssStartTime || ds.currentSsEnd || ds.ssEnd || ds.ssEndTime)) return true;
+    if(block && block.querySelector && block.querySelector('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')) return true;
+    return keysForBlock(block).some(function(key){ return entryHasSsFields(store[key]); });
+  }
+  function isSsBlock(block){
+    var ds = block && block.dataset || {};
+    if(isExactSsLabel(ds.currentBlockType || ds.afterBlockType || '')) return true;
+    if(isExactSsLabel(ds.sourceBlockLabel || ds.afterStatus || '')) return true;
+    return isExactSsLabel(normalizedVisibleText(block));
+  }
+  function clearEntry(entry){
+    if(!entry) return false;
+    var before = JSON.stringify(entry);
+    entry.ssStart = '';
+    entry.currentSsStart = '';
+    entry.ssStartTime = '';
+    entry.ssEnd = '';
+    entry.currentSsEnd = '';
+    entry.ssEndTime = '';
+    entry.dwell = '';
+    entry.updatedAt = new Date().toISOString();
+    return JSON.stringify(entry) !== before;
+  }
+  function clearStoreForBlock(block, store){
+    var changed = false;
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    var direct = keysForBlock(block);
+    direct.forEach(function(key){
+      if(store[key]) changed = clearEntry(store[key]) || changed;
+    });
+    if(track && sample){
+      Object.keys(store).forEach(function(key){
+        var entry = store[key] || {};
+        var entrySample = norm(entry.sampleCar || entry.equipId || entry.equipmentId || '');
+        var keyParts = String(key).split('||');
+        var keyTrack = clean(keyParts[0]).slice(-3);
+        var keySample = norm(keyParts[1] || '');
+        if(keyTrack === track && (entrySample === sample || keySample === sample)){
+          changed = clearEntry(entry) || changed;
+        }
+      });
+    }
+    return changed;
+  }
+  function clearManualSsForBlock(block){
+    var ds = block && block.dataset || {};
+    var groupKey = clean(ds.bowlGroupKey || '');
+    if(!groupKey) return false;
+    var changed = false;
+    var manual = loadManualSsStore();
+    if(manual[groupKey] && clean(manual[groupKey].start || manual[groupKey].end)){
+      manual[groupKey].start = '';
+      manual[groupKey].end = '';
+      manual[groupKey].autoDetected = false;
+      delete manual[groupKey];
+      saveManualSsStore(manual);
+      changed = true;
+    }
+    try{
+      if(typeof ssStore === 'object' && ssStore && ssStore[groupKey] && (ssStore[groupKey].start || ssStore[groupKey].end || ssStore[groupKey].autoDetected)){
+        ssStore[groupKey] = {start:null,end:null,autoDetected:false};
+        if(typeof saveManualSSStore === 'function') saveManualSSStore();
+        changed = true;
+      }
+    }catch(e){}
+    return changed;
+  }
+  function clearVisibleBlock(block){
+    if(!block) return;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel'].forEach(function(name){
+      try{ block.dataset[name] = ''; }catch(e){}
+    });
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete block.dataset.missingSsStart;
+    block.dataset.missingSsStartAuthority = '0';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){ el.remove(); });
+  }
+  function currentBlocks(){
+    var board = activeCurrentRampBoard();
+    if(!board) return [];
+    return Array.prototype.slice.call(board.querySelectorAll('tbody .bowl-segments-cell .bowl-block, tbody .bowl-segments-wrap .bowl-block'));
+  }
+  function applySuppressions(){
+    var suppressions = loadSuppressions();
+    if(!globalClearActive() && !Object.keys(suppressions).length) return 0;
+    var store = loadStore();
+    var touched = 0;
+    currentBlocks().forEach(function(block){
+      if(isSsBlock(block) || !isSuppressed(block, suppressions)) return;
+      clearStoreForBlock(block, store);
+      clearManualSsForBlock(block);
+      clearVisibleBlock(block);
+      touched += 1;
+    });
+    saveStore(store);
+    return touched;
+  }
+  function runClear(){
+    try{ localStorage.setItem(GLOBAL_CLEAR_STORE, '1'); }catch(e){}
+    var store = loadStore();
+    var suppressions = loadSuppressions();
+    var touched = 0;
+    currentBlocks().forEach(function(block){
+      if(isSsBlock(block)) return;
+      markSuppressed(block, suppressions);
+      var hadData = blockHasSsFields(block, store);
+      var storeChanged = clearStoreForBlock(block, store);
+      var manualChanged = clearManualSsForBlock(block);
+      if(hadData || storeChanged || manualChanged){
+        clearVisibleBlock(block);
+        touched += 1;
+      }
+    });
+    saveStore(store);
+    saveSuppressions(suppressions);
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.renderOB === 'function') setTimeout(function(){ window.renderOB(); applySuppressions(); }, 40); }catch(e){}
+    [60,180,420,900,1600].forEach(function(ms){ setTimeout(applySuppressions, ms); });
+    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    toast(touched ? 'Cleared SS start from ' + touched + ' non-SS current ramp block' + (touched === 1 ? '' : 's') : 'No non-SS current ramp SS starts found');
+  }
+  function ensureButton(){
+    var head = document.querySelector('#tab-outbound .bowl-ramp-head');
+    if(!head) return;
+    var resolve = head.querySelector(':scope > [data-resolve-ss-btn]');
+    var btn = head.querySelector(':scope > [data-clear-current-non-ss-start]');
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'clear-current-non-ss-start-btn';
+      btn.dataset.clearCurrentNonSsStart = '1';
+      btn.textContent = 'CLEAR NON-SS SS START';
+    }
+    if(resolve && resolve.nextElementSibling !== btn) resolve.insertAdjacentElement('afterend', btn);
+    else if(!resolve && !btn.parentNode) head.appendChild(btn);
+  }
+  function schedule(){
+    ensureButton();
+    applySuppressions();
+    setTimeout(ensureButton, 80);
+    setTimeout(applySuppressions, 90);
+    setTimeout(ensureButton, 250);
+    setTimeout(applySuppressions, 260);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__clearNonSsStartButtonWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__clearNonSsStartButtonWrapped = true;
+    window[name] = wrapped;
+  }
+  ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound'].forEach(wrap);
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start]');
+    if(!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    runClear();
+  }, true);
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,.bowl-ramp-head,[data-resolve-ss-btn]')) schedule();
+  }, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  else schedule();
+  window.addEventListener('load', schedule, {once:true});
+  [0,100,300,800,1600,3200].forEach(function(ms){ setTimeout(schedule, ms); });
+  setInterval(function(){ if(hasSuppressions()) applySuppressions(); }, 1200);
+})();
+</script>
+
+<style id="current-ramp-clear-non-ss-start-button-final-css">
+  html body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .clear-current-non-ss-start-btn{
+    box-sizing:border-box!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    height:38px!important;
+    min-height:38px!important;
+    max-height:38px!important;
+    min-width:158px!important;
+    padding:0 9px!important;
+    border-radius:8px!important;
+    border:1px solid rgba(248,113,113,.68)!important;
+    color:#fecaca!important;
+    background:linear-gradient(180deg,rgba(127,29,29,.76),rgba(69,10,10,.88))!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:12px!important;
+    font-weight:900!important;
+    line-height:1!important;
+    letter-spacing:1.6px!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.18)!important;
+  }
+  html body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .clear-current-non-ss-start-btn:hover{
+    border-color:rgba(252,165,165,.90)!important;
+    filter:brightness(1.08)!important;
+  }
+</style>
+
+<script id="current-edit-clear-ss-start-all-aliases-final-js">
+(function(){
+  'use strict';
+  if(window.__currentEditClearSsStartAllAliasesFinalInstalled) return;
+  window.__currentEditClearSsStartAllAliasesFinalInstalled = true;
+
+  var STORE = 'dwellCurrentBoardBlockEditsV2';
+  var activeBlock = null;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function norm(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function load(){ try{ return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; }catch(e){ return {}; } }
+  function save(store){ try{ localStorage.setItem(STORE, JSON.stringify(store || {})); }catch(e){} }
+  function trackFromBlock(block){
+    var tr = block && block.closest && block.closest('tr');
+    var cell = tr && tr.querySelector('.bowl-track');
+    var m = clean(cell ? cell.textContent : '').match(/(\d{3})/);
+    return m ? m[1] : '';
+  }
+  function sampleFromBlock(block){
+    var ds = block && block.dataset || {};
+    return norm(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function normalizeText(txt){
+    return clean(txt)
+      .replace(/[EDITx]/g,'')
+      .replace(/EDITED/gi,'')
+      .replace(/WENT INTO SS\s*[^|]*/gi,'')
+      .replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/gi,'')
+      .replace(/\bNET\b/gi,'')
+      .replace(/\[\d{3}\]/g,'')
+      .replace(/\s+/g,' ')
+      .slice(0,220);
+  }
+  function visualKey(block){
+    var track = trackFromBlock(block);
+    return track ? track + '||' + normalizeText(block && block.textContent || '') : '';
+  }
+  function stableKey(block){
+    var track = trackFromBlock(block), sample = sampleFromBlock(block);
+    return track && sample ? track + '||' + sample : '';
+  }
+  function addUnique(list, value){
+    value = clean(value);
+    if(value && list.indexOf(value) < 0) list.push(value);
+  }
+  function directKeys(block){
+    var ds = block && block.dataset || {};
+    var out = [];
+    addUnique(out, ds.currentEditKey);
+    addUnique(out, ds.afterEditKey);
+    addUnique(out, stableKey(block));
+    addUnique(out, visualKey(block));
+    return out;
+  }
+  function findActiveBlock(){
+    if(activeBlock && activeBlock.isConnected) return activeBlock;
+    var modal = document.getElementById('current-block-edit-modal');
+    var key = clean(modal && modal.dataset && (modal.dataset.key || modal.dataset.currentEditKey || ''));
+    if(key && window.CSS && CSS.escape){
+      var byKey = document.querySelector('.bowl-block[data-current-edit-key="'+CSS.escape(key)+'"]');
+      if(byKey) return byKey;
+    }
+    return null;
+  }
+  function clearBlockDisplay(block){
+    if(!block) return;
+    block.dataset.currentSsStart = '';
+    block.dataset.ssStart = '';
+    block.dataset.currentSsEnd = '';
+    block.dataset.ssEnd = '';
+    block.querySelectorAll('.ss-hours-in-ss,[data-ss-hours-in-ss],.bowl-dwell').forEach(function(el){ el.remove(); });
+    block.classList.add('missing-ss-start','current-ss-start-missing');
+    block.dataset.missingSsStart = '1';
+    block.dataset.missingSsStartAuthority = '1';
+  }
+  function editMatchesBlock(key, edit, block, keys, track, sample){
+    if(keys.indexOf(key) >= 0) return true;
+    var eSample = norm(edit && edit.sampleCar || '');
+    if(track && sample && key.indexOf(track + '||') === 0 && (key.indexOf(sample) >= 0 || eSample === sample)) return true;
+    if(track && sample && eSample === sample) return true;
+    return false;
+  }
+  function clearSavedAliases(block){
+    if(!block) return false;
+    var store = load();
+    var keys = directKeys(block);
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    var changed = false;
+    Object.keys(store).forEach(function(key){
+      var edit = store[key] || {};
+      if(!editMatchesBlock(key, edit, block, keys, track, sample)) return;
+      edit.ssStart = '';
+      edit.ssStartTime = '';
+      edit.currentSsStart = '';
+      edit.ssEnd = '';
+      edit.dwell = '';
+      edit.updatedAt = new Date().toISOString();
+      store[key] = edit;
+      changed = true;
+    });
+    if(!changed){
+      var fallbackKey = keys[0] || visualKey(block);
+      if(fallbackKey){
+        store[fallbackKey] = Object.assign({}, store[fallbackKey] || {}, {
+          ssStart:'',
+          ssStartTime:'',
+          currentSsStart:'',
+          ssEnd:'',
+          dwell:'',
+          updatedAt:new Date().toISOString()
+        });
+        changed = true;
+      }
+    }
+    if(changed) save(store);
+    clearBlockDisplay(block);
+    [40,160,360].forEach(function(delay){
+      setTimeout(function(){
+        clearBlockDisplay(block);
+        try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+        try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+        try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+      }, delay);
+    });
+    return true;
+  }
+
+  var oldOpen = window.openCurrentRampBlockEdit;
+  if(typeof oldOpen === 'function' && !oldOpen.__clearSsStartAliasesWrapped){
+    window.openCurrentRampBlockEdit = function(block){
+      if(block) activeBlock = block;
+      return oldOpen.apply(this, arguments);
+    };
+    window.openCurrentRampBlockEdit.__clearSsStartAliasesWrapped = true;
+  }
+
+  document.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    var editBtn = e.target.closest('.current-block-edit-btn');
+    if(editBtn){
+      var block = editBtn.closest('.bowl-block');
+      if(block) activeBlock = block;
+    }
+    if(e.target.closest('#current-edit-save')){
+      var input = document.getElementById('current-edit-time');
+      if(!input || clean(input.value)) return;
+      input.dataset.isoValue = '';
+      input.dataset.saveIsoValue = '';
+      input.dataset.currentSsStart = '';
+      input.dataset.userClearedSsStart = '1';
+      var target = findActiveBlock();
+      setTimeout(function(){ clearSavedAliases(target); }, 20);
+      setTimeout(function(){ clearSavedAliases(target); }, 160);
+      setTimeout(function(){ clearSavedAliases(target); }, 420);
+    }
+  }, true);
+
+  document.addEventListener('input', function(e){
+    if(e.target && e.target.id === 'current-edit-time' && !clean(e.target.value)){
+      e.target.dataset.isoValue = '';
+      e.target.dataset.saveIsoValue = '';
+      e.target.dataset.currentSsStart = '';
+      e.target.dataset.userClearedSsStart = '1';
+    }
+  }, true);
+})();
+</script>
+
+<style id="resolve-ss-bulk-confirm-highlight-last-css">
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+    grid-template-columns:minmax(94px,126px) minmax(0,1fr) 96px!important;
+    grid-template-areas:
+      "car match action"
+      "start start action"
+      "end end action"
+      "lines lines action"!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-lines{
+    grid-area:lines!important;
+    display:flex!important;
+    flex-direction:column!important;
+    gap:4px!important;
+    min-width:0!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline{
+    display:flex!important;
+    align-items:center!important;
+    gap:6px!important;
+    min-width:0!important;
+    border-radius:7px!important;
+    background:rgba(2,6,23,.74)!important;
+    padding:4px 6px!important;
+    color:#94a3b8!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:.35px!important;
+    overflow:hidden!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start{border:1px solid rgba(34,197,94,.26)!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end{border:1px solid rgba(96,165,250,.28)!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.missing{border:1px solid rgba(248,113,113,.22)!important;color:#fca5a5!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-event,
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-time{
+    flex:0 0 auto!important;
+    border-radius:999px!important;
+    padding:2px 7px!important;
+    background:#020617!important;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.34)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-event{
+    color:#fef3c7!important;
+    box-shadow:inset 0 0 0 1px rgba(251,191,36,.38)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start .rss-bulk-hit-time{color:#bbf7d0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end .rss-bulk-hit-time{color:#bfdbfe!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-raw{
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    opacity:.78!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+    width:96px!important;
+    min-width:96px!important;
+  }
+  @media (max-width:700px){
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+      grid-template-columns:1fr 92px!important;
+      grid-template-areas:
+        "car action"
+        "match action"
+        "start action"
+        "end action"
+        "lines lines"!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+      width:92px!important;
+      min-width:92px!important;
+    }
+  }
+</style>
+
+<style id="resolve-ss-bulk-confirm-highlight-final-css">
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-card{
+    width:min(820px,calc(100vw - 24px))!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+    grid-template-columns:minmax(94px,126px) minmax(0,1fr) 96px!important;
+    grid-template-areas:
+      "car match action"
+      "start start action"
+      "end end action"
+      "lines lines action"!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-lines{
+    grid-area:lines!important;
+    display:flex!important;
+    flex-direction:column!important;
+    gap:4px!important;
+    min-width:0!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline{
+    display:flex!important;
+    align-items:center!important;
+    gap:6px!important;
+    min-width:0!important;
+    border-radius:7px!important;
+    background:rgba(2,6,23,.74)!important;
+    padding:4px 6px!important;
+    color:#94a3b8!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:.35px!important;
+    overflow:hidden!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start{
+    border:1px solid rgba(34,197,94,.26)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end{
+    border:1px solid rgba(96,165,250,.28)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.missing{
+    border:1px solid rgba(248,113,113,.22)!important;
+    color:#fca5a5!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-event{
+    flex:0 0 auto!important;
+    border-radius:999px!important;
+    padding:2px 7px!important;
+    background:#020617!important;
+    color:#fef3c7!important;
+    box-shadow:inset 0 0 0 1px rgba(251,191,36,.38)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-time{
+    flex:0 0 auto!important;
+    border-radius:999px!important;
+    padding:2px 7px!important;
+    background:#020617!important;
+    color:#ffffff!important;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.34)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start .rss-bulk-hit-time{
+    color:#bbf7d0!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end .rss-bulk-hit-time{
+    color:#bfdbfe!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-raw{
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    opacity:.78!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+    width:96px!important;
+    min-width:96px!important;
+  }
+  @media (max-width:700px){
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+      grid-template-columns:1fr 92px!important;
+      grid-template-areas:
+        "car action"
+        "match action"
+        "start action"
+        "end action"
+        "lines lines"!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+      width:92px!important;
+      min-width:92px!important;
+    }
+  }
+</style>
+
+<style id="resolve-ss-bulk-cutoff-fix-final-css">
+  html body #resolve-ss-modal [hidden]{
+    display:none!important;
+  }
+  html body #resolve-ss-modal .rss-card{
+    max-height:calc(100vh - 28px)!important;
+    overflow:hidden!important;
+  }
+  html body #resolve-ss-modal .rss-body{
+    max-height:calc(100vh - 96px)!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    padding-right:12px!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-card{
+    width:min(760px,calc(100vw - 28px))!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-body{
+    grid-template-columns:1fr!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-panel{
+    display:flex!important;
+    flex-direction:column!important;
+    overflow:hidden!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] #rss-bulk-text{
+    min-height:170px!important;
+    max-height:260px!important;
+    overflow:auto!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-results{
+    max-height:260px!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+    display:grid!important;
+    grid-template-columns:minmax(92px,118px) minmax(0,1fr) 88px!important;
+    grid-template-areas:
+      "car match action"
+      "start start action"
+      "end end action"!important;
+    align-items:center!important;
+    gap:6px 8px!important;
+    min-width:0!important;
+    width:100%!important;
+    box-sizing:border-box!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-car{grid-area:car!important;min-width:0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-match{grid-area:match!important;min-width:0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-time.start{grid-area:start!important;min-width:0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-time.end{grid-area:end!important;min-width:0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+    grid-area:action!important;
+    width:88px!important;
+    min-width:88px!important;
+    align-self:stretch!important;
+    height:auto!important;
+  }
+  @media (max-width:700px){
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-card{
+      width:calc(100vw - 16px)!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-body{
+      padding-left:10px!important;
+      padding-right:10px!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+      grid-template-columns:1fr 82px!important;
+      grid-template-areas:
+        "car action"
+        "match action"
+        "start action"
+        "end action"!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+      width:82px!important;
+      min-width:82px!important;
+    }
+  }
+</style>
+
+<style id="resolve-ss-bulk-mode-final-css">
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-card{
+    width:min(980px,calc(100vw - 36px))!important;
+  }
+  html body #resolve-ss-modal .rss-mode-tabs{
+    grid-column:1/-1!important;
+    display:flex!important;
+    gap:8px!important;
+  }
+  html body #resolve-ss-modal .rss-mode-btn{
+    flex:1 1 0!important;
+    height:34px!important;
+    border-radius:10px!important;
+    border:1px solid rgba(96,165,250,.34)!important;
+    background:rgba(15,23,42,.86)!important;
+    color:#cbd5e1!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+    letter-spacing:1.2px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+  }
+  html body #resolve-ss-modal .rss-mode-btn.active{
+    border-color:#a855f7!important;
+    background:linear-gradient(180deg,rgba(88,28,135,.82),rgba(49,18,78,.92))!important;
+    color:#f5d0fe!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 18px rgba(168,85,247,.20)!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-panel{
+    grid-column:1/-1!important;
+    border:1px solid rgba(148,163,184,.22)!important;
+    border-radius:10px!important;
+    background:rgba(2,6,23,.30)!important;
+    padding:10px!important;
+  }
+  html body #resolve-ss-modal #rss-bulk-text{
+    width:100%!important;
+    min-height:220px!important;
+    max-height:320px!important;
+    resize:vertical!important;
+    overflow:auto!important;
+    box-sizing:border-box!important;
+    border-radius:9px!important;
+    border:1px solid rgba(148,163,184,.28)!important;
+    background:#020617!important;
+    color:#e5e7eb!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:800!important;
+    line-height:1.35!important;
+    padding:10px!important;
+    white-space:pre!important;
+  }
+  html body #resolve-ss-modal #rss-bulk-text:focus{
+    outline:none!important;
+    border-color:#a855f7!important;
+    box-shadow:0 0 0 2px rgba(168,85,247,.22)!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-summary{
+    margin-top:8px!important;
+    color:#94a3b8!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:800!important;
+    letter-spacing:.5px!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-results{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:6px!important;
+    margin-top:10px!important;
+    max-height:260px!important;
+    overflow:auto!important;
+    padding-right:3px!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-row{
+    display:grid!important;
+    grid-template-columns:120px minmax(170px,1fr) minmax(150px,1fr) minmax(150px,1fr) 94px!important;
+    gap:8px!important;
+    align-items:center!important;
+    border:1px solid rgba(148,163,184,.18)!important;
+    border-radius:8px!important;
+    background:rgba(15,23,42,.68)!important;
+    padding:7px!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:10px!important;
+    font-weight:900!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-row.saved{
+    border-color:rgba(34,197,94,.50)!important;
+    background:rgba(5,46,22,.55)!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-car{
+    color:#fff!important;
+    letter-spacing:.7px!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-match{
+    color:#c4b5fd!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-time{
+    border-radius:999px!important;
+    padding:4px 8px!important;
+    background:#020617!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-time.start{color:#bbf7d0!important;}
+  html body #resolve-ss-modal .rss-bulk-time.end{color:#bfdbfe!important;}
+  html body #resolve-ss-modal .rss-bulk-confirm{
+    height:28px!important;
+    border-radius:8px!important;
+    border:1px solid rgba(34,197,94,.42)!important;
+    background:linear-gradient(180deg,#16a34a,#047857)!important;
+    color:#fff!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:.8px!important;
+    text-transform:uppercase!important;
+    cursor:pointer!important;
+  }
+  html body #resolve-ss-modal .rss-bulk-confirm:disabled{
+    opacity:.50!important;
+    cursor:not-allowed!important;
+    border-color:rgba(148,163,184,.24)!important;
+    background:#111827!important;
+    color:#94a3b8!important;
   }
 </style>
 
@@ -47206,6 +48528,14 @@ table.bowl-board td.bowl-delta.good{
       }
       e.target.dataset.userTouched = '1';
       var iso = getDateIso(e.target);
+      if(!clean(e.target.value)){
+        e.target.dataset.isoValue = '';
+        e.target.dataset.saveIsoValue = '';
+        e.target.dataset.currentSsStart = '';
+        e.target.dataset.userClearedSsStart = '1';
+      }else{
+        delete e.target.dataset.userClearedSsStart;
+      }
       // On 'input' (user is actively typing): only store the ISO value silently - do NOT
       // reformat el.value because setting el.value always moves the cursor to the end.
       // On 'change' or 'blur' (user has finished): safe to reformat the display.
@@ -47225,6 +48555,12 @@ table.bowl-board td.bowl-delta.good{
   document.addEventListener('blur', function(e){
     if(!e.target || ['current-edit-time','current-edit-ss-end','final-after-time','final-after-ss-end'].indexOf(e.target.id) < 0) return;
     var iso = getDateIso(e.target);
+    if(!clean(e.target.value)){
+      e.target.dataset.isoValue = '';
+      e.target.dataset.saveIsoValue = '';
+      e.target.dataset.currentSsStart = '';
+      e.target.dataset.userClearedSsStart = '1';
+    }
     if(iso){ e.target.value = formatDisplay(iso); e.target.dataset.isoValue = iso; }
     flagMissing(e.target, !clean(e.target.value));
     updateCurrentNet();
@@ -47293,7 +48629,13 @@ table.bowl-board td.bowl-delta.good{
       var ctime = document.getElementById('current-edit-time');
       if(cm && carr) cm.dataset.currentArrival = clean(carr.value);
       if(ctime){
-        ctime.dataset.saveIsoValue = getDateIso(cstart);
+        var cstartRaw = clean(cstart && cstart.value);
+        ctime.dataset.saveIsoValue = cstartRaw ? getDateIso(cstart) : '';
+        if(!cstartRaw){
+          ctime.dataset.isoValue = '';
+          ctime.dataset.currentSsStart = '';
+          ctime.dataset.userClearedSsStart = '1';
+        }
         ctime.value = ctime.dataset.saveIsoValue;
       }
       setTimeout(function(){
@@ -47302,7 +48644,7 @@ table.bowl-board td.bowl-delta.good{
         var store = getJSON('dwellCurrentBoardBlockEditsV2');
         var edit = store[key] || {};
         edit.arrival = clean(carr && carr.value) || edit.arrival || '';
-        edit.ssStart = getDateIso(cstart) || edit.ssStart || '';
+        edit.ssStart = clean(cstart && cstart.value) ? (getDateIso(cstart) || '') : '';
         edit.ssEnd = getDateIso(cend);
         store[key] = edit;
         setJSON('dwellCurrentBoardBlockEditsV2', store);
@@ -55606,6 +56948,51 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(dwell) span.insertBefore(badge, dwell);
     else span.appendChild(badge);
   }
+  function sameResolveBlock(block, info, keys, sampleCar){
+    if(!block || !info) return false;
+    var ds = block.dataset || {};
+    var track = trackFromRow(block.closest ? block.closest('tr') : null);
+    if(clean(track) !== clean(info.track)) return false;
+    var blockKeys = [ds.currentEditKey, ds.afterEditKey, stableEditKey(block, info.sampleCar || sampleCar, info.track), stableEditKey(block, sampleCar, info.track), blockKey(block)].map(clean).filter(Boolean);
+    for(var i=0;i<blockKeys.length;i++){
+      if(keys.indexOf(blockKeys[i]) >= 0) return true;
+    }
+    var wantedSample = clean(info.sampleCar || sampleCar).toUpperCase();
+    var blockSample = clean(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase();
+    return !!wantedSample && blockSample === wantedSample;
+  }
+  function applyResolvedTimesToBlock(block, full, ssStart, ssEnd, arrToSS, editKey){
+    if(!block || !full) return;
+    if(editKey) block.dataset.currentEditKey = editKey;
+    block.dataset.currentSsStart = ssStart || '';
+    block.dataset.currentSsEnd = ssEnd || '';
+    block.dataset.ssStart = ssStart || '';
+    block.dataset.ssEnd = ssEnd || '';
+    block.dataset.currentArrival = full.arrival || '';
+    block.dataset.currentTrain = full.train || '';
+    block.dataset.sourceTrain = full.train || '';
+    block.dataset.currentBlockType = full.blockType || '';
+    block.dataset.sourceBlockLabel = full.sourceBlockLabel || '';
+    if(full.sampleCar) block.dataset.sampleCar = full.sampleCar;
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete block.dataset.missingSsStart;
+    block.dataset.missingSsStartAuthority = '0';
+    applySavedBlockVisual(block, arrToSS);
+    updateSavedBlockSsHours(block, ssStart);
+    saveResolveSsToGroupStore(block, ssStart, ssEnd);
+  }
+  function forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS){
+    var touched = false;
+    var keys = (editKeys || []).map(clean).filter(Boolean);
+    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(!sameResolveBlock(block, info, keys, sampleCar)) return;
+      applyResolvedTimesToBlock(block, full, ssStart, ssEnd, arrToSS, keys[0] || info.key);
+      touched = true;
+    });
+    if(!touched && info && info.block){
+      applyResolvedTimesToBlock(info.block, full, ssStart, ssEnd, arrToSS, keys[0] || info.key);
+    }
+  }
   function saveResolveSsToGroupStore(block, ssStart, ssEnd){
     if(!block || !block.dataset) return;
     var groupKey = clean(block.dataset.bowlGroupKey || block.dataset.groupKey || '');
@@ -55620,6 +57007,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
         autoDetected: false
       };
       if(typeof saveManualSSStore === 'function') saveManualSSStore();
+      try{ window.manualSSStartByTrackEquip = null; }catch(e){}
     }catch(e){ console.warn('Resolve SS group store save failed', e); }
   }
 
@@ -55633,20 +57021,27 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
           '<div class="rss-progress"><div class="rss-progress-bar" id="rss-progress-bar"></div></div>',
           '<div class="rss-head"><span class="rss-title" id="rss-title">RESOLVE SS</span><span class="rss-counter" id="rss-counter"></span><button class="rss-close" id="rss-close" type="button">x</button></div>',
           '<div class="rss-body">',
-            '<div class="rss-help" id="rss-help"></div>',
-            '<div class="rss-field full"><label>IMPORTED ARRIVAL</label><input id="rss-arrival" readonly></div>',
-            '<div class="rss-field full"><label>SS START</label><input id="rss-ss-start" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
-            '<div class="rss-field full"><label>SS END</label><input id="rss-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
-            '<div class="rss-field full rss-paste-panel">',
+            '<div class="rss-mode-tabs full"><button class="rss-mode-btn active" id="rss-mode-car" type="button">Resolve Car By Car</button><button class="rss-mode-btn" id="rss-mode-bulk" type="button">Resolve In Bulk</button></div>',
+            '<div class="rss-field full rss-bulk-panel" id="rss-bulk-pane" hidden>',
+              '<div class="rss-paste-title"><span>Bulk SS Trace Paste</span><span class="rss-paste-buttons"><button id="rss-bulk-copy-missing" type="button">Copy Cars</button><button id="rss-bulk-clear" type="button">Clear</button><button id="rss-bulk-parse" type="button">Parse Bulk</button></span></div>',
+              '<textarea id="rss-bulk-text" spellcheck="false" placeholder="Paste multiple car traces here..."></textarea>',
+              '<div class="rss-bulk-summary" id="rss-bulk-summary">Paste trace text, then parse. Car headers like WRWK 120569View will be matched to the Resolve SS example cars.</div>',
+              '<div class="rss-bulk-results" id="rss-bulk-results"></div>',
+            '</div>',
+            '<div class="rss-help rss-car-only" id="rss-help"></div>',
+            '<div class="rss-field full rss-car-only"><label>IMPORTED ARRIVAL</label><input id="rss-arrival" readonly></div>',
+            '<div class="rss-field full rss-car-only"><label>SS START</label><input id="rss-ss-start" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+            '<div class="rss-field full rss-car-only"><label>SS END</label><input id="rss-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm"></div>',
+            '<div class="rss-field full rss-paste-panel rss-car-only">',
               '<div class="rss-paste-title"><span>Paste SS Event History</span><span class="rss-paste-buttons"><button id="rss-paste-clear" type="button">Clear</button><button id="rss-paste-apply" type="button" disabled>Confirm Times</button></span></div>',
               '<textarea id="rss-paste-text" spellcheck="false" placeholder="Paste event history here..."></textarea>',
               '<div class="rss-paste-results" id="rss-paste-results"><span class="rss-paste-pill start">SS START: -</span><span class="rss-paste-pill end">SS END: -</span></div>',
               '<div id="rss-paste-preview">Paste event history to preview SS and RH SS matches.</div>',
             '</div>',
-            '<div class="rss-field full"><label>CALCULATED NET DWELL</label><input id="rss-net" readonly></div>',
-            '<div class="rss-field full" style="flex-direction:row;align-items:center;gap:8px;"><label style="margin:0;white-space:nowrap;">EXAMPLE CAR</label><input id="rss-sample-car" style="flex:1;" placeholder=""><button class="rss-copy-btn" id="rss-copy-btn" type="button">COPY</button></div>',
-            '<div class="rss-field full" id="rss-preview-wrap"><div style="display:flex;gap:16px;align-items:flex-start;"><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">CURRENT</label><div id="rss-before-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div><div style="padding-top:20px;color:#64748b;font-size:18px;">-></div><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">NEW</label><div id="rss-after-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div></div></div>',
-            '<div class="rss-actions"><button class="rss-btn" id="rss-cancel" type="button">CANCEL</button><button class="rss-btn next" id="rss-next" type="button">SKIP -></button><button class="rss-btn save" id="rss-save" type="button">SAVE CHANGES</button></div>',
+            '<div class="rss-field full rss-car-only"><label>CALCULATED NET DWELL</label><input id="rss-net" readonly></div>',
+            '<div class="rss-field full rss-car-only" style="flex-direction:row;align-items:center;gap:8px;"><label style="margin:0;white-space:nowrap;">EXAMPLE CAR</label><input id="rss-sample-car" style="flex:1;" placeholder=""><button class="rss-copy-btn" id="rss-copy-btn" type="button">COPY</button></div>',
+            '<div class="rss-field full rss-car-only" id="rss-preview-wrap"><div style="display:flex;gap:16px;align-items:flex-start;"><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">CURRENT</label><div id="rss-before-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div><div style="padding-top:20px;color:#64748b;font-size:18px;">-></div><div style="flex:1;"><label style="font-family:var(--mono);font-size:8px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:6px;">NEW</label><div id="rss-after-block" style="display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:4px 9px;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.25px;min-height:22px;pointer-events:none;"></div></div></div></div>',
+            '<div class="rss-actions rss-car-only"><button class="rss-btn" id="rss-cancel" type="button">CANCEL</button><button class="rss-btn next" id="rss-next" type="button">SKIP -></button><button class="rss-btn save" id="rss-save" type="button">SAVE CHANGES</button></div>',
           '</div>',
         '</div>'
       ].join('');
@@ -55668,7 +57063,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
         ['rss-close', function(e){ closeModal(); }],
         ['rss-copy-btn', function(e){ copySample(); }],
         ['rss-paste-apply', function(e){ applyParsedPasteTimes(); }],
-        ['rss-paste-clear', function(e){ clearPasteBox(); }]
+        ['rss-paste-clear', function(e){ clearPasteBox(); }],
+        ['rss-mode-car', function(e){ setResolveMode('car'); }],
+        ['rss-mode-bulk', function(e){ setResolveMode('bulk'); }],
+        ['rss-bulk-parse', function(e){ updateBulkPreview(); }],
+        ['rss-bulk-clear', function(e){ clearBulkBox(); }],
+        ['rss-bulk-copy-missing', function(e){ copyMissingSsCarsForBulk(); }]
       ].forEach(function(pair){
         var btn = document.getElementById(pair[0]);
         if(!btn) return;
@@ -55689,8 +57089,199 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
           setTimeout(function(){ pasteBox.select(); }, 0);
         }, true);
       }
+      var bulkBox = document.getElementById('rss-bulk-text');
+      if(bulkBox){
+        bulkBox.addEventListener('input', updateBulkPreview, true);
+        bulkBox.addEventListener('paste', function(){ setTimeout(updateBulkPreview, 0); }, true);
+        bulkBox.addEventListener('focus', function(){
+          if(!bulkBox.value) return;
+          setTimeout(function(){ bulkBox.select(); }, 0);
+        }, true);
+      }
+      var bulkResults = document.getElementById('rss-bulk-results');
+      if(bulkResults){
+        bulkResults.addEventListener('click', function(e){
+          var btn = e.target && e.target.closest ? e.target.closest('[data-rss-bulk-confirm]') : null;
+          if(!btn) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+          confirmBulkResult(parseInt(btn.getAttribute('data-rss-bulk-confirm'), 10));
+          return false;
+        }, true);
+      }
     }
     return m;
+  }
+  function setResolveMode(mode){
+    mode = mode === 'bulk' ? 'bulk' : 'car';
+    var m = document.getElementById('resolve-ss-modal');
+    if(!m) return;
+    m.dataset.resolveMode = mode;
+    var bulk = document.getElementById('rss-bulk-pane');
+    if(bulk){
+      bulk.hidden = mode !== 'bulk';
+      bulk.style.display = mode === 'bulk' ? 'flex' : 'none';
+    }
+    m.querySelectorAll('.rss-car-only').forEach(function(el){
+      el.hidden = mode === 'bulk';
+      el.style.display = mode === 'bulk' ? 'none' : '';
+    });
+    var carBtn = document.getElementById('rss-mode-car');
+    var bulkBtn = document.getElementById('rss-mode-bulk');
+    if(carBtn) carBtn.classList.toggle('active', mode === 'car');
+    if(bulkBtn) bulkBtn.classList.toggle('active', mode === 'bulk');
+    if(mode === 'bulk'){
+      updateBulkPreview();
+      setTimeout(function(){ var box = document.getElementById('rss-bulk-text'); if(box) box.focus(); }, 30);
+    }
+  }
+  function normalizeCarId(v){
+    return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  }
+  function parseBulkCarHeader(line){
+    var raw = String(line == null ? '' : line);
+    var m = raw.match(/\b([A-Z]{2,5})\s*[- ]?\s*(\d{5,8})\s*View\b/i);
+    if(!m) m = raw.match(/^\s*([A-Z]{2,5})\s+(\d{5,8})\b/i);
+    if(!m) return null;
+    return {car:normalizeCarId(m[1]+m[2]), display:(m[1].toUpperCase()+' '+m[2])};
+  }
+  function parseBulkSsTrace(text){
+    var lines = String(text || '').replace(/\r/g,'').split('\n');
+    var sections = [];
+    var current = null;
+    lines.forEach(function(line, index){
+      var header = parseBulkCarHeader(line);
+      if(header){
+        current = {car:header.car, display:header.display, headerLine:index, lines:[]};
+        sections.push(current);
+      }
+      if(current) current.lines.push({text:line, index:index});
+    });
+    sections.forEach(function(section){
+      var hits = [];
+      section.lines.forEach(function(item){
+        var parsed = parseEventLine(item.text, item.index);
+        if(parsed) hits.push(parsed);
+      });
+      var starts = hits.filter(function(hit){ return hit.kind === 'start'; });
+      var ends = hits.filter(function(hit){ return hit.kind === 'end'; });
+      section.hits = hits;
+      section.start = starts.length ? starts[starts.length - 1] : null;
+      section.end = ends.length ? ends[0] : null;
+    });
+    return sections;
+  }
+  function bulkResolveMap(){
+    var map = {};
+    queue.forEach(function(info, pos){
+      var car = normalizeCarId(info && info.sampleCar);
+      if(car && !map[car]) map[car] = {info:info, pos:pos};
+    });
+    return map;
+  }
+  function clearBulkBox(){
+    var box = document.getElementById('rss-bulk-text');
+    if(box){
+      box.value = '';
+      box.focus();
+    }
+    updateBulkPreview();
+  }
+  function copyMissingSsCarsForBulk(){
+    var cars = [];
+    function add(car){
+      car = clean(car).toUpperCase();
+      if(car && cars.indexOf(car) < 0) cars.push(car);
+    }
+    try{
+      getResolveBlocks().map(getBlockInfo).forEach(function(info){
+        add(info && info.sampleCar);
+      });
+    }catch(e){}
+    if(!cars.length){
+      queue.forEach(function(info){
+        if(info && !clean(info.ssStart)) add(info.sampleCar);
+      });
+    }
+    var text = cars.join(', ');
+    if(!text){
+      toastMsg('No missing SS cars to copy');
+      return;
+    }
+    var copied = copyText(text);
+    var btn = document.getElementById('rss-bulk-copy-missing');
+    if(btn){
+      btn.textContent = copied ? 'Copied' : 'Failed';
+      setTimeout(function(){ btn.textContent = 'Copy Cars'; }, 1100);
+    }
+    toastMsg(copied ? ('Copied '+cars.length+' missing SS cars') : 'Copy failed - cars selected');
+  }
+  function updateBulkPreview(){
+    var box = document.getElementById('rss-bulk-text');
+    var results = document.getElementById('rss-bulk-results');
+    var summary = document.getElementById('rss-bulk-summary');
+    if(!results || !summary) return;
+    var parsed = parseBulkSsTrace(box ? box.value : '');
+    var matchMap = bulkResolveMap();
+    window.__rssBulkParsedResolveSs = parsed;
+    var matched = 0;
+    var ready = 0;
+    parsed.forEach(function(item){
+      var hit = matchMap[item.car];
+      if(hit) matched++;
+      if(hit && item.start) ready++;
+    });
+    if(!parsed.length){
+      summary.textContent = 'Paste trace text, then parse. Car headers like WRWK 120569View will be matched to the Resolve SS example cars.';
+      results.innerHTML = '';
+      return;
+    }
+    summary.textContent = 'Found '+parsed.length+' cars, matched '+matched+' to Resolve SS, '+ready+' ready to confirm.';
+    results.innerHTML = parsed.map(function(item, i){
+      var match = matchMap[item.car];
+      var canSave = !!item.start;
+      var status = match ? ('06-'+esc(match.info.track || '')+' '+esc(match.info.label || '')) : 'No match - saves to current Resolve SS block';
+      var startText = item.start ? item.start.display : 'Missing SS';
+      var endText = item.end ? item.end.display : 'Missing RH SS';
+      return '<div class="rss-bulk-row" data-rss-bulk-row="'+i+'">'+
+        '<div class="rss-bulk-car">'+esc(item.display || item.car)+'</div>'+
+        '<div class="rss-bulk-match">'+status+'</div>'+
+        '<div class="rss-bulk-time start">SS '+esc(startText)+'</div>'+
+        '<div class="rss-bulk-time end">RH SS '+esc(endText)+'</div>'+
+        '<div class="rss-bulk-lines">'+bulkHitLineHtml(item.end, 'end')+bulkHitLineHtml(item.start, 'start')+'</div>'+
+        '<button class="rss-bulk-confirm" type="button" data-rss-bulk-confirm="'+i+'" '+(canSave?'':'disabled')+'>'+(canSave ? (match ? 'Confirm' : 'Use Current') : 'No SS')+'</button>'+
+      '</div>';
+    }).join('');
+  }
+  function bulkHitLineHtml(hit, kind){
+    if(!hit) return '<div class="rss-bulk-hitline missing">'+(kind === 'end' ? 'RH SS: not found' : 'SS: not found')+'</div>';
+    var label = kind === 'end' ? 'E RH SS' : 'E SS';
+    return '<div class="rss-bulk-hitline '+kind+'"><span class="rss-bulk-hit-event">'+label+'</span><span class="rss-bulk-hit-time">'+esc(hit.display || '')+'</span><span class="rss-bulk-hit-raw">'+escapeRawLine(hit.raw || '')+'</span></div>';
+  }
+  function confirmBulkResult(pos){
+    var parsed = window.__rssBulkParsedResolveSs || [];
+    var item = parsed[pos];
+    if(!item) return;
+    var match = bulkResolveMap()[item.car];
+    var targetInfo = match && match.info ? match.info : currentInfo();
+    if(!targetInfo){ toastMsg('No current Resolve SS block available'); return; }
+    if(!item.start){ toastMsg('No SS start found for '+(item.display || item.car)); return; }
+    var ok = saveResolvedInfo(targetInfo, item.start.iso, item.end ? item.end.iso : '', item.car, {toast:false});
+    if(!ok) return;
+    var row = document.querySelector('[data-rss-bulk-row="'+pos+'"]');
+    if(row){
+      row.classList.add('saved');
+      var btn = row.querySelector('[data-rss-bulk-confirm]');
+      if(btn){ btn.textContent = 'Saved'; btn.disabled = true; }
+    }
+    toastMsg((match ? 'Saved matched SS times for ' : 'Saved to current Resolve SS block from ')+(item.display || item.car));
+    syncResolveButton();
+    if(!match && targetInfo === currentInfo()){
+      setTimeout(function(){
+        try{ advance(); setResolveMode('bulk'); }catch(e){}
+      }, 80);
+    }
   }
   function clearPasteBox(){
     var box = document.getElementById('rss-paste-text');
@@ -55831,6 +57422,83 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(net) net.value = txt;
     updatePreviews();
   }
+  function saveResolvedInfo(info, ssStart, ssEnd, sampleCar, opts){
+    opts = opts || {};
+    if(!info) return false;
+    ssStart = toIso(ssStart) || rawClean(ssStart);
+    ssEnd = toIso(ssEnd) || rawClean(ssEnd);
+    sampleCar = clean(sampleCar || '');
+    if(!ssStart){
+      if(opts.toast !== false) toastMsg('Enter SS start, or use SKIP to leave this block unchanged');
+      return false;
+    }
+    var arrToSS = hoursBetween(info.arrival, ssStart);
+    var dwell = arrToSS !== null ? Math.round(arrToSS)+'H NET' : '';
+    var edits = loadEdits();
+    var existing = edits[info.key] || info.existing || {};
+    var label = clean(existing.sourceBlockLabel || existing.label || info.sourceBlockLabel || info.label || '');
+    var blockType = clean(existing.blockType || info.blockType || (hasSsToken(label) ? 'SS' : ''));
+    if(!/^(SS|IHOSA|MHOAS)$/i.test(blockType)) blockType = hasSsToken(label) ? 'SS' : '';
+    var primarySampleCar = clean(info.sampleCar || existing.sampleCar || sampleCar);
+    var full = {
+      ft: num(existing.ft || info.ft),
+      train: clean(existing.train || info.train),
+      blockType: blockType,
+      label: clean(existing.label || label || blockType || info.train),
+      sourceBlockLabel: clean(existing.sourceBlockLabel || label || blockType || info.train),
+      dwell: dwell,
+      arrival: clean(existing.arrival || info.arrival),
+      ssStart: ssStart,
+      ssEnd: ssEnd,
+      sampleCar: primarySampleCar,
+      updatedAt: new Date().toISOString()
+    };
+    var stableKey = stableEditKey(info.block || null, full.sampleCar || sampleCar || info.sampleCar, info.track);
+    var editKeys = editKeysForSave(info, full.sampleCar || sampleCar, full);
+    if(sampleCar && sampleCar !== full.sampleCar){
+      editKeysForSave(info, sampleCar, full).forEach(function(key){
+        if(key && editKeys.indexOf(key) < 0) editKeys.push(key);
+      });
+    }
+    if(stableKey && editKeys.indexOf(stableKey) < 0) editKeys.push(stableKey);
+    editKeys.forEach(function(key){ edits[key] = full; });
+    saveEdits(edits);
+
+    forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS);
+    info.ssStart = ssStart;
+    info.ssEnd = ssEnd;
+    info.existing = full;
+
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+    try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
+    [40, 180, 420].forEach(function(delay){
+      setTimeout(function(){
+        forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS);
+        try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+        try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+        try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+        try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+        try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
+      }, delay);
+    });
+    if(opts.render !== false){
+      setTimeout(function(){
+        try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){}
+        setTimeout(function(){
+          forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS);
+          try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+          try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+          try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+        }, 80);
+      }, 120);
+    }
+    scheduleButtonSync();
+    if(opts.toast !== false) toastMsg('Saved SS times for 06-'+(info.track || '')+' - moving to next');
+    return true;
+  }
   function loadEntry(){
     var info = currentInfo();
     if(!info) return;
@@ -55948,6 +57616,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     idx = 0;
     var m = ensureModal();
     m.classList.add('open');
+    setResolveMode('car');
     loadEntry();
     try{ document.body.classList.add('modal-open'); }catch(e){}
   }
@@ -57022,12 +58691,39 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   function esc(s){return clean(s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});}
   function load(){try{return JSON.parse(localStorage.getItem(STORE)||'{}')||{};}catch(e){return {};}}
   function save(o){try{localStorage.setItem(STORE,JSON.stringify(o||{}));}catch(e){}}
+  function loadSuppressions(){try{return JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1')||'{}')||{};}catch(e){return {};}}
+  function globalClearActive(){try{return localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1')==='1';}catch(e){return false;}}
   function trackFromBlock(block){var tr=block&&block.closest&&block.closest('tr');var cell=tr&&tr.querySelector('.bowl-track');return clean(cell?cell.textContent:'').replace(/[^0-9]/g,'');}
   function sampleFromBlock(block){var ds=block&&block.dataset||{};return clean(ds.sampleCar||ds.sampleEquipId||ds.equipId||ds.equipmentId||ds.carId||'').toUpperCase();}
   function normalizeText(txt){return clean(txt).replace(/[EDITx]/g,'').replace(/EDITED/gi,'').replace(/WENT INTO SS\s*[^|]*/gi,'').replace(/SS\s*\d{1,2}\/\d{1,2}\s*\d{2}:\d{2}/gi,'').replace(/\b\d+H(?:\s+NET)?\b/gi,'').replace(/\bNET\b/gi,'').replace(/\[\d{3}\]/g,'').replace(/\s+/g,' ').slice(0,220);}
   function visualKey(block){return trackFromBlock(block)+'||'+normalizeText(block&&block.textContent||'');}
   function stableKey(block){var track=trackFromBlock(block), sample=sampleFromBlock(block);return track&&sample ? track+'||'+sample : '';}
   function keysFor(block){var ds=block&&block.dataset||{}, out=[];[ds.currentEditKey, stableKey(block), visualKey(block)].forEach(function(k){k=clean(k);if(k&&out.indexOf(k)<0)out.push(k);});return out;}
+  function isSuppressed(block){
+    var s=loadSuppressions(), ds=block&&block.dataset||{}, track=trackFromBlock(block).slice(-3), sample=sampleFromBlock(block), group=clean(ds.bowlGroupKey||'');
+    if(globalClearActive()){
+      var label=clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||block.textContent).toUpperCase()
+        .replace(/^\d[\d,]*\s*\|\s*/,'')
+        .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+        .replace(/\bNET\b/g,'')
+        .replace(/\[[^\]]+\]/g,'')
+        .replace(/\s+/g,' ')
+        .trim();
+      if(label!=='SS') return true;
+    }
+    if(group && s['group||'+group]) return true;
+    if(group && sample && s['group-sample||'+group+'||'+sample]) return true;
+    if(track && sample && s['sample||'+track+'||'+sample]) return true;
+    return keysFor(block).some(function(k){return !!s[k];});
+  }
+  function clearSuppressedVisible(block){
+    if(!block) return;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','ssHoursLabel'].forEach(function(k){try{block.dataset[k]='';}catch(e){}});
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete block.dataset.missingSsStart;
+    block.dataset.missingSsStartAuthority='0';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){el.remove();});
+  }
   function editTime(edit){var t=Date.parse(clean(edit&&edit.updatedAt||''));return Number.isFinite(t)?t:0;}
   function findEdit(block, edits){
     var found=null, foundKey='', foundTime=-1;
@@ -57100,6 +58796,13 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var edits=load(), changed=false;
     document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
       if(block.querySelector('.manual-tag')) return;
+      if(isSuppressed(block)){
+        keysFor(block).forEach(function(k){
+          if(edits[k]){delete edits[k];changed=true;}
+        });
+        clearSuppressedVisible(block);
+        return;
+      }
       var found=findEdit(block,edits);
       if(!found.edit) return;
       var stable=stableKey(block);
@@ -58702,5 +60405,184 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   html body .bowl-outbound-track-table td.bowl-delta{
     font-size:14px!important;
     font-weight:900!important;
+  }
+</style>
+
+<style id="resolve-ss-bulk-confirm-highlight-ultimate-css">
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+    grid-template-columns:minmax(94px,126px) minmax(0,1fr) 96px!important;
+    grid-template-areas:
+      "car match action"
+      "start start action"
+      "end end action"
+      "lines lines action"!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-lines{
+    grid-area:lines!important;
+    display:flex!important;
+    flex-direction:column!important;
+    gap:4px!important;
+    min-width:0!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline{
+    display:flex!important;
+    align-items:center!important;
+    gap:6px!important;
+    min-width:0!important;
+    border-radius:7px!important;
+    background:rgba(2,6,23,.74)!important;
+    padding:4px 6px!important;
+    color:#94a3b8!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:9px!important;
+    font-weight:900!important;
+    letter-spacing:.35px!important;
+    overflow:hidden!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start{border:1px solid rgba(34,197,94,.26)!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end{border:1px solid rgba(96,165,250,.28)!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.missing{border:1px solid rgba(248,113,113,.22)!important;color:#fca5a5!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-event,
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-time{
+    flex:0 0 auto!important;
+    border-radius:999px!important;
+    padding:2px 7px!important;
+    background:#020617!important;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.34)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-event{
+    color:#fef3c7!important;
+    box-shadow:inset 0 0 0 1px rgba(251,191,36,.38)!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.start .rss-bulk-hit-time{color:#bbf7d0!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hitline.end .rss-bulk-hit-time{color:#bfdbfe!important;}
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-hit-raw{
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    opacity:.78!important;
+  }
+  html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+    width:96px!important;
+    min-width:96px!important;
+  }
+  @media (max-width:700px){
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-row{
+      grid-template-columns:1fr 92px!important;
+      grid-template-areas:
+        "car action"
+        "match action"
+        "start action"
+        "end action"
+        "lines lines"!important;
+    }
+    html body #resolve-ss-modal[data-resolve-mode="bulk"] .rss-bulk-confirm{
+      width:92px!important;
+      min-width:92px!important;
+    }
+  }
+</style>
+
+<script id="current-ramp-clear-non-ss-eof-authority-js">
+(function(){
+  'use strict';
+  if(window.__currentRampClearNonSsEofAuthorityInstalled) return;
+  window.__currentRampClearNonSsEofAuthorityInstalled = true;
+  var GLOBAL_KEY='dwellCurrentRampClearNonExactSsStartsV1';
+  var LEGACY_KEY='dwellCurrentRampNonSsSsStartSuppressionsV1';
+  function clean(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
+  function active(){
+    try{
+      if(localStorage.getItem(GLOBAL_KEY)==='1') return true;
+      var old=JSON.parse(localStorage.getItem(LEGACY_KEY)||'{}')||{};
+      if(Object.keys(old).length){localStorage.setItem(GLOBAL_KEY,'1');return true;}
+    }catch(e){}
+    return false;
+  }
+  function on(){
+    try{localStorage.setItem(GLOBAL_KEY,'1');}catch(e){}
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+  }
+  function label(block){
+    var ds=block&&block.dataset||{};
+    var explicit=clean(ds.sourceBlockLabel||ds.currentBlockType||ds.afterStatus||ds.afterBlockType||'');
+    if(explicit) return explicit;
+    var clone=block.cloneNode(true);
+    Array.prototype.slice.call(clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.bowl-oldest-flag,.manual-tag,.future-inbound-tag,.future-shove-badge,[data-current-display-track-label]')).forEach(function(el){el.remove();});
+    return clean(clone.textContent).replace(/^\d[\d,]*\s*\|\s*/,'');
+  }
+  function exactSS(block){
+    var s=clean(label(block)).toUpperCase().replace(/^\d[\d,]*\s*\|\s*/,'').replace(/\b\d+H(?:\s+NET)?\b/g,'').replace(/\bNET\b/g,'').replace(/\[[^\]]+\]/g,'').replace(/\bIHOSA\d?\b/g,'').replace(/\bMHOAS\d?\b/g,'').replace(/\s+/g,' ').trim();
+    return s==='SS';
+  }
+  function blocks(){
+    return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block,#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap .bowl-block'));
+  }
+  function scrub(block){
+    if(!block||exactSS(block)) return;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel','missingSsStart'].forEach(function(k){if(block.dataset) block.dataset[k]='';});
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    if(block.dataset) block.dataset.missingSsStartAuthority='0';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){el.remove();});
+  }
+  function purge(){
+    var groups={}, samples={};
+    blocks().forEach(function(block){
+      if(exactSS(block)) return;
+      var ds=block.dataset||{};
+      var g=clean(ds.bowlGroupKey||'');
+      var s=clean(ds.sampleCar||ds.sampleEquipId||ds.equipId||ds.equipmentId||ds.carId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(g) groups[g]=true;
+      if(s) samples[s]=true;
+    });
+    try{
+      var manual=JSON.parse(localStorage.getItem('dwellManualSSStoreV1')||'{}')||{}, mChanged=false;
+      Object.keys(groups).forEach(function(g){if(manual[g]){delete manual[g];mChanged=true;}try{if(typeof ssStore==='object'&&ssStore&&ssStore[g]) ssStore[g]={start:null,end:null,autoDetected:false};}catch(e){}});
+      if(mChanged) localStorage.setItem('dwellManualSSStoreV1',JSON.stringify(manual));
+      try{if(mChanged&&typeof saveManualSSStore==='function') saveManualSSStore();}catch(e){}
+    }catch(e){}
+    try{
+      var edits=JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')||{}, changed=false, sampleList=Object.keys(samples);
+      Object.keys(edits).forEach(function(k){
+        var e=edits[k]||{};
+        var has=clean(e.ssStart||e.currentSsStart||e.ssStartTime||e.ssEnd||e.currentSsEnd||e.ssEndTime||e.dwell);
+        var s=clean(e.sampleCar||e.equipId||e.equipmentId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(has&&((s&&samples[s])||sampleList.some(function(x){return k.toUpperCase().indexOf(x)>=0;}))){delete edits[k];changed=true;}
+      });
+      if(changed) localStorage.setItem('dwellCurrentBoardBlockEditsV2',JSON.stringify(edits));
+    }catch(e){}
+  }
+  function apply(){
+    if(!active()) return;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    blocks().forEach(scrub);
+    purge();
+  }
+  function schedule(){
+    clearTimeout(window.__currentRampClearNonSsEofTimer);
+    window.__currentRampClearNonSsEofTimer=setTimeout(apply,5);
+    setTimeout(apply,60);
+    setTimeout(apply,200);
+  }
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      on();
+      schedule();
+      setTimeout(function(){try{if(typeof renderOB==='function') renderOB();}catch(err){}schedule();},25);
+    }
+  },true);
+  try{new MutationObserver(function(){if(active()) schedule();}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  setInterval(function(){if(active()) apply();},100);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule,{once:true}); else schedule();
+  window.addEventListener('load',schedule,{once:true});
+})();
+</script>
+
+<style id="current-ramp-clear-non-ss-eof-authority-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) [data-ss-hours-in-ss]{
+    display:none!important;
   }
 </style>
