@@ -6733,6 +6733,38 @@ td.bowl-current,
   font-family:var(--mono);font-size:12px;outline:none;
 }
 .manual-after-field select{cursor:pointer;color-scheme:dark;}
+.future-inbound-rollup-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 86px;
+  gap:8px;
+  align-items:center;
+}
+#future-inbound-rollup-select option{
+  background:#ffffff!important;
+  color:#111827!important;
+  font-family:var(--mono,monospace)!important;
+  font-size:12px!important;
+  font-weight:800!important;
+}
+.future-inbound-rollup-load{
+  height:40px;
+  border-radius:10px;
+  border:1px solid rgba(34,197,94,.45);
+  background:linear-gradient(180deg,rgba(22,163,74,.72),rgba(21,128,61,.62));
+  color:#ecfdf5;
+  font-family:var(--mono);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  cursor:pointer;
+  box-shadow:0 0 16px rgba(34,197,94,.16), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.future-inbound-rollup-load:hover{
+  border-color:#86efac;
+  background:linear-gradient(180deg,rgba(34,197,94,.82),rgba(22,101,52,.70));
+  color:#fff;
+}
 .manual-after-field input:focus,.manual-after-field select:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.14);}
 .manual-after-field input[readonly]{
   cursor:not-allowed;
@@ -33102,6 +33134,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       .sort(function(a,b){ return a.sort-b.sort || String(a.train).localeCompare(String(b.train)); });
   }
   function populateFutureInboundRollupSelect(modal){
+    if(window.__futureInboundRollupPopulateFinal){
+      window.__futureInboundRollupPopulateFinal(modal);
+      return;
+    }
     const select=modal && modal.querySelector('#future-inbound-rollup-select');
     if(!select) return;
     const options=loadFutureInboundRollupOptions();
@@ -33118,6 +33154,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   function applyFutureInboundRollupSelection(modal){
     modal=modal || document.getElementById('future-inbound-modal');
     const select=modal && modal.querySelector('#future-inbound-rollup-select');
+    if(window.__futureInboundRollupApplyFinal && select){
+      window.__futureInboundRollupApplyFinal(select);
+      return;
+    }
     if(!select || select.value==='') return;
     const opt=(window.__futureInboundRollupOptions||[])[Number(select.value)];
     if(!opt) return;
@@ -33173,7 +33213,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         <div class="manual-after-body">
           <div class="manual-after-help">Enter the inbound total footage, future block, arrival, and landing tracks. The app fills each track in selected order and creates overflow blocks like <b>1,750 | ZLBHO 22 IHOSA 16.9H [1]</b>.</div>
           <div id="future-inbound-post-consist"><div class="future-inbound-post-head"><span>POST OUTBOUND CONSIST</span><span class="future-inbound-post-sub">reference only - use this to choose landing tracks</span></div><div class="future-inbound-post-body" id="future-inbound-post-body"><div class="future-inbound-post-empty">Open the Outbound page once if no consist appears here.</div></div></div>
-          <div class="manual-after-field full"><label>Select From Daily Rollup</label><select id="future-inbound-rollup-select"><option value="">Manual entry / do not autofill</option></select></div>
+          <div class="manual-after-field full"><label>Select From Daily Rollup</label><div class="future-inbound-rollup-row"><select id="future-inbound-rollup-select" onchange="window.__futureInboundRollupApplyFinal&&window.__futureInboundRollupApplyFinal(this)" oninput="window.__futureInboundRollupApplyFinal&&window.__futureInboundRollupApplyFinal(this)"><option value="">Manual entry / do not autofill</option></select><button class="future-inbound-rollup-load" type="button" id="future-inbound-rollup-load">LOAD</button></div></div>
           <div class="manual-after-field"><label>Inbound Train</label><input id="future-inbound-train" placeholder="ZLBHO 22"></div>
           <div class="manual-after-field"><label>Total Footage</label><input id="future-inbound-ft" inputmode="numeric" placeholder="6500"></div>
           <div class="manual-after-field"><label>Future Block</label><select id="future-inbound-block"><option value="" selected>-</option><option value="SS">SS</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option></select></div>
@@ -33232,6 +33272,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
     const rollupSelect=modal.querySelector('#future-inbound-rollup-select');
     if(rollupSelect) rollupSelect.addEventListener('change', function(){ applyFutureInboundRollupSelection(modal); });
+    const rollupLoad=modal.querySelector('#future-inbound-rollup-load');
+    if(rollupLoad) rollupLoad.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      populateFutureInboundRollupSelect(modal);
+      applyFutureInboundRollupSelection(modal);
+    });
     const postToggle=modal.querySelector('#future-inbound-post-toggle');
     if(postToggle) postToggle.addEventListener('click', function(e){
       e.preventDefault(); e.stopPropagation();
@@ -62532,5 +62579,255 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   }
 
   window.openDwellInspector = open;
+})();
+</script>
+
+<script id="future-inbound-rollup-select-final-js">
+(function(){
+  'use strict';
+  if(window.__futureInboundRollupSelectFinalInstalled) return;
+  window.__futureInboundRollupSelectFinalInstalled = true;
+  var STORAGE_KEY = 'inbound-summary-app-v1';
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function num(v){
+    var m = String(v == null ? '' : v).replace(/,/g,'').match(/-?\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) || 0 : 0;
+  }
+  function esc(v){
+    return clean(v).replace(/[&<>"]/g,function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];
+    });
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function parseDate(raw){
+    raw = clean(raw);
+    if(!raw) return null;
+    var direct = new Date(raw);
+    if(!Number.isNaN(direct.getTime())) return direct;
+    var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})/);
+    if(iso){
+      var id = new Date(Number(iso[1]), Number(iso[2])-1, Number(iso[3]), Number(iso[4]), Number(iso[5]));
+      return Number.isNaN(id.getTime()) ? null : id;
+    }
+    var m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s*,?\s+(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
+    if(!m) return null;
+    var month = Number(m[1]);
+    var day = Number(m[2]);
+    var year = Number(m[3]);
+    var hour = Number(m[4] || 0);
+    var minute = Number(m[5] || 0);
+    var ap = clean(m[6]).toUpperCase();
+    if(year < 100) year += 2000;
+    if(ap === 'PM' && hour < 12) hour += 12;
+    if(ap === 'AM' && hour === 12) hour = 0;
+    var parsed = new Date(year, month-1, day, hour, minute);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  function toLocalInput(raw){
+    var d = parseDate(raw);
+    if(!d) return '';
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function rowsOf(t){
+    if(!t) return [];
+    return Array.isArray(t.rows) ? t.rows :
+      (Array.isArray(t.blocks) ? t.blocks :
+      (Array.isArray(t.cars) ? t.cars : []));
+  }
+  function rowFeet(row){
+    return num(row && (row.ft || row.footage || row.length || row.feet || row.totalFt || row.totalFootage));
+  }
+  function totalFeet(t){
+    var direct = num(t && (t.totalFootage || t.totalFt || t.ft || t.footage || t.length || t.feet));
+    if(direct) return direct;
+    return rowsOf(t).reduce(function(sum,row){ return sum + rowFeet(row); }, 0);
+  }
+  function readTrain(t){
+    return clean(t && (t.train || t.name || t.symbol || t.inbound || t.trainId || t.inboundTrain)).toUpperCase();
+  }
+  function readDateTime(t){
+    return clean(t && (t.dateTime || t.arrival || t.arrivalTime || t.datetime || t.date || t.eta));
+  }
+  function normalize(t, source, index){
+    var dt = readDateTime(t);
+    var parsed = parseDate(dt);
+    return {
+      idx:index || 0,
+      source:source || '',
+      train:readTrain(t),
+      dateTime:dt,
+      arrivalLocal:toLocalInput(dt),
+      totalFootage:totalFeet(t),
+      sort:parsed ? parsed.getTime() : Number.MAX_SAFE_INTEGER
+    };
+  }
+  function arrayFromSaved(raw){
+    if(Array.isArray(raw)) return raw;
+    if(raw && Array.isArray(raw.trains)) return raw.trains;
+    if(raw && Array.isArray(raw.items)) return raw.items;
+    if(raw && Array.isArray(raw.data)) return raw.data;
+    return [];
+  }
+  function collectSaved(){
+    try{ return arrayFromSaved(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
+    catch(e){ return []; }
+  }
+  function collectGlobals(){
+    var out = [];
+    try{ if(Array.isArray(window.trains)) out = out.concat(window.trains); }catch(e){}
+    try{ if(window.inboundSummaryState && Array.isArray(window.inboundSummaryState.trains)) out = out.concat(window.inboundSummaryState.trains); }catch(e){}
+    try{
+      var frame = document.getElementById('inbound-page-frame');
+      var fw = frame && frame.contentWindow;
+      if(fw && Array.isArray(fw.trains)) out = out.concat(fw.trains);
+      if(fw && fw.inboundSummaryState && Array.isArray(fw.inboundSummaryState.trains)) out = out.concat(fw.inboundSummaryState.trains);
+    }catch(e){}
+    return out;
+  }
+  function collectVisibleRows(){
+    var out = [];
+    function scan(doc){
+      if(!doc || !doc.querySelectorAll) return;
+      Array.prototype.forEach.call(doc.querySelectorAll('.rollup-table tbody tr'), function(tr){
+        var train = clean((tr.querySelector('.rollup-train-symbol') || tr.querySelector('.inbound-cell') || {}).textContent).toUpperCase();
+        var dateTime = clean((tr.querySelector('.arrival-cell') || {}).textContent);
+        var totalFootage = num((tr.querySelector('.ft-cell-rollup') || {}).textContent);
+        if(train || dateTime || totalFootage) out.push({train:train, dateTime:dateTime, totalFootage:totalFootage});
+      });
+    }
+    try{ scan(document); }catch(e){}
+    try{
+      var frame = document.getElementById('inbound-page-frame');
+      if(frame && frame.contentDocument) scan(frame.contentDocument);
+    }catch(e){}
+    return out;
+  }
+  function loadOptions(){
+    var all = [];
+    collectSaved().forEach(function(t,i){ all.push(normalize(t,'saved',i)); });
+    collectGlobals().forEach(function(t,i){ all.push(normalize(t,'live',i)); });
+    collectVisibleRows().forEach(function(t,i){ all.push(normalize(t,'visible-rollup',i)); });
+    var seen = Object.create(null);
+    return all.filter(function(o){
+      if(!o.train && !o.dateTime && !o.totalFootage) return false;
+      var key = [o.train, o.dateTime, Math.round(o.totalFootage || 0)].join('|');
+      if(seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).sort(function(a,b){
+      return a.sort - b.sort || String(a.train).localeCompare(String(b.train));
+    });
+  }
+  function optionLabel(o){
+    var ft = o.totalFootage ? Math.round(o.totalFootage).toLocaleString() + ' FT' : 'NO FT';
+    return (o.train || 'UNNAMED INBOUND') + ' - ' + (o.dateTime || 'NO ARRIVAL') + ' - ' + ft;
+  }
+  function populate(modal){
+    modal = modal || document.getElementById('future-inbound-modal');
+    var select = modal && modal.querySelector('#future-inbound-rollup-select');
+    if(!select) return;
+    if(select.dataset.rollupSelecting === '1') return;
+    var options = loadOptions();
+    window.__futureInboundRollupOptions = options;
+    if(!options.length){
+      select.innerHTML = '<option value="">No Daily Rollup inbounds found</option>';
+      select.disabled = true;
+      return;
+    }
+    select.disabled = false;
+    select.innerHTML = '<option value="">Manual entry / do not autofill</option>' + options.map(function(o,i){
+      return '<option value="'+i+'" data-rollup-payload="'+esc(JSON.stringify(o))+'">'+esc(optionLabel(o))+'</option>';
+    }).join('');
+  }
+  function fire(el, type){
+    if(!el) return;
+    try{ el.dispatchEvent(new Event(type, {bubbles:true})); }catch(e){}
+  }
+  function apply(select){
+    if(!select || select.value === '') return;
+    var option = select.options[select.selectedIndex];
+    var payload = null;
+    try{ payload = option && option.dataset.rollupPayload ? JSON.parse(option.dataset.rollupPayload) : null; }catch(e){}
+    if(!payload) payload = (window.__futureInboundRollupOptions || [])[Number(select.value)];
+    if(!payload) return;
+    var modal = select.closest('#future-inbound-modal') || document;
+    var trainEl = modal.querySelector('#future-inbound-train') || document.getElementById('future-inbound-train');
+    var ftEl = modal.querySelector('#future-inbound-ft') || document.getElementById('future-inbound-ft');
+    var arrivalEl = modal.querySelector('#future-inbound-arrival') || document.getElementById('future-inbound-arrival');
+    if(trainEl) trainEl.value = payload.train || '';
+    if(ftEl) ftEl.value = payload.totalFootage ? String(Math.round(payload.totalFootage)) : '';
+    if(arrivalEl) arrivalEl.value = payload.arrivalLocal || toLocalInput(payload.dateTime || '');
+    [trainEl, ftEl, arrivalEl].forEach(function(el){ fire(el,'input'); fire(el,'change'); });
+    try{
+      if(typeof window.toastManual === 'function') window.toastManual('Loaded '+(payload.train || 'inbound')+' from Daily Rollup');
+    }catch(e){}
+  }
+  function install(modal){
+    populate(modal || document.getElementById('future-inbound-modal'));
+  }
+  function refreshForSelect(select){
+    if(!select) return;
+    select.dataset.rollupSelecting = '1';
+    var oldValue = select.value;
+    delete select.dataset.rollupSelecting;
+    populate(select.closest('#future-inbound-modal') || document.getElementById('future-inbound-modal'));
+    if(oldValue !== '' && select.options[oldValue]) select.value = oldValue;
+  }
+  function wrapOpen(){
+    var fn = window.openFutureInboundModal;
+    if(typeof fn !== 'function' || fn.__futureInboundRollupSelectFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      setTimeout(function(){ install(document.getElementById('future-inbound-modal')); }, 0);
+      setTimeout(function(){ install(document.getElementById('future-inbound-modal')); }, 120);
+      return result;
+    };
+    wrapped.__futureInboundRollupSelectFinalWrapped = true;
+    window.openFutureInboundModal = wrapped;
+  }
+  document.addEventListener('change', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select) apply(select);
+  }, true);
+  document.addEventListener('input', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select) apply(select);
+  }, true);
+  document.addEventListener('focusin', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select && select.options.length <= 1) populate(select.closest('#future-inbound-modal') || document.getElementById('future-inbound-modal'));
+  }, true);
+  ['keyup'].forEach(function(type){
+    document.addEventListener(type, function(e){
+      var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+      if(!select) return;
+      setTimeout(function(){ apply(select); }, 0);
+      setTimeout(function(){ apply(select); }, 80);
+    }, true);
+  });
+  document.addEventListener('click', function(e){
+    var loadBtn = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-load');
+    if(loadBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      var modal = loadBtn.closest('#future-inbound-modal') || document.getElementById('future-inbound-modal');
+      var select = modal && modal.querySelector('#future-inbound-rollup-select');
+      if(select && select.options.length <= 1) populate(modal);
+      if(select) apply(select);
+      return;
+    }
+    if(e.target && e.target.closest && e.target.closest('[data-future-inbound-add],.bowl-future-inbound-btn')){
+      setTimeout(function(){ wrapOpen(); install(document.getElementById('future-inbound-modal')); }, 0);
+      setTimeout(function(){ install(document.getElementById('future-inbound-modal')); }, 180);
+    }
+  }, true);
+  wrapOpen();
+  window.__futureInboundRollupLoadOptionsFinal = loadOptions;
+  window.__futureInboundRollupPopulateFinal = populate;
+  window.__futureInboundRollupApplyFinal = apply;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ wrapOpen(); install(); }, {once:true});
+  else setTimeout(function(){ wrapOpen(); install(); }, 0);
+  window.addEventListener('load', function(){ wrapOpen(); install(); }, {once:true});
 })();
 </script>
