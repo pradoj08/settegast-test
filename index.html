@@ -2258,6 +2258,14 @@
   html body .bowl-next-day-title .bowl-next-day-delete[hidden]{
     display:none!important;
   }
+  html body #tab-outbound .bowl-next-day-title .bowl-next-day-delete:disabled,
+  html body #tab-outbound .bowl-next-day-title .bowl-next-day-delete.is-disabled,
+  html body .bowl-next-day-title .bowl-next-day-delete:disabled,
+  html body .bowl-next-day-title .bowl-next-day-delete.is-disabled{
+    opacity:.58!important;
+    cursor:not-allowed!important;
+    filter:saturate(.72)!important;
+  }
 </style>
 <script id="next-day-header-actions-future-toggle-fix-js">
 (function(){
@@ -2301,6 +2309,12 @@
   function setHiddenStable(btn, hidden){
     if(btn && btn.hidden !== !!hidden) btn.hidden = !!hidden;
   }
+  function setDeleteReady(btn, ready){
+    if(!btn) return;
+    setHiddenStable(btn, false);
+    btn.disabled = !ready;
+    btn.classList.toggle('is-disabled', !ready);
+  }
   function ensure(){
     var title = nextTitle();
     if(!title) return;
@@ -2333,15 +2347,15 @@
     }
 
     var del = actions.querySelector('[data-next-day-delete-selected]');
+    var hasSelected = !!document.querySelector('.bowl-board-next-day .bowl-block.next-day-selected');
     if(!del){
-      del = makeButton('bowl-next-day-delete', 'data-next-day-delete-selected', 'DELETE BLOCKS');
-      del.hidden = true;
+      del = makeButton('bowl-next-day-delete', 'data-next-day-delete-selected', 'DELETE SELECTED BLOCK(S)');
       actions.appendChild(del);
     }else{
       scrubFutureToggleAttrs(del);
-      setButtonText(del, 'DELETE BLOCKS');
-      if(!document.querySelector('.bowl-board-next-day .bowl-block.next-day-selected')) setHiddenStable(del, true);
+      setButtonText(del, 'DELETE SELECTED BLOCK(S)');
     }
+    setDeleteReady(del, hasSelected);
   }
   function schedule(){
     wrapRenders();
@@ -8345,8 +8359,8 @@ td.bowl-current,
   align-items:center;
 }
 #future-inbound-rollup-select option{
-  background:#ffffff!important;
-  color:#111827!important;
+  background:#0f172a!important;
+  color:#f8fafc!important;
   font-family:var(--mono,monospace)!important;
   font-size:12px!important;
   font-weight:800!important;
@@ -51365,7 +51379,12 @@ table.bowl-board td.bowl-delta.good{
     var title=board&&board.previousElementSibling;
     var del=title&&title.querySelector&&title.querySelector('[data-next-day-delete-selected]');
     if(!del) del=document.querySelector('.bowl-next-day-title [data-next-day-delete-selected]');
-    if(del) del.hidden=!board || !board.querySelector('.bowl-block.next-day-selected');
+    if(del){
+      var hasSelected=!!(board && board.querySelector('.bowl-block.next-day-selected'));
+      del.hidden=false;
+      del.disabled=!hasSelected;
+      del.classList.toggle('is-disabled', !hasSelected);
+    }
   }
   function removeMarker(){
     if(insertMarker) insertMarker.remove();
@@ -51625,6 +51644,12 @@ table.bowl-board td.bowl-delta.good{
   .bowl-next-day-delete[hidden]{
     display:none!important;
   }
+  .bowl-next-day-delete:disabled,
+  .bowl-next-day-delete.is-disabled{
+    opacity:.58!important;
+    cursor:not-allowed!important;
+    filter:saturate(.72)!important;
+  }
   .bowl-board-next-day .bowl-block{
     cursor:pointer!important;
     user-select:none!important;
@@ -51853,14 +51878,20 @@ table.bowl-board td.bowl-delta.good{
       del.type='button';
       del.className='bowl-next-day-btn bowl-next-day-delete';
       del.dataset.nextDayDeleteSelected='1';
-      del.textContent='DELETE BLOCKS';
-      del.hidden=true;
+      del.textContent='DELETE SELECTED BLOCK(S)';
       actions.appendChild(del);
     }else{
       var delExisting=actions.querySelector('[data-next-day-delete-selected]');
       setStableClass(delExisting,'bowl-next-day-btn bowl-next-day-delete');
-      setStableText(delExisting,'DELETE BLOCKS');
+      setStableText(delExisting,'DELETE SELECTED BLOCK(S)');
     }
+    var clearBtn=actions.querySelector('[data-next-day-clear-table]');
+    var copyBtn=actions.querySelector('[data-next-day-copy-post]');
+    var delBtn=actions.querySelector('[data-next-day-delete-selected]');
+    var futureBtn=actions.querySelector('[data-next-day-future-inbound]');
+    [clearBtn,copyBtn,delBtn,futureBtn].forEach(function(btn){
+      if(btn && btn.parentElement===actions) actions.appendChild(btn);
+    });
   }
   function updateDeleteButton(table){
     table=table||nextBoard();
@@ -51868,7 +51899,10 @@ table.bowl-board td.bowl-delta.good{
     var del=title&&title.querySelector&&title.querySelector('[data-next-day-delete-selected]');
     if(!del) del=document.querySelector('.bowl-next-day-title [data-next-day-delete-selected]');
     if(!del) return;
-    setStableHidden(del, !table || !table.querySelector('.bowl-block.next-day-selected'));
+    var hasSelected=!!(table && table.querySelector('.bowl-block.next-day-selected'));
+    setStableHidden(del, false);
+    del.disabled=!hasSelected;
+    del.classList.toggle('is-disabled', !hasSelected);
   }
   function sync(){
     var table=nextBoard();
@@ -65583,6 +65617,196 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ wrapOpen(); install(); }, {once:true});
   else setTimeout(function(){ wrapOpen(); install(); }, 0);
   window.addEventListener('load', function(){ wrapOpen(); install(); }, {once:true});
+})();
+</script>
+
+<style id="future-inbound-rollup-custom-menu-fix-css">
+  #future-inbound-rollup-select{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    cursor:pointer!important;
+  }
+  .future-inbound-rollup-menu{
+    position:fixed!important;
+    z-index:2147483647!important;
+    display:flex!important;
+    flex-direction:column!important;
+    gap:4px!important;
+    max-height:276px!important;
+    overflow:auto!important;
+    padding:6px!important;
+    border:1px solid rgba(96,165,250,.62)!important;
+    border-radius:10px!important;
+    background:linear-gradient(180deg,rgba(15,23,42,.99),rgba(2,6,23,.99))!important;
+    box-shadow:0 20px 42px rgba(0,0,0,.58),0 0 0 1px rgba(255,255,255,.04) inset!important;
+    color:#f8fafc!important;
+    font-family:var(--mono,monospace)!important;
+  }
+  .future-inbound-rollup-menu button{
+    appearance:none!important;
+    -webkit-appearance:none!important;
+    width:100%!important;
+    min-height:34px!important;
+    padding:8px 10px!important;
+    border:1px solid rgba(148,163,184,.18)!important;
+    border-radius:8px!important;
+    background:rgba(15,23,42,.88)!important;
+    color:#e2e8f0!important;
+    font-family:var(--mono,monospace)!important;
+    font-size:11px!important;
+    font-weight:900!important;
+    line-height:1.25!important;
+    text-align:left!important;
+    white-space:normal!important;
+    cursor:pointer!important;
+  }
+  .future-inbound-rollup-menu button:hover,
+  .future-inbound-rollup-menu button:focus,
+  .future-inbound-rollup-menu button.active{
+    border-color:rgba(96,165,250,.64)!important;
+    background:rgba(30,64,175,.52)!important;
+    color:#ffffff!important;
+    outline:none!important;
+  }
+  .future-inbound-rollup-menu button:disabled{
+    opacity:.58!important;
+    cursor:not-allowed!important;
+  }
+</style>
+<script id="future-inbound-rollup-custom-menu-fix-js">
+(function(){
+  'use strict';
+  if(window.__futureInboundRollupCustomMenuFixInstalled) return;
+  window.__futureInboundRollupCustomMenuFixInstalled = true;
+
+  var menu = null;
+  var activeSelect = null;
+
+  function closeMenu(){
+    if(menu && menu.parentNode) menu.parentNode.removeChild(menu);
+    menu = null;
+    activeSelect = null;
+    document.body && document.body.classList.remove('future-inbound-rollup-menu-open');
+  }
+  function fire(el, type){
+    try{ el.dispatchEvent(new Event(type, {bubbles:true})); }catch(e){}
+  }
+  function ensureOptions(select){
+    if(!select) return;
+    if(select.options.length <= 1 && typeof window.__futureInboundRollupPopulateFinal === 'function'){
+      window.__futureInboundRollupPopulateFinal(select.closest('#future-inbound-modal') || document.getElementById('future-inbound-modal'));
+    }
+  }
+  function placeMenu(select){
+    if(!menu || !select) return;
+    var rect = select.getBoundingClientRect();
+    var width = Math.max(260, Math.round(rect.width || 260));
+    menu.style.width = width + 'px';
+    menu.style.left = Math.max(8, Math.round(rect.left)) + 'px';
+    var top = Math.round(rect.bottom + 5);
+    menu.style.top = top + 'px';
+    var maxBottom = window.innerHeight - 10;
+    var bottom = top + (menu.offsetHeight || 276);
+    if(bottom > maxBottom){
+      menu.style.top = Math.max(8, Math.round(rect.top - (menu.offsetHeight || 276) - 5)) + 'px';
+    }
+  }
+  function choose(select, value){
+    if(!select) return;
+    select.value = value;
+    closeMenu();
+    if(value !== '' && typeof window.__futureInboundRollupApplyFinal === 'function'){
+      window.__futureInboundRollupApplyFinal(select);
+    }
+  }
+  function openMenu(select){
+    if(!select || select.disabled) return;
+    ensureOptions(select);
+    closeMenu();
+    activeSelect = select;
+    menu = document.createElement('div');
+    menu.className = 'future-inbound-rollup-menu';
+    menu.setAttribute('role','listbox');
+    menu.setAttribute('aria-label','Daily Rollup inbound options');
+    Array.prototype.slice.call(select.options).forEach(function(option){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = option.textContent || option.label || 'Inbound option';
+      btn.dataset.value = option.value;
+      btn.disabled = !!option.disabled;
+      btn.classList.toggle('active', option.value === select.value);
+      btn.setAttribute('role','option');
+      btn.setAttribute('aria-selected', option.value === select.value ? 'true' : 'false');
+      btn.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        if(!btn.disabled) choose(select, btn.dataset.value || '');
+      });
+      menu.appendChild(btn);
+    });
+    document.body.appendChild(menu);
+    document.body.classList.add('future-inbound-rollup-menu-open');
+    placeMenu(select);
+    var active = menu.querySelector('button.active') || menu.querySelector('button:not(:disabled)');
+    if(active) active.focus({preventScroll:true});
+  }
+  function toggleSelect(select){
+    if(menu && activeSelect === select) closeMenu();
+    else openMenu(select);
+  }
+
+  document.addEventListener('pointerdown', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select){
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      toggleSelect(select);
+      return false;
+    }
+    if(menu && !(e.target && e.target.closest && e.target.closest('.future-inbound-rollup-menu'))) closeMenu();
+  }, true);
+  document.addEventListener('click', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select){
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    }
+  }, true);
+  document.addEventListener('keydown', function(e){
+    var select = e.target && e.target.closest && e.target.closest('#future-inbound-rollup-select');
+    if(select && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown')){
+      e.preventDefault();
+      e.stopPropagation();
+      openMenu(select);
+      return false;
+    }
+    if(!menu) return;
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      var priorSelect = activeSelect;
+      closeMenu();
+      if(priorSelect) priorSelect.focus({preventScroll:true});
+      return;
+    }
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      var buttons = Array.prototype.slice.call(menu.querySelectorAll('button:not(:disabled)'));
+      if(!buttons.length) return;
+      var index = Math.max(0, buttons.indexOf(document.activeElement));
+      index = e.key === 'ArrowDown' ? Math.min(buttons.length - 1, index + 1) : Math.max(0, index - 1);
+      buttons[index].focus({preventScroll:true});
+      return;
+    }
+    if(e.key === 'Enter' && document.activeElement && document.activeElement.closest && document.activeElement.closest('.future-inbound-rollup-menu')){
+      e.preventDefault();
+      document.activeElement.click();
+    }
+  }, true);
+  window.addEventListener('resize', closeMenu);
+  window.addEventListener('scroll', closeMenu, true);
 })();
 </script>
 
