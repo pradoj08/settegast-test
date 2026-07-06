@@ -31,6 +31,1042 @@
   })();
 </script>
 
+<script id="resolve-ss-ihosa-tag-edit-lock-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsIhosaTagEditLockFinalInstalled) return;
+  window.__resolveSsIhosaTagEditLockFinalInstalled = true;
+
+  var EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var BACKUP_STORE = 'dwellResolveSsProtectedRecordsV1';
+  var lockUntil = 0;
+  var restoring = false;
+  var nativeSetItem = Storage.prototype.setItem;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function normCar(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function normTrack(v){ var m = clean(v).match(/(?:06-)?(\d{3})/); return m ? m[1].slice(-3) : clean(v).replace(/\D/g,'').slice(-3); }
+  function load(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function saveRaw(key, value){ try{ nativeSetItem.call(localStorage, key, JSON.stringify(value || {})); }catch(e){} }
+  function now(){ return Date.now(); }
+  function protectedActive(){ return now() < lockUntil; }
+  function lastAction(){
+    try{
+      if(typeof window.__dwellSsTimingLastAction === 'function') return window.__dwellSsTimingLastAction() || {};
+      return JSON.parse(localStorage.getItem('dwellSsTimingLastActionV1') || '{}') || {};
+    }catch(e){ return {}; }
+  }
+  function clearWins(){
+    var a = lastAction();
+    return clean(a.action) === 'clear-non-ss';
+  }
+  function recordStart(rec){ return clean(rec && (rec.ssStart || rec.currentSsStart || rec.ssStartTime)); }
+  function recordEnd(rec){ return clean(rec && (rec.ssEnd || rec.currentSsEnd || rec.ssEndTime)); }
+  function recordKey(key, rec){
+    rec = rec || {};
+    var k = clean(key || rec.key || rec.blockId || '');
+    var trk = normTrack(rec.track || (k.split('||')[0] || ''));
+    var sample = normCar(rec.sampleCar || rec.sampleEquipId || rec.equipId || rec.equipmentId || (k.split('||')[1] || ''));
+    if(trk && sample) return trk + '||' + sample;
+    return k;
+  }
+  function isProtectedRecord(key, rec){
+    if(!rec || typeof rec !== 'object') return false;
+    if(!recordStart(rec)) return false;
+    if(rec.resolveSsOnly) return true;
+    if(/^\d{3}\|\|[A-Z0-9]{4,}$/i.test(recordKey(key, rec))) return true;
+    return !!normCar(rec.sampleCar || rec.sampleEquipId || rec.equipId || rec.equipmentId);
+  }
+  function normalizedRecord(key, rec){
+    key = recordKey(key, rec);
+    if(!key) return null;
+    var copy = Object.assign({}, rec || {});
+    copy.key = key;
+    copy.blockId = key;
+    copy.track = normTrack(copy.track || key.split('||')[0]);
+    copy.sampleCar = normCar(copy.sampleCar || copy.sampleEquipId || copy.equipId || copy.equipmentId || key.split('||')[1]);
+    copy.ssStart = recordStart(copy);
+    copy.ssEnd = recordEnd(copy);
+    copy.resolveSsOnly = true;
+    copy.groupCars = Array.isArray(copy.groupCars) ? copy.groupCars.map(normCar).filter(Boolean) : [];
+    if(copy.sampleCar && copy.groupCars.indexOf(copy.sampleCar) < 0) copy.groupCars.unshift(copy.sampleCar);
+    if(!copy.updatedAt) copy.updatedAt = new Date().toISOString();
+    return copy.ssStart ? copy : null;
+  }
+  function newer(a, b){
+    if(!a) return b || null;
+    if(!b) return a || null;
+    var at = Date.parse(clean(a.updatedAt || '')) || 0;
+    var bt = Date.parse(clean(b.updatedAt || '')) || 0;
+    return bt >= at ? b : a;
+  }
+  function collectCurrentProtected(){
+    var out = {};
+    [load(EDIT_STORE), load(FORCE_STORE)].forEach(function(store){
+      Object.keys(store || {}).forEach(function(key){
+        var raw = store[key];
+        if(!isProtectedRecord(key, raw)) return;
+        var rec = normalizedRecord(key, raw);
+        if(rec) out[rec.key] = newer(out[rec.key], rec);
+      });
+    });
+    return out;
+  }
+  function snapshot(reason){
+    if(clearWins()) return {};
+    var backup = load(BACKUP_STORE);
+    var current = collectCurrentProtected();
+    var changed = false;
+    Object.keys(current).forEach(function(key){
+      var next = newer(backup[key], current[key]);
+      if(JSON.stringify(next) !== JSON.stringify(backup[key])){
+        backup[key] = next;
+        changed = true;
+      }
+    });
+    if(changed) saveRaw(BACKUP_STORE, backup);
+    void reason;
+    return backup;
+  }
+  function mergeBackupInto(store){
+    if(clearWins()) return store || {};
+    var backup = snapshot('merge');
+    store = store || {};
+    Object.keys(backup).forEach(function(key){
+      var rec = backup[key];
+      if(!rec || !rec.ssStart) return;
+      var existing = store[key];
+      if(!existing || !recordStart(existing)){
+        store[key] = Object.assign({}, existing || {}, rec, {key:key, blockId:key, resolveSsOnly:true});
+      }
+    });
+    return store;
+  }
+  Storage.prototype.setItem = function(key, value){
+    if(!restoring && this === localStorage && protectedActive() && !clearWins() && (key === EDIT_STORE || key === FORCE_STORE)){
+      try{
+        value = JSON.stringify(mergeBackupInto(JSON.parse(String(value || '{}')) || {}));
+      }catch(e){}
+    }
+    var result = nativeSetItem.call(this, key, value);
+    if(this === localStorage && (key === EDIT_STORE || key === FORCE_STORE)){
+      setTimeout(function(){ snapshot('store-write'); }, 0);
+    }
+    return result;
+  };
+
+  function trackFromBlock(block){
+    var row = block && block.closest && block.closest('tr');
+    var cell = row && row.querySelector && row.querySelector('.bowl-track');
+    return normTrack((cell && cell.textContent) || (block && block.dataset && block.dataset.displayTrack) || '');
+  }
+  function carFromBlock(block){
+    var ds = block && block.dataset || {};
+    return normCar(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function groupFromBlock(block){
+    var ds = block && block.dataset || {};
+    return clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || '');
+  }
+  function blockMatches(rec, block){
+    if(!rec || !block) return false;
+    var trk = trackFromBlock(block);
+    if(rec.track && trk && rec.track !== trk) return false;
+    var car = carFromBlock(block);
+    if(car && (car === rec.sampleCar || (rec.groupCars || []).indexOf(car) >= 0)) return true;
+    var group = groupFromBlock(block);
+    if(group && rec.groupKey && group === rec.groupKey) return true;
+    return false;
+  }
+  function applyToBlock(block, rec){
+    if(!block || !rec || !rec.ssStart || clearWins()) return;
+    var ds = block.dataset || {};
+    ds.blockId = rec.key;
+    ds.currentEditKey = rec.key;
+    ds.currentSsStart = rec.ssStart;
+    ds.ssStart = rec.ssStart;
+    ds.currentSsEnd = rec.ssEnd || '';
+    ds.ssEnd = rec.ssEnd || '';
+    ds.afterSsStart = rec.ssStart;
+    ds.afterSsEnd = rec.ssEnd || '';
+    if(rec.arrival) ds.currentArrival = rec.arrival;
+    if(rec.train){ ds.currentTrain = rec.train; ds.sourceTrain = rec.train; }
+    if(rec.sourceBlockLabel) ds.sourceBlockLabel = rec.sourceBlockLabel;
+    if(rec.groupKey) ds.bowlGroupKey = rec.groupKey;
+    if(rec.dwell){ ds.currentDwell = rec.dwell; ds.resolveSsDwell = rec.dwell; }
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete ds.missingSsStart;
+    ds.missingSsStartAuthority = '0';
+  }
+  function syncManualSel(records){
+    try{
+      if(typeof manualSel === 'undefined' || !manualSel) return;
+      var changed = false;
+      Object.keys(records).forEach(function(key){
+        var rec = records[key];
+        if(!rec || !rec.track || !rec.sampleCar || !manualSel[rec.track] || !manualSel[rec.track][rec.sampleCar]) return;
+        var entry = manualSel[rec.track][rec.sampleCar];
+        entry.timeInHold = rec.ssStart;
+        entry.currentSsStart = rec.ssStart;
+        entry.ssStart = rec.ssStart;
+        entry.ssStartTime = rec.ssStart;
+        entry.currentSsEnd = rec.ssEnd || '';
+        entry.ssEnd = rec.ssEnd || '';
+        entry.ssEndTime = rec.ssEnd || '';
+        entry.resolveSsOnly = true;
+        entry._resolveSsProtected = true;
+        changed = true;
+      });
+      if(changed) localStorage.setItem('dwellManualSel', JSON.stringify(manualSel || {}));
+    }catch(e){}
+  }
+  function syncGroupStores(records){
+    try{
+      var manual = JSON.parse(localStorage.getItem('dwellManualSSStoreV1') || '{}') || {};
+      var changed = false;
+      Object.keys(records).forEach(function(key){
+        var rec = records[key];
+        if(!rec || !rec.groupKey || !rec.ssStart) return;
+        manual[rec.groupKey] = {start:rec.ssStart, end:rec.ssEnd || '', autoDetected:false};
+        try{
+          if(typeof ssStore === 'object' && ssStore){
+            ssStore[rec.groupKey] = {start:new Date(rec.ssStart), end:rec.ssEnd ? new Date(rec.ssEnd) : null, autoDetected:false};
+          }
+        }catch(e){}
+        changed = true;
+      });
+      if(changed) nativeSetItem.call(localStorage, 'dwellManualSSStoreV1', JSON.stringify(manual));
+    }catch(e){}
+  }
+  function restore(reason){
+    if(clearWins()) return;
+    restoring = true;
+    try{
+      var backup = snapshot(reason || 'restore');
+      var edits = mergeBackupInto(load(EDIT_STORE));
+      var forced = mergeBackupInto(load(FORCE_STORE));
+      saveRaw(EDIT_STORE, edits);
+      saveRaw(FORCE_STORE, forced);
+      syncManualSel(backup);
+      syncGroupStores(backup);
+      var blocks = Array.prototype.slice.call(document.querySelectorAll('#tab-outbound table.bowl-board .bowl-segments-cell .bowl-block,#tab-outbound table.bowl-board .bowl-segments-wrap .bowl-block'));
+      Object.keys(backup).forEach(function(key){
+        var rec = backup[key];
+        blocks.forEach(function(block){ if(blockMatches(rec, block)) applyToBlock(block, rec); });
+      });
+    }finally{
+      restoring = false;
+    }
+    try{ if(window.BlockAuthority && typeof window.BlockAuthority.restore === 'function') window.BlockAuthority.restore(); }catch(e){}
+    try{ if(typeof window.__resolveSsApplyForcedTimes === 'function') window.__resolveSsApplyForcedTimes(); }catch(e){}
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.__blockDisplayGovernorFinalApply === 'function') window.__blockDisplayGovernorFinalApply(); }catch(e){}
+  }
+  function scheduleRestore(reason){
+    [0,50,140,320,800,1600,3200,6500,12000,20000].forEach(function(delay){
+      setTimeout(function(){ restore(reason); }, delay);
+    });
+  }
+  function startProtection(reason){
+    if(clearWins()) return;
+    lockUntil = Math.max(lockUntil, now() + 25000);
+    snapshot(reason);
+    scheduleRestore(reason);
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__resolveSsIhosaTagEditLockWrapped) return;
+    var wrapped = function(){
+      if(name === 'setManualCarSelection') startProtection('manual-car-selection');
+      var result = fn.apply(this, arguments);
+      if(name !== 'setManualCarSelection' && protectedActive()) scheduleRestore(name);
+      return result;
+    };
+    wrapped.__resolveSsIhosaTagEditLockWrapped = true;
+    window[name] = wrapped;
+  }
+  function boot(){
+    snapshot('boot');
+    ['setManualCarSelection','renderOB','renderBowlTurnover','syncTaggedCurrentRampCars','enhanceCurrentBoardEditIcons'].forEach(wrap);
+  }
+  document.addEventListener('pointerdown', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-post-assign-train],#tab-outbound .cp-car-row,#tab-outbound .cp-car-chk,#tab-outbound .cp-target-btn')){
+      startProtection('pointer-assignment');
+    }
+  }, true);
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-post-assign-train],#tab-outbound .cp-car-row,#tab-outbound .cp-car-chk,#tab-outbound .cp-target-btn')){
+      startProtection('click-assignment');
+    }
+    if(e.target && e.target.closest && e.target.closest('#rss-save,#rss-bulk-accept-all,[data-rss-bulk-confirm]')){
+      setTimeout(function(){ snapshot('resolve-save'); }, 120);
+    }
+  }, true);
+  boot();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  window.addEventListener('load', boot, {once:true});
+  [0,250,1000,2500].forEach(function(ms){ setTimeout(boot, ms); });
+  window.__resolveSsIhosaTagEditLockRestore = restore;
+  window.__resolveSsIhosaTagEditLockSnapshot = snapshot;
+})();
+</script>
+
+<script id="ss-timing-last-action-arbiter-js">
+(function(){
+  'use strict';
+  if(window.__ssTimingLastActionArbiterInstalled) return;
+  window.__ssTimingLastActionArbiterInstalled = true;
+
+  var KEY = 'dwellSsTimingLastActionV1';
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function stamp(action){
+    action = clean(action);
+    if(!action) return;
+    try{ localStorage.setItem(KEY, JSON.stringify({action:action, at:Date.now()})); }catch(e){}
+  }
+  function read(){
+    try{
+      var raw = localStorage.getItem(KEY) || '';
+      if(!raw) return {action:'', at:0};
+      if(raw.charAt(0) === '{'){
+        var parsed = JSON.parse(raw) || {};
+        return {action:clean(parsed.action), at:Number(parsed.at) || 0};
+      }
+      return {action:clean(raw), at:0};
+    }catch(e){ return {action:'', at:0}; }
+  }
+  function exactSsText(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .replace(/^[_\-\s]+|[_\-\s]+$/g,'')
+      .trim();
+    return s === 'SS';
+  }
+  function visibleLabel(block){
+    if(!block || !block.cloneNode) return '';
+    var ds = block.dataset || {};
+    var explicit = clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterBlockType || ds.afterStatus || ds.postOutboundBlockType || '');
+    if(explicit) return explicit;
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.future-status-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,.bowl-track-suffix,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent).replace(/^\d[\d,]*\s*\|\s*/,'');
+  }
+  function recordLabel(record){
+    record = record || {};
+    return clean(record.sourceBlockLabel || record.label || record.currentLabel || record.afterStatus || '');
+  }
+  function clearDominates(block, record){
+    if(read().action !== 'clear-non-ss') return false;
+    return !exactSsText(recordLabel(record) || visibleLabel(block));
+  }
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      stamp('clear-non-ss');
+    }
+  }, true);
+  window.__dwellSsTimingStampLastAction = stamp;
+  window.__dwellSsTimingLastAction = read;
+  window.__dwellSsTimingExactSsText = exactSsText;
+  window.__dwellSsTimingClearDominates = clearDominates;
+})();
+</script>
+
+<script id="current-edit-resolve-ss-hydrate-final-js">
+(function(){
+  'use strict';
+  if(window.__currentEditResolveSsHydrateFinalInstalled) return;
+  window.__currentEditResolveSsHydrateFinalInstalled = true;
+
+  var activeBlock = null;
+  var timer = null;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function parseDate(raw){
+    var s = clean(raw);
+    if(!s) return null;
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s+)(\d{1,2}):(\d{2})/);
+    if(m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s+(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/i);
+    if(m){
+      var yr = m[3] == null ? new Date().getFullYear() : +m[3];
+      if(yr < 100) yr += 2000;
+      var hr = +m[4], mi = m[5] == null ? 0 : +m[5], ap = (m[6] || '').toUpperCase();
+      if(ap === 'PM' && hr < 12) hr += 12;
+      if(ap === 'AM' && hr === 12) hr = 0;
+      return new Date(yr, +m[1]-1, +m[2], hr, mi, 0, 0);
+    }
+    var d = new Date(s);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function toIso(raw){
+    var d = parseDate(raw);
+    if(!d) return clean(raw);
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function toDisplay(raw){
+    var d = parseDate(raw);
+    if(!d) return clean(raw);
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function parseNum(v){
+    var n = parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function trackFromModal(modal){
+    var title = clean(modal && modal.querySelector && modal.querySelector('.current-edit-title') && modal.querySelector('.current-edit-title').textContent);
+    var m = title.match(/06-(\d{3})/);
+    if(m) return m[1];
+    var out = document.getElementById('current-edit-outtrack');
+    m = clean(out && out.value).match(/(\d{3})/);
+    return m ? m[1] : '';
+  }
+  function trackOf(block){
+    var row = block && block.closest && block.closest('tr');
+    var cell = row && row.querySelector && row.querySelector('.bowl-track');
+    var m = clean(cell && cell.textContent).match(/(\d{3})/);
+    return m ? m[1] : '';
+  }
+  function ftOf(block){
+    var b = block && block.querySelector && block.querySelector('b');
+    return parseNum(b ? b.textContent : '');
+  }
+  function modalFt(){
+    return parseNum((document.getElementById('current-edit-ft') || {}).value || '');
+  }
+  function findBlockForOpenModal(){
+    var modal = document.getElementById('current-block-edit-modal');
+    if(activeBlock && activeBlock.isConnected) return activeBlock;
+    if(!modal || !modal.classList.contains('open')) return null;
+    var track = trackFromModal(modal);
+    var ft = modalFt();
+    var train = clean((document.getElementById('current-edit-train') || {}).value).toUpperCase();
+    var best = null;
+    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(track && trackOf(block) !== track) return;
+      if(ft && Math.abs(ftOf(block) - ft) > 1) return;
+      if(train){
+        var ds = block.dataset || {};
+        var bTrain = clean(ds.sourceTrain || ds.currentTrain || ds.afterTrain || ds.blockInboundSource || '').toUpperCase();
+        if(bTrain && bTrain !== train) return;
+      }
+      if(!best) best = block;
+    });
+    return best;
+  }
+  function resolveRecord(block){
+    if(!block) return null;
+    try{
+      if(typeof window.__resolveSsBlockSavedRecord === 'function'){
+        return window.__resolveSsBlockSavedRecord(block) || null;
+      }
+    }catch(e){}
+    return null;
+  }
+  function normalizeBlockCode(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'IHOSA')
+      .replace(/\bMHOAS\d?\b/g,'MHOAS')
+      .replace(/\s+/g,' ')
+      .trim();
+    var options = ['IHOSA','MHOAS','SS','SL','BO','SADS','SIDS','ICTF','LTDS','DADS','YTDS','FXSI','MXFE','RAMP','CU','OTHER'];
+    for(var i=0;i<options.length;i++){
+      var re = new RegExp('(^|[^A-Z0-9])' + options[i] + '([^A-Z0-9]|$)');
+      if(re.test(s) || s === options[i]) return options[i];
+    }
+    return '';
+  }
+  function setTimeInput(input, raw, key){
+    if(!input || !clean(raw)) return;
+    var iso = toIso(raw);
+    input.value = toDisplay(iso);
+    input.dataset.isoValue = iso;
+    input.dataset.saveIsoValue = iso;
+    input.dataset[key || 'currentSsStart'] = iso;
+    input.dataset.userTouched = '1';
+    input.dataset.resolveSsHydrated = '1';
+    delete input.dataset.userClearedSsStart;
+    try{ input.classList.remove('ss-import-missing'); }catch(e){}
+  }
+  function applyToBlock(block, rec){
+    if(!block || !rec || !rec.ssStart || !block.dataset) return;
+    var ds = block.dataset;
+    ds.currentSsStart = clean(rec.ssStart);
+    ds.ssStart = clean(rec.ssStart);
+    if(rec.ssEnd){
+      ds.currentSsEnd = clean(rec.ssEnd);
+      ds.ssEnd = clean(rec.ssEnd);
+    }
+    if(rec.arrival) ds.currentArrival = clean(rec.arrival);
+    if(rec.train){
+      ds.currentTrain = clean(rec.train).toUpperCase();
+      ds.sourceTrain = clean(rec.train).toUpperCase();
+    }
+    if(rec.sourceBlockLabel || rec.label) ds.sourceBlockLabel = clean(rec.sourceBlockLabel || rec.label);
+    if(rec.dwell){
+      ds.currentDwell = clean(rec.dwell);
+      ds.resolveSsDwell = clean(rec.dwell);
+      ds.ssNetDwellAuthority = String(parseNum(rec.dwell));
+    }
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete ds.missingSsStart;
+    ds.missingSsStartAuthority = '0';
+  }
+  function hydrate(){
+    var modal = document.getElementById('current-block-edit-modal');
+    if(!modal || !modal.classList.contains('open')) return;
+    var block = findBlockForOpenModal();
+    var rec = resolveRecord(block);
+    if(!block || !rec || !rec.ssStart) return;
+    applyToBlock(block, rec);
+    activeBlock = block;
+
+    var start = document.getElementById('current-edit-time');
+    var end = document.getElementById('current-edit-ss-end');
+    var net = document.getElementById('current-edit-net');
+    var arr = document.getElementById('current-edit-arrival');
+    var select = document.getElementById('current-edit-block');
+
+    modal.dataset.currentArrival = clean(rec.arrival || modal.dataset.currentArrival || (block.dataset && block.dataset.currentArrival) || '');
+    modal.dataset.resolveSsHydrated = '1';
+    if(arr && rec.arrival) arr.value = toDisplay(rec.arrival);
+    setTimeInput(start, rec.ssStart, 'currentSsStart');
+    setTimeInput(end, rec.ssEnd, 'currentSsEnd');
+
+    if(select){
+      var code = normalizeBlockCode(rec.sourceBlockLabel || rec.label || (block.dataset && (block.dataset.sourceBlockLabel || block.dataset.currentBlockType)) || '');
+      if(code && Array.prototype.some.call(select.options, function(option){ return option.value === code; })){
+        select.value = code;
+      }
+    }
+    if(net && rec.dwell) net.value = clean(rec.dwell).toUpperCase().indexOf('NET') >= 0 ? clean(rec.dwell) : clean(rec.dwell) + ' NET';
+    try{
+      ['current-edit-time','current-edit-ss-end','current-edit-block'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+    }catch(e){}
+    if(net && rec.dwell) net.value = clean(rec.dwell).toUpperCase().indexOf('NET') >= 0 ? clean(rec.dwell) : clean(rec.dwell) + ' NET';
+  }
+  function schedule(block){
+    if(block) activeBlock = block;
+    clearTimeout(timer);
+    timer = setTimeout(hydrate, 0);
+    [40, 120, 260, 560, 1100].forEach(function(ms){ setTimeout(hydrate, ms); });
+  }
+  var oldOpen = window.openCurrentRampBlockEdit;
+  if(typeof oldOpen === 'function' && !oldOpen.__resolveSsHydrateWrapped){
+    window.openCurrentRampBlockEdit = function(block){
+      if(block) activeBlock = block;
+      var result = oldOpen.apply(this, arguments);
+      schedule(block);
+      return result;
+    };
+    window.openCurrentRampBlockEdit.__resolveSsHydrateWrapped = true;
+  }
+  window.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest) return;
+    var btn = e.target.closest('.current-block-edit-btn');
+    if(!btn) return;
+    var block = btn.closest('.bowl-block');
+    if(block) schedule(block);
+  }, true);
+  try{
+    new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('#current-block-edit-modal')){ schedule(); return; }
+      }
+    }).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['class','value','data-current-ss-start','data-ss-start']});
+  }catch(e){}
+  window.__hydrateCurrentEditResolveSs = hydrate;
+})();
+</script>
+
+<script id="resolve-ss-saved-purple-final-arbiter-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsSavedPurpleFinalArbiterInstalled) return;
+  window.__resolveSsSavedPurpleFinalArbiterInstalled = true;
+
+  var EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var timer = null;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function normCar(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function normTrack(v){ var m = clean(v).match(/(\d{3})/); return m ? m[1] : ''; }
+  function load(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function parseNum(v){ var n = parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,'')); return Number.isFinite(n) ? n : 0; }
+  function newer(a,b){
+    if(!a) return b;
+    if(!b) return a;
+    var at = Date.parse(clean(a.updatedAt || '')) || 0;
+    var bt = Date.parse(clean(b.updatedAt || '')) || 0;
+    return bt >= at ? b : a;
+  }
+  function trackOf(block){
+    var row = block && block.closest && block.closest('tr');
+    return normTrack(row && row.querySelector && row.querySelector('.bowl-track') && row.querySelector('.bowl-track').textContent);
+  }
+  function carOf(block){
+    var ds = block && block.dataset || {};
+    return normCar(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function groupOf(block){
+    var ds = block && block.dataset || {};
+    return clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || '');
+  }
+  function ftOf(block){
+    var b = block && block.querySelector && block.querySelector('b');
+    return parseNum(b ? b.textContent : '');
+  }
+  function labelOf(block){
+    if(!block || !block.cloneNode) return '';
+    var ds = block.dataset || {};
+    var explicit = clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterBlockType || ds.afterStatus || ds.postOutboundBlockType || '');
+    if(explicit) return explicit.toUpperCase();
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,.bowl-track-suffix,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .trim();
+  }
+  function normalizeRecord(raw, key){
+    raw = raw || {};
+    var rec = Object.assign({}, raw);
+    rec.key = clean(key || rec.key || rec.blockId || '');
+    rec.blockId = clean(rec.blockId || rec.key);
+    rec.ssStart = clean(rec.ssStart || rec.currentSsStart || rec.ssStartTime || '');
+    rec.ssEnd = clean(rec.ssEnd || rec.currentSsEnd || rec.ssEndTime || '');
+    rec.sampleCar = normCar(rec.sampleCar || rec.sampleEquipId || rec.equipId || rec.equipmentId || '');
+    rec.track = normTrack(rec.track || '');
+    if(!rec.track && /^\d{3}\|\|/.test(rec.key)) rec.track = normTrack(rec.key.split('||')[0]);
+    if(!rec.sampleCar && /^\d{3}\|\|/.test(rec.key)) rec.sampleCar = normCar(rec.key.split('||')[1]);
+    rec.groupKey = clean(rec.groupKey || rec.bowlGroupKey || '');
+    rec.groupCars = Array.isArray(rec.groupCars) ? rec.groupCars.map(normCar).filter(Boolean) : [];
+    if(rec.sampleCar && rec.groupCars.indexOf(rec.sampleCar) < 0) rec.groupCars.unshift(rec.sampleCar);
+    return rec.ssStart ? rec : null;
+  }
+  function keyCandidates(block){
+    var ds = block && block.dataset || {};
+    var track = trackOf(block);
+    var car = carOf(block);
+    var out = [];
+    function add(k){ k = clean(k); if(k && out.indexOf(k) < 0) out.push(k); }
+    add(ds.blockId);
+    add(ds.currentEditKey);
+    add(ds.afterEditKey);
+    if(track && car) add(track + '||' + car);
+    return out;
+  }
+  function recordMatchesBlock(rec, key, block){
+    if(!rec || !block) return false;
+    var keys = keyCandidates(block);
+    if(keys.indexOf(clean(key)) >= 0 || keys.indexOf(clean(rec.key)) >= 0 || keys.indexOf(clean(rec.blockId)) >= 0) return true;
+    var track = trackOf(block);
+    if(rec.track && track && rec.track !== track) return false;
+    var car = carOf(block);
+    if(car && (rec.sampleCar === car || rec.groupCars.indexOf(car) >= 0)) return true;
+    var group = groupOf(block);
+    if(group && rec.groupKey && group === rec.groupKey) return true;
+    var wanted = clean(rec.sourceBlockLabel || rec.label || rec.currentLabel || rec.afterStatus || '').toUpperCase();
+    var label = labelOf(block);
+    var recFt = parseNum(rec.ft);
+    var ft = ftOf(block);
+    return !!(wanted && label && (!recFt || !ft || Math.abs(recFt - ft) < 2) && (wanted === label || wanted.indexOf(label) >= 0 || label.indexOf(wanted) >= 0));
+  }
+  function savedRecordForBlock(block){
+    var edits = load(EDIT_STORE);
+    var forced = load(FORCE_STORE);
+    var keys = keyCandidates(block);
+    var best = null;
+    keys.forEach(function(key){
+      best = newer(best, normalizeRecord(forced[key], key));
+      best = newer(best, normalizeRecord(edits[key], key));
+    });
+    Object.keys(forced).forEach(function(key){
+      var rec = normalizeRecord(forced[key], key);
+      if(recordMatchesBlock(rec, key, block)) best = newer(best, rec);
+    });
+    Object.keys(edits).forEach(function(key){
+      var rec = normalizeRecord(edits[key], key);
+      if(recordMatchesBlock(rec, key, block)) best = newer(best, rec);
+    });
+    if(best && window.__dwellSsTimingClearDominates && window.__dwellSsTimingClearDominates(block, best)) return null;
+    return best;
+  }
+  function hasSavedStart(block){
+    var ds = block && block.dataset || {};
+    if(clean(ds.currentSsStart || ds.ssStart || ds.ssStartTime || ds.afterSsStart)) return true;
+    return !!savedRecordForBlock(block);
+  }
+  function applyRecord(block, rec){
+    if(!block || !rec || !rec.ssStart || !block.dataset) return false;
+    var ds = block.dataset;
+    var changed = false;
+    function set(name, value){
+      value = clean(value);
+      if(clean(ds[name]) !== value){ ds[name] = value; changed = true; }
+    }
+    set('currentSsStart', rec.ssStart);
+    set('ssStart', rec.ssStart);
+    if(rec.ssEnd){ set('currentSsEnd', rec.ssEnd); set('ssEnd', rec.ssEnd); }
+    if(rec.dwell){ set('currentDwell', rec.dwell); set('resolveSsDwell', rec.dwell); set('ssNetDwellAuthority', String(parseNum(rec.dwell))); }
+    if(rec.key) set('currentEditKey', rec.key);
+    if(rec.blockId || rec.key) set('blockId', rec.blockId || rec.key);
+    if(rec.sampleCar) set('sampleCar', rec.sampleCar);
+    if(rec.sourceBlockLabel || rec.label) set('sourceBlockLabel', rec.sourceBlockLabel || rec.label);
+    if(block.classList.contains('missing-ss-start') || block.classList.contains('current-ss-start-missing') || ds.missingSsStart){
+      block.classList.remove('missing-ss-start','current-ss-start-missing');
+      delete ds.missingSsStart;
+      ds.missingSsStartAuthority = '0';
+      changed = true;
+    }
+    return changed;
+  }
+  function currentBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block'));
+  }
+  function run(){
+    currentBlocks().forEach(function(block){
+      var rec = savedRecordForBlock(block);
+      if(rec) applyRecord(block, rec);
+      else if(hasSavedStart(block) && !(window.__dwellSsTimingClearDominates && window.__dwellSsTimingClearDominates(block, null))){
+        block.classList.remove('missing-ss-start','current-ss-start-missing');
+        if(block.dataset){ delete block.dataset.missingSsStart; block.dataset.missingSsStartAuthority = '0'; }
+      }
+    });
+  }
+  function schedule(){
+    clearTimeout(timer);
+    timer = setTimeout(run, 25);
+    [90, 220, 520, 1100].forEach(function(ms){ setTimeout(run, ms); });
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__resolveSsSavedPurpleFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__resolveSsSavedPurpleFinalWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    ['renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons','applyCurrentRampMissingSSStartWarning','syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound'].forEach(wrap);
+  }
+  window.__resolveSsBlockSavedRecord = savedRecordForBlock;
+  window.__resolveSsBlockHasSavedStart = hasSavedStart;
+  window.__resolveSsSavedPurpleFinalApply = run;
+  document.addEventListener('click', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal,#rss-save,#rss-bulk-accept-all,[data-rss-bulk-confirm]')) schedule(); }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal')) schedule(); }, true);
+  try{
+    new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('#tab-outbound')){ schedule(); return; }
+      }
+    }).observe(document.getElementById('tab-outbound') || document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['class','data-current-ss-start','data-ss-start','data-current-edit-key','data-block-id','data-missing-ss-start']});
+  }catch(e){}
+  function boot(){ wrapAll(); schedule(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
+  window.addEventListener('load', boot, {once:true});
+  setInterval(function(){ wrapAll(); run(); }, 1000);
+})();
+</script>
+
+<script id="resolve-ss-revert-guard-absolute-last-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsRevertGuardAbsoluteLastInstalled) return;
+  window.__resolveSsRevertGuardAbsoluteLastInstalled = true;
+
+  var EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var CANONICAL_KEY_RE = /^\d{3}\|\|[A-Z0-9]{4,}$/;
+  var running = false;
+  var timer = null;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function normCar(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function normTrack(v){ var m = clean(v).match(/(\d{3})/); return m ? m[1] : ''; }
+  function load(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function save(key, value){ try{ localStorage.setItem(key, JSON.stringify(value || {})); }catch(e){} }
+  function parseNum(v){ var n = parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,'')); return Number.isFinite(n) ? n : 0; }
+  function trackOf(block){ return normTrack(block && block.closest && block.closest('tr') && block.closest('tr').querySelector('.bowl-track') && block.closest('tr').querySelector('.bowl-track').textContent); }
+  function carOf(block){ var ds = block && block.dataset || {}; return normCar(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || ''); }
+  function groupOf(block){ var ds = block && block.dataset || {}; return clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || ''); }
+  function ftOf(block){ var b = block && block.querySelector && block.querySelector('b'); return parseNum(b ? b.textContent : ''); }
+  function labelOf(block){
+    if(!block || !block.cloneNode) return '';
+    var ds = block.dataset || {};
+    var explicit = clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterStatus || ds.afterBlockType || '');
+    if(explicit) return explicit.toUpperCase();
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,.bowl-track-suffix,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .toUpperCase()
+      .replace(/^\|+\s*/,'')
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function currentBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block'));
+  }
+  function normalizedRecord(raw, key){
+    raw = raw || {};
+    key = clean(key || raw.key || raw.blockId || '');
+    var rec = Object.assign({}, raw);
+    rec.key = key;
+    rec.blockId = clean(rec.blockId || key);
+    rec.ssStart = clean(rec.ssStart || rec.currentSsStart || rec.ssStartTime || '');
+    rec.ssEnd = clean(rec.ssEnd || rec.currentSsEnd || rec.ssEndTime || '');
+    if(!rec.ssStart) return null;
+    if(!rec.resolveSsOnly && !raw.__fromForcedStore) return null;
+    if(CANONICAL_KEY_RE.test(key)){
+      var parts = key.split('||');
+      rec.track = normTrack(rec.track || parts[0]);
+      rec.sampleCar = normCar(rec.sampleCar || parts[1]);
+    }else{
+      rec.track = normTrack(rec.track || '');
+      rec.sampleCar = normCar(rec.sampleCar || '');
+    }
+    rec.groupCars = Array.isArray(rec.groupCars) ? rec.groupCars.map(normCar).filter(Boolean) : [];
+    if(rec.sampleCar && rec.groupCars.indexOf(rec.sampleCar) < 0) rec.groupCars.unshift(rec.sampleCar);
+    return rec;
+  }
+  function newer(a,b){
+    if(!a) return b;
+    if(!b) return a;
+    var at = Date.parse(clean(a.updatedAt || '')) || 0;
+    var bt = Date.parse(clean(b.updatedAt || '')) || 0;
+    return bt >= at ? b : a;
+  }
+  function lookupRecord(block, edits, forced){
+    var ds = block && block.dataset || {};
+    var track = trackOf(block);
+    var car = carOf(block);
+    var keys = [];
+    function add(k){ k = clean(k); if(k && keys.indexOf(k) < 0) keys.push(k); }
+    add(ds.blockId);
+    add(ds.currentEditKey);
+    if(track && car) add(track + '||' + car);
+
+    var best = null;
+    keys.forEach(function(key){
+      var f = forced[key] ? normalizedRecord(Object.assign({__fromForcedStore:true}, forced[key]), key) : null;
+      var e = edits[key] ? normalizedRecord(edits[key], key) : null;
+      best = newer(best, f);
+      best = newer(best, e);
+    });
+    if(best) return best;
+
+    Object.keys(forced).forEach(function(key){
+      var rec = normalizedRecord(Object.assign({__fromForcedStore:true}, forced[key]), key);
+      if(!rec || rec.track !== track || !car) return;
+      if(rec.sampleCar === car || rec.groupCars.indexOf(car) >= 0) best = newer(best, rec);
+    });
+    Object.keys(edits).forEach(function(key){
+      var rec = normalizedRecord(edits[key], key);
+      if(!rec || rec.track !== track || !car) return;
+      if(rec.sampleCar === car || rec.groupCars.indexOf(car) >= 0) best = newer(best, rec);
+    });
+    return best;
+  }
+  function canonicalKeyFor(block, rec){
+    var track = normTrack(rec.track || trackOf(block));
+    var car = normCar(rec.sampleCar || carOf(block));
+    return track && car ? track + '||' + car : clean(rec.key || rec.blockId || '');
+  }
+  function same(a,b){ return clean(a) === clean(b); }
+  function setDataset(ds, key, value){
+    value = clean(value);
+    if(!same(ds[key], value)){ ds[key] = value; return true; }
+    return false;
+  }
+  function persistCanonical(block, rec, edits, forced){
+    var key = canonicalKeyFor(block, rec);
+    if(!key) return rec;
+    var current = Object.assign({}, edits[key] || {}, forced[key] || {}, rec, {
+      key:key,
+      blockId:key,
+      track:normTrack(rec.track || trackOf(block)),
+      sampleCar:normCar(rec.sampleCar || carOf(block)),
+      resolveSsOnly:true
+    });
+    var changed = false;
+    ['ssStart','ssEnd','arrival','train','blockType','label','sourceBlockLabel','groupKey','sampleCar','track','dwell'].forEach(function(name){
+      if(clean((edits[key] || {})[name]) !== clean(current[name])) changed = true;
+      if(clean((forced[key] || {})[name]) !== clean(current[name])) changed = true;
+    });
+    if(clean((edits[key] || {}).resolveSsOnly) !== clean(current.resolveSsOnly)) changed = true;
+    if(changed){
+      current.updatedAt = clean(current.updatedAt || new Date().toISOString());
+      edits[key] = Object.assign({}, edits[key] || {}, current);
+      forced[key] = Object.assign({}, forced[key] || {}, current);
+    }
+    return current;
+  }
+  function clearResolveDomForLastClear(block){
+    if(!block || !block.dataset) return;
+    var ds = block.dataset;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','currentDwell','resolveSsDwell','ssNetDwellAuthority','ssHoursLabel','ssHoursTone','ssHoursValid','postOutboundDwellAuthority'].forEach(function(key){
+      try{ ds[key] = ''; }catch(e){}
+    });
+    ds.clearNonSsSuppressed = '1';
+    ds.postOutboundDwellSuppressed = '1';
+    try{
+      block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
+    }catch(e){}
+  }
+  function applyRecord(block, rec, edits, forced){
+    if(!block || !rec || !rec.ssStart) return false;
+    if(window.__dwellSsTimingClearDominates && window.__dwellSsTimingClearDominates(block, rec)){
+      clearResolveDomForLastClear(block);
+      return false;
+    }
+    var label = labelOf(block);
+    var wanted = clean(rec.sourceBlockLabel || rec.label).toUpperCase();
+    var recFt = parseNum(rec.ft);
+    var bf = ftOf(block);
+    var strictCar = !!(carOf(block) && (rec.sampleCar === carOf(block) || rec.groupCars.indexOf(carOf(block)) >= 0));
+    var looseLabelOk = wanted && label && (!recFt || !bf || Math.abs(recFt - bf) < 2) && (label === wanted || label.indexOf(wanted) >= 0 || wanted.indexOf(label) >= 0);
+    if(!strictCar && !looseLabelOk && clean(rec.key) !== clean(block.dataset && block.dataset.currentEditKey)) return false;
+
+    rec = persistCanonical(block, rec, edits, forced);
+    var ds = block.dataset || {};
+    var changed = false;
+    changed = setDataset(ds, 'blockId', rec.key) || changed;
+    changed = setDataset(ds, 'currentEditKey', rec.key) || changed;
+    changed = setDataset(ds, 'currentSsStart', rec.ssStart) || changed;
+    changed = setDataset(ds, 'ssStart', rec.ssStart) || changed;
+    changed = setDataset(ds, 'currentSsEnd', rec.ssEnd || '') || changed;
+    changed = setDataset(ds, 'ssEnd', rec.ssEnd || '') || changed;
+    if(rec.arrival) changed = setDataset(ds, 'currentArrival', rec.arrival) || changed;
+    if(rec.train){
+      changed = setDataset(ds, 'currentTrain', clean(rec.train).toUpperCase()) || changed;
+      changed = setDataset(ds, 'sourceTrain', clean(rec.train).toUpperCase()) || changed;
+    }
+    if(rec.blockType) changed = setDataset(ds, 'currentBlockType', rec.blockType) || changed;
+    if(rec.sourceBlockLabel) changed = setDataset(ds, 'sourceBlockLabel', rec.sourceBlockLabel) || changed;
+    if(rec.groupKey) changed = setDataset(ds, 'bowlGroupKey', rec.groupKey) || changed;
+    if(rec.sampleCar) changed = setDataset(ds, 'sampleCar', rec.sampleCar) || changed;
+    if(rec.dwell){
+      changed = setDataset(ds, 'currentDwell', rec.dwell) || changed;
+      changed = setDataset(ds, 'resolveSsDwell', rec.dwell) || changed;
+      changed = setDataset(ds, 'ssNetDwellAuthority', String(parseNum(rec.dwell))) || changed;
+    }
+    if(block.classList.contains('missing-ss-start') || block.classList.contains('current-ss-start-missing') || ds.missingSsStart){
+      block.classList.remove('missing-ss-start','current-ss-start-missing');
+      delete ds.missingSsStart;
+      ds.missingSsStartAuthority = '0';
+      changed = true;
+    }
+    try{ if(window.BlockAuthority && typeof window.BlockAuthority.syncGroupStore === 'function') window.BlockAuthority.syncGroupStore(block, rec.ssStart, rec.ssEnd); }catch(e){}
+    return changed;
+  }
+  function run(){
+    if(running) return;
+    running = true;
+    var changed = false;
+    try{
+      var edits = load(EDIT_STORE);
+      var forced = load(FORCE_STORE);
+      currentBlocks().forEach(function(block){
+        if(block.querySelector('.manual-tag')) return;
+        var rec = lookupRecord(block, edits, forced);
+        if(rec && applyRecord(block, rec, edits, forced)) changed = true;
+      });
+      if(changed){
+        save(EDIT_STORE, edits);
+        save(FORCE_STORE, forced);
+      }
+    }finally{
+      running = false;
+    }
+    if(changed){
+      try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+      try{ if(typeof window.syncResolveSsButtonFinalAuthority === 'function') window.syncResolveSsButtonFinalAuthority(); }catch(e){}
+      try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+      try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+    }
+  }
+  function schedule(){
+    clearTimeout(timer);
+    timer = setTimeout(run, 25);
+    [120, 260, 520, 1100, 2200].forEach(function(ms){ setTimeout(run, ms); });
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__resolveSsRevertGuardWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      if(!running) schedule();
+      return result;
+    };
+    wrapped.__resolveSsRevertGuardWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    [
+      'renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons',
+      'syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound',
+      'finalEnhanceBowlEditButtons','applyPostOutboundSsNetDwellAuthority',
+      'normalizePostOutboundSsCarryoverDisplay','syncResolveSsButtonFinalAuthority'
+    ].forEach(wrap);
+  }
+
+  window.__resolveSsRevertGuardApply = run;
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#rss-save,[data-rss-bulk-confirm],#rss-bulk-accept-all,#tab-outbound,[data-resolve-ss-btn]')) schedule();
+  }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#resolve-ss-modal,#tab-outbound')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#resolve-ss-modal,#tab-outbound')) schedule(); }, true);
+  try{
+    new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('#tab-outbound')){ schedule(); return; }
+      }
+    }).observe(document.getElementById('tab-outbound') || document.documentElement, {
+      childList:true,
+      subtree:true,
+      attributes:true,
+      attributeFilter:['class','data-current-ss-start','data-ss-start','data-current-edit-key','data-block-id','data-missing-ss-start']
+    });
+  }catch(e){}
+  function boot(){ wrapAll(); schedule(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
+  window.addEventListener('load', boot, {once:true});
+  [0,200,700,1600,3200].forEach(function(ms){ setTimeout(boot, ms); });
+})();
+</script>
+
 <script id="dwell-formula-canonical-js">
 /*
   CANONICAL NET DWELL FORMULA - the ONE dwell calculation for the whole app.
@@ -54,6 +1090,18 @@
   if(window.DwellFormula) return;
 
   function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function exactSsValue(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s === 'SS';
+  }
   function parseDate(raw){
     if(raw instanceof Date) return Number.isFinite(raw.getTime()) ? raw : null;
     var s = clean(raw);
@@ -229,6 +1277,543 @@
     ftNum: ftNum,
     ftFmt: ftFmt
   };
+})();
+</script>
+
+<script id="resolve-ss-release-non-ss-clear-state-final-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsReleaseNonSsClearStateFinalInstalled) return;
+  window.__resolveSsReleaseNonSsClearStateFinalInstalled = true;
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function hasResolveSsSaves(){
+    try{
+      var edits = JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2') || '{}') || {};
+      return Object.keys(edits).some(function(key){
+        var entry = edits[key] || {};
+        return !!(entry.resolveSsOnly && clean(entry.ssStart || entry.currentSsStart || entry.ssStartTime));
+      });
+    }catch(e){ return false; }
+  }
+  function release(){
+    try{
+      var last = typeof window.__dwellSsTimingLastAction === 'function' ? window.__dwellSsTimingLastAction() : {action:''};
+      if(last.action === 'clear-non-ss') return;
+      if(last.action !== 'resolve' && localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1') === '1') return;
+    }catch(e){}
+    if(!hasResolveSsSaves()) return;
+    try{ localStorage.removeItem('dwellCurrentRampClearNonExactSsStartsV1'); }catch(e){}
+    try{ localStorage.removeItem('dwellCurrentRampNonSsSsStartSuppressionsV1'); }catch(e){}
+    try{ document.documentElement.classList.remove('current-ramp-clear-non-exact-ss-starts'); }catch(e){}
+    try{
+      document.querySelectorAll('#tab-outbound .bowl-block[data-clear-non-ss-suppressed],#tab-outbound .bowl-block[data-post-outbound-dwell-suppressed]').forEach(function(block){
+        delete block.dataset.clearNonSsSuppressed;
+        delete block.dataset.postOutboundDwellSuppressed;
+      });
+    }catch(e){}
+    try{ if(window.BlockAuthority && typeof window.BlockAuthority.restore === 'function') window.BlockAuthority.restore(); }catch(e){}
+    try{ if(typeof window.__resolveSsApplyForcedTimes === 'function') window.__resolveSsApplyForcedTimes(); }catch(e){}
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+  }
+  function schedule(){
+    release();
+    [80, 240, 700, 1400].forEach(function(ms){ setTimeout(release, ms); });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  else schedule();
+  window.addEventListener('load', schedule, {once:true});
+})();
+</script>
+
+<style id="post-outbound-clear-non-ss-tail-guard-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-post-outbound-dwell-suppressed="1"] .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] [data-ss-hours-in-ss],
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) [data-ss-hours-in-ss]{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    width:0!important;
+    min-width:0!important;
+    max-width:0!important;
+    height:0!important;
+    min-height:0!important;
+    max-height:0!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    overflow:hidden!important;
+  }
+</style>
+
+<script id="post-outbound-clear-non-ss-tail-guard-js">
+(function(){
+  'use strict';
+  if(window.__postOutboundClearNonSsTailGuardInstalled) return;
+  window.__postOutboundClearNonSsTailGuardInstalled = true;
+
+  var GLOBAL_KEY = 'dwellCurrentRampClearNonExactSsStartsV1';
+  var SUPPRESS_KEY = 'dwellCurrentRampNonSsSsStartSuppressionsV1';
+  var EDIT_KEY = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_KEY = 'dwellResolveSsForcedTimesV1';
+  var MANUAL_KEY = 'dwellManualSSStoreV1';
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function norm(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function json(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function save(key, value){ try{ localStorage.setItem(key, JSON.stringify(value || {})); }catch(e){} }
+  function active(){
+    try{
+      if(localStorage.getItem(GLOBAL_KEY) === '1') return true;
+      return Object.keys(json(SUPPRESS_KEY)).length > 0;
+    }catch(e){ return false; }
+  }
+  function turnOn(){
+    try{ localStorage.setItem(GLOBAL_KEY, '1'); }catch(e){}
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+  }
+  function exactSsText(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .replace(/^[_\-\s]+|[_\-\s]+$/g,'')
+      .trim();
+    return s === 'SS';
+  }
+  function visibleLabel(block){
+    if(!block || !block.cloneNode) return '';
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.future-status-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,.bowl-track-suffix,[data-current-display-track-label]').forEach(function(el){
+      el.remove();
+    });
+    return clean(clone.textContent);
+  }
+  function isExactSsBlock(block){
+    var ds = block && block.dataset || {};
+    var candidates = [
+      ds.sourceBlockLabel, ds.afterStatus, ds.afterLabel, ds.currentLabel,
+      ds.afterBlockType, ds.postOutboundBlockType, ds.currentBlockType,
+      visibleLabel(block)
+    ];
+    for(var i=0;i<candidates.length;i++){
+      if(exactSsText(candidates[i])) return true;
+    }
+    return false;
+  }
+  function postBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll(
+      '#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-cell .bowl-block,' +
+      '#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-wrap .bowl-block'
+    ));
+  }
+  function sample(block){
+    var ds = block && block.dataset || {};
+    return norm(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function group(block){
+    var ds = block && block.dataset || {};
+    return clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || '');
+  }
+  function keyMatches(key, entry, samples, groups){
+    entry = entry || {};
+    var s = norm(entry.sampleCar || entry.equipId || entry.equipmentId || '');
+    var g = clean(entry.groupKey || entry.bowlGroupKey || '');
+    if(s && samples[s]) return true;
+    if(g && groups[g]) return true;
+    key = String(key || '').toUpperCase();
+    return Object.keys(samples).some(function(sampleKey){ return sampleKey && key.indexOf(sampleKey) >= 0; }) ||
+      Object.keys(groups).some(function(groupKey){ return groupKey && key.indexOf(groupKey.toUpperCase()) >= 0; });
+  }
+  function clearEntry(entry){
+    if(!entry) return;
+    if(entry.resolveSsOnly) return;
+    ['ssStart','currentSsStart','ssStartTime','ssEnd','currentSsEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel','ssHoursTone','ssHoursValid','dwell','currentDwell','resolveSsDwell','ssNetDwellAuthority'].forEach(function(k){
+      entry[k] = '';
+    });
+    entry.updatedAt = new Date().toISOString();
+  }
+  function clearStores(targets){
+    var samples = {}, groups = {};
+    targets.forEach(function(block){
+      var s = sample(block);
+      var g = group(block);
+      if(s) samples[s] = true;
+      if(g) groups[g] = true;
+      try{
+        if(g && typeof ssStore === 'object' && ssStore) ssStore[g] = {start:null,end:null,autoDetected:false};
+      }catch(e){}
+    });
+    try{
+      var edits = json(EDIT_KEY), editChanged = false;
+      Object.keys(edits).forEach(function(key){
+        var entry = edits[key] || {};
+        if(entry.resolveSsOnly) return;
+        if(exactSsText(entry.sourceBlockLabel || entry.label || entry.blockType || '')) return;
+        if(keyMatches(key, entry, samples, groups)){
+          clearEntry(entry);
+          editChanged = true;
+        }
+      });
+      if(editChanged) save(EDIT_KEY, edits);
+    }catch(e){}
+    try{
+      var forced = json(FORCE_KEY), forcedChanged = false;
+      Object.keys(forced).forEach(function(key){
+        if(keyMatches(key, forced[key], samples, groups)){
+          delete forced[key];
+          forcedChanged = true;
+        }
+      });
+      if(forcedChanged) save(FORCE_KEY, forced);
+    }catch(e){}
+    try{
+      var manual = json(MANUAL_KEY), manualChanged = false;
+      Object.keys(groups).forEach(function(g){
+        if(manual[g]){
+          delete manual[g];
+          manualChanged = true;
+        }
+      });
+      if(manualChanged) save(MANUAL_KEY, manual);
+      try{ if(manualChanged && typeof saveManualSSStore === 'function') saveManualSSStore(); }catch(e){}
+    }catch(e){}
+  }
+  function clearVisual(block){
+    if(!block || !block.dataset) return;
+    ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','ssHoursLabel','ssHoursTone','ssHoursValid','currentDwell','resolveSsDwell','ssNetDwellAuthority','postOutboundDwellAuthority'].forEach(function(k){
+      block.dataset[k] = '';
+    });
+    block.dataset.hasSsToken = '0';
+    block.dataset.clearNonSsSuppressed = '1';
+    block.dataset.postOutboundDwellSuppressed = '1';
+    block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
+  }
+  function apply(){
+    if(!active()) return;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    var targets = postBlocks().filter(function(block){
+      var exact = isExactSsBlock(block);
+      if(block.dataset) block.dataset.hasSsToken = exact ? '1' : '0';
+      return !exact;
+    });
+    targets.forEach(clearVisual);
+    clearStores(targets);
+  }
+  function schedule(){
+    clearTimeout(window.__postOutboundClearNonSsTailGuardTimer);
+    window.__postOutboundClearNonSsTailGuardTimer = setTimeout(apply, 5);
+    [60, 160, 420, 900].forEach(function(ms){ setTimeout(apply, ms); });
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundClearNonSsTailGuardWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__postOutboundClearNonSsTailGuardWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    [
+      'renderOB','renderBowlTurnover','restoreFinalPostOutboundDwell',
+      'restoreMissingPostOutboundDwell','applyPostOutboundSsNetDwellAuthority',
+      'normalizePostOutboundSsCarryoverDisplay','normalizePostOutboundBlockDisplay',
+      'normalizePostOutboundSingleDisplayOwner','syncCurrentEditsToPostOutbound',
+      'syncStableCurrentEditsToPostOutbound','syncPostOutboundSingleDwellAuthority',
+      'syncPostOutboundBlockSpacingAuthority','syncPostOutboundTightSpacingStableOwner'
+    ].forEach(wrap);
+  }
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      turnOn();
+      schedule();
+    }
+  }, true);
+  try{
+    new MutationObserver(function(){ if(active()) schedule(); }).observe(document.getElementById('tab-outbound') || document.documentElement, {childList:true, subtree:true, attributes:true});
+  }catch(e){}
+  wrapAll();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ wrapAll(); schedule(); }, {once:true});
+  else setTimeout(function(){ wrapAll(); schedule(); }, 0);
+  window.addEventListener('load', function(){ wrapAll(); schedule(); }, {once:true});
+  setInterval(function(){ if(active()) apply(); }, 250);
+  window.__postOutboundClearNonSsTailGuardApply = apply;
+})();
+</script>
+
+<style id="clear-non-ss-post-outbound-final-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] [data-ss-hours-in-ss],
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) [data-ss-hours-in-ss]{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+  }
+</style>
+
+<script id="clear-non-ss-post-outbound-final-js">
+(function(){
+  'use strict';
+  if(window.__clearNonSsPostOutboundFinalInstalled) return;
+  window.__clearNonSsPostOutboundFinalInstalled = true;
+
+  var GLOBAL_KEY = 'dwellCurrentRampClearNonExactSsStartsV1';
+  var SUPPRESS_STORE = 'dwellCurrentRampNonSsSsStartSuppressionsV1';
+  var EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var MANUAL_SS_STORE = 'dwellManualSSStoreV1';
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function norm(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function loadJson(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function saveJson(key, value){ try{ localStorage.setItem(key, JSON.stringify(value || {})); }catch(e){} }
+  function hasSsToken(v){ return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(v).toUpperCase()); }
+  function isExactSsText(v){
+    var s = clean(v).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    s = s.replace(/^[_\-\s]+|[_\-\s]+$/g,'');
+    return s === 'SS';
+  }
+  function active(){
+    try{
+      if(localStorage.getItem(GLOBAL_KEY) === '1') return true;
+      return Object.keys(loadJson(SUPPRESS_STORE)).length > 0;
+    }catch(e){ return false; }
+  }
+  function setActive(){
+    try{ localStorage.setItem(GLOBAL_KEY, '1'); }catch(e){}
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+  }
+  function trackFromBlock(block){
+    var row = block && block.closest && block.closest('tr');
+    var txt = clean(row && row.querySelector && (row.querySelector('.bowl-track') || {}).textContent || '');
+    var m = txt.match(/(?:06-)?(\d{3})/);
+    return m ? m[1].slice(-3) : '';
+  }
+  function sampleFromBlock(block){
+    var ds = block && block.dataset || {};
+    return norm(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function visibleBlockText(block){
+    if(!block || !block.cloneNode) return '';
+    var clone = block.cloneNode(true);
+    Array.prototype.slice.call(clone.querySelectorAll('button,b,.current-block-edit-btn,.after-block-edit-btn,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.display-track-pill,.after-depart-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,[data-current-display-track-label]')).forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .replace(/\b\d+H(?:\s+NET)?\b/gi,'')
+      .replace(/\bNET\b/gi,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function isSsBlock(block){
+    var ds = block && block.dataset || {};
+    var candidates = [ds.sourceBlockLabel, ds.currentBlockType, ds.afterBlockType, ds.postOutboundBlockType, visibleBlockText(block)];
+    var yes = candidates.some(isExactSsText);
+    if(block && block.dataset) block.dataset.hasSsToken = yes ? '1' : '0';
+    return yes;
+  }
+  function postBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll(
+      '#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-cell .bowl-block,' +
+      '#tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-wrap .bowl-block'
+    ));
+  }
+  function addKey(list, value){
+    value = clean(value);
+    if(value && list.indexOf(value) < 0) list.push(value);
+  }
+  function keysForBlock(block){
+    var ds = block && block.dataset || {};
+    var track = trackFromBlock(block);
+    var sample = sampleFromBlock(block);
+    var keys = [];
+    addKey(keys, ds.blockId);
+    addKey(keys, ds.currentEditKey);
+    addKey(keys, ds.afterEditKey);
+    addKey(keys, ds.bowlGroupKey);
+    if(track && sample) addKey(keys, track + '||' + sample);
+    if(track && sample) addKey(keys, 'sample||' + track + '||' + sample);
+    if(ds.bowlGroupKey) addKey(keys, 'group||' + clean(ds.bowlGroupKey));
+    if(ds.bowlGroupKey && sample) addKey(keys, 'group-sample||' + clean(ds.bowlGroupKey) + '||' + sample);
+    return keys;
+  }
+  function clearVisibleBlock(block){
+    if(!block || !block.dataset) return;
+    [
+      'currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime',
+      'afterSsStart','afterSsEnd','ssHoursLabel','ssHoursValid','currentDwell',
+      'resolveSsDwell','ssNetDwellAuthority','postOutboundDwellAuthority'
+    ].forEach(function(name){
+      try{ block.dataset[name] = ''; }catch(e){}
+    });
+    block.dataset.clearNonSsSuppressed = '1';
+    block.dataset.postOutboundDwellSuppressed = '1';
+    Array.prototype.slice.call(block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]')).forEach(function(el){ el.remove(); });
+  }
+  function clearEntry(entry){
+    if(!entry) return false;
+    if(entry.resolveSsOnly) return false;
+    var before = JSON.stringify(entry);
+    [
+      'ssStart','currentSsStart','ssStartTime','ssEnd','currentSsEnd','ssEndTime',
+      'afterSsStart','afterSsEnd','ssHoursLabel','dwell','currentDwell',
+      'resolveSsDwell','ssNetDwellAuthority'
+    ].forEach(function(name){ entry[name] = ''; });
+    entry.updatedAt = new Date().toISOString();
+    return JSON.stringify(entry) !== before;
+  }
+  function entryMatchesBlock(key, entry, sampleSet, groupSet, directKeys){
+    key = clean(key);
+    entry = entry || {};
+    if(directKeys[key]) return true;
+    var sample = norm(entry.sampleCar || entry.equipId || entry.equipmentId || '');
+    var group = clean(entry.groupKey || entry.bowlGroupKey || '');
+    if(sample && sampleSet[sample]) return true;
+    if(group && groupSet[group]) return true;
+    var parts = key.split('||');
+    if(parts.length > 1 && norm(parts[1]) && sampleSet[norm(parts[1])]) return true;
+    return Object.keys(sampleSet).some(function(sampleKey){ return sampleKey && key.toUpperCase().indexOf(sampleKey) >= 0; });
+  }
+  function clearStoresForBlocks(blocks){
+    var samples = {}, groups = {}, directKeys = {};
+    blocks.forEach(function(block){
+      var ds = block.dataset || {};
+      var sample = sampleFromBlock(block);
+      var group = clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || '');
+      if(sample) samples[sample] = true;
+      if(group) groups[group] = true;
+      keysForBlock(block).forEach(function(key){ directKeys[key] = true; });
+    });
+    try{
+      var edits = loadJson(EDIT_STORE), editChanged = false;
+      Object.keys(edits).forEach(function(key){
+        if(edits[key] && edits[key].resolveSsOnly) return;
+        if(entryMatchesBlock(key, edits[key], samples, groups, directKeys)){
+          editChanged = clearEntry(edits[key]) || editChanged;
+        }
+      });
+      if(editChanged) saveJson(EDIT_STORE, edits);
+    }catch(e){}
+    try{
+      var forced = loadJson(FORCE_STORE), forcedChanged = false;
+      Object.keys(forced).forEach(function(key){
+        if(forced[key] && forced[key].resolveSsOnly) return;
+        if(entryMatchesBlock(key, forced[key], samples, groups, directKeys)){
+          delete forced[key];
+          forcedChanged = true;
+        }
+      });
+      if(forcedChanged) saveJson(FORCE_STORE, forced);
+    }catch(e){}
+    try{
+      var manual = loadJson(MANUAL_SS_STORE), manualChanged = false;
+      Object.keys(groups).forEach(function(group){
+        if(manual[group]){
+          delete manual[group];
+          manualChanged = true;
+        }
+        try{
+          if(typeof ssStore === 'object' && ssStore && ssStore[group]){
+            ssStore[group] = {start:null,end:null,autoDetected:false};
+            if(typeof saveManualSSStore === 'function') saveManualSSStore();
+          }
+        }catch(e){}
+      });
+      if(manualChanged) saveJson(MANUAL_SS_STORE, manual);
+    }catch(e){}
+  }
+  function apply(){
+    if(!active()) return 0;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    var targets = postBlocks().filter(function(block){ return !isSsBlock(block); });
+    targets.forEach(clearVisibleBlock);
+    clearStoresForBlocks(targets);
+    return targets.length;
+  }
+  function schedule(){
+    clearTimeout(window.__clearNonSsPostOutboundFinalTimer);
+    window.__clearNonSsPostOutboundFinalTimer = setTimeout(apply, 10);
+    [60, 180, 420, 900, 1600].forEach(function(ms){ setTimeout(apply, ms); });
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__clearNonSsPostOutboundFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__clearNonSsPostOutboundFinalWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    [
+      'renderOB','renderBowlTurnover','restoreFinalPostOutboundDwell',
+      'restoreMissingPostOutboundDwell','applyPostOutboundSsNetDwellAuthority',
+      'normalizePostOutboundSsCarryoverDisplay','normalizePostOutboundBlockDisplay',
+      'normalizePostOutboundSingleDisplayOwner','syncCurrentEditsToPostOutbound',
+      'syncStableCurrentEditsToPostOutbound'
+    ].forEach(wrap);
+  }
+  wrapAll();
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      setActive();
+      schedule();
+    }
+  }, true);
+  try{
+    new MutationObserver(function(){ if(active()) schedule(); }).observe(document.getElementById('tab-outbound') || document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+  setInterval(function(){ if(active()) apply(); }, 200);
+  window.__clearNonSsPostOutboundFinalApply = apply;
+  window.__clearNonSsPostOutboundFinalSchedule = schedule;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ wrapAll(); schedule(); }, {once:true});
+  else setTimeout(function(){ wrapAll(); schedule(); }, 0);
+  window.addEventListener('load', function(){ wrapAll(); schedule(); }, {once:true});
+  [120, 400, 1000, 2500].forEach(function(ms){ setTimeout(function(){ wrapAll(); schedule(); }, ms); });
 })();
 </script>
 
@@ -1611,6 +3196,7 @@
 
   function hasSsStart(block){
     var ds = block && block.dataset || {};
+    try{ if(window.__resolveSsBlockHasSavedStart && window.__resolveSsBlockHasSavedStart(block)) return true; }catch(e){}
     return !!clean(ds.currentSsStart || ds.afterSsStart || ds.ssStart || '');
   }
 
@@ -2058,8 +3644,27 @@
     return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
   }
 
+  function exactSsValue(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s === 'SS';
+  }
   function hasSsToken(value){
-    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(clean(value));
+    return exactSsValue(value);
+  }
+  function clearNonSsActive(){
+    try{
+      if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1') === '1') return true;
+      var suppressions = JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1') || '{}') || {};
+      return Object.keys(suppressions).length > 0;
+    }catch(e){ return false; }
   }
 
   function isFutureBlock(block){
@@ -25229,6 +26834,60 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
     }catch{}
     return dt && !Number.isNaN(new Date(dt).getTime()) ? raw : '';
   };
+  const resolveSsSavedRecordForTrackEquip=(track,equip,groupKey)=>{
+    const trk=clean(track).replace(/^06-/,'').slice(-3);
+    const car=clean(equip).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const gk=clean(groupKey);
+    if(!trk && !car && !gk) return null;
+    const stores=[];
+    try{ stores.push(JSON.parse(localStorage.getItem('dwellResolveSsForcedTimesV1')||'{}')||{}); }catch{}
+    try{ stores.push(JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')||{}); }catch{}
+    let best=null,bestTime=-1;
+    const consider=(raw,key)=>{
+      if(!raw||typeof raw!=='object') return;
+      const start=clean(raw.ssStart||raw.currentSsStart||raw.ssStartTime||'');
+      if(!start) return;
+      const parts=String(key||raw.key||raw.blockId||'').split('||');
+      const recTrack=clean(raw.track||parts[0]||'').replace(/^06-/,'').slice(-3);
+      const recSample=clean(raw.sampleCar||raw.sampleEquipId||raw.equipId||raw.equipmentId||parts[1]||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const recGroup=clean(raw.groupKey||raw.bowlGroupKey||'');
+      const recCars=Array.isArray(raw.groupCars) ? raw.groupCars.map(v=>clean(v).toUpperCase().replace(/[^A-Z0-9]/g,'')).filter(Boolean) : [];
+      const direct=!!(trk&&car&&recTrack===trk&&(recSample===car||recCars.indexOf(car)>=0));
+      const groupHit=!!(gk&&recGroup&&gk===recGroup);
+      if(!direct&&!groupHit) return;
+      let t=Date.parse(clean(raw.updatedAt||'')); if(!Number.isFinite(t)) t=0;
+      if(!best||t>=bestTime){
+        best={
+          ...raw,
+          key: clean(key||raw.key||raw.blockId||''),
+          track: recTrack || trk,
+          sampleCar: recSample || car,
+          groupKey: recGroup || gk,
+          groupCars: recCars,
+          ssStart:start,
+          ssEnd:clean(raw.ssEnd||raw.currentSsEnd||raw.ssEndTime||''),
+          dwell:clean(raw.dwell||raw.currentDwell||raw.resolveSsDwell||''),
+          updatedAt:clean(raw.updatedAt||'')
+        };
+        bestTime=t;
+      }
+    };
+    stores.forEach(store=>Object.keys(store||{}).forEach(key=>consider(store[key],key)));
+    return best;
+  };
+  const pushResolveSsRecordToNativeStore=(group,record)=>{
+    if(!group||!group.key||!record||!record.ssStart) return;
+    try{
+      const start=new Date(record.ssStart);
+      const end=record.ssEnd?new Date(record.ssEnd):null;
+      if(Number.isNaN(start.getTime())) return;
+      if(typeof ssStore==='object'&&ssStore){
+        ssStore[group.key]={start,end:(end&&!Number.isNaN(end.getTime()))?end:null,autoDetected:false};
+        if(typeof saveManualSSStore==='function') saveManualSSStore();
+      }
+      manualSSStartByTrackEquip=null;
+    }catch{}
+  };
   let manualSSStartByTrackEquip=null;
   const getManualSSStartByTrackEquip=()=>{
     if(manualSSStartByTrackEquip) return manualSSStartByTrackEquip;
@@ -25272,6 +26931,11 @@ function renderBowlTurnover(targetId='bowl-view', options={}){
   };
   const confirmedSSStartForRow=(row,group)=>{
     if(currentRampSuppressedSSStartForRow(row,group)) return '';
+    const saved=resolveSsSavedRecordForTrackEquip(row&&row[CI.track],row&&row[CI.equipId],group&&group.key);
+    if(saved&&saved.ssStart){
+      pushResolveSsRecordToNativeStore(group,saved);
+      return saved.ssStart;
+    }
     const entry=group&&group.key&&ssStore[group.key];
     if(entry&&entry.start){
       const dt=new Date(entry.start);
@@ -27317,6 +28981,15 @@ function isCurrentRampSuppressedSSCar(car,group){
 
 function getCarSSStart(car){
   if(!car) return null;
+  try{
+    if(typeof resolveSsSavedRecordForTrackEquip === 'function'){
+      const saved=resolveSsSavedRecordForTrackEquip(car.track,car.equipId,car._group&&car._group.key);
+      if(saved&&saved.ssStart){
+        const savedDt=new Date(saved.ssStart);
+        if(savedDt&&!Number.isNaN(savedDt.getTime())) return savedDt;
+      }
+    }
+  }catch(e){}
   const raw=String(car.timeInHold||'').trim();
   if(!raw) return null;
   let dt=null;
@@ -29434,12 +31107,7 @@ function buildOBTable(groups,depDt,isSel,consistName=''){
         applyCarToggle(ci,carChk.checked);
         if(carChk.checked && isSaTrain){
           if(!manualSel[g.track]) manualSel[g.track] = {};
-          manualSel[g.track][car.equipId] = {
-            ...car,
-            _group:{...(car._group||{}), train:selectedTrain, track:g.track, key:g.key},
-            _sa:true,
-            _saTrain:selectedTrain
-          };
+          manualSel[g.track][car.equipId] = makeManualSelectionEntry(g.track, car, g, selectedTrain);
           carRow.classList.remove('exp-car-row-excluded','row-sa-ihosa','row-sa-mhoas');
           carRow.classList.add(selectedTrain==='MHOAS' ? 'row-sa-mhoas' : 'row-sa-ihosa');
           carChk.checked = true;
@@ -29470,12 +31138,7 @@ function buildOBTable(groups,depDt,isSel,consistName=''){
             }
             if(targetState && (selectedTrain==='IHOSA' || selectedTrain==='MHOAS')){
               if(!manualSel[g.track]) manualSel[g.track] = {};
-              manualSel[g.track][c.equipId] = {
-                ...c,
-                _group:{...(c._group||{}), train:selectedTrain, track:g.track, key:g.key},
-                _sa:true,
-                _saTrain:selectedTrain
-              };
+              manualSel[g.track][c.equipId] = makeManualSelectionEntry(g.track, c, g, selectedTrain);
               carRows[i].classList.remove('exp-car-row-excluded','row-sa-ihosa','row-sa-mhoas');
               carRows[i].classList.add(selectedTrain==='MHOAS' ? 'row-sa-mhoas' : 'row-sa-ihosa');
               carChks[i].checked = true;
@@ -29495,12 +31158,7 @@ function buildOBTable(groups,depDt,isSel,consistName=''){
           applyCarToggle(ci,nextState);
           if(nextState && (selectedTrain==='IHOSA' || selectedTrain==='MHOAS')){
             if(!manualSel[g.track]) manualSel[g.track] = {};
-            manualSel[g.track][car.equipId] = {
-              ...car,
-              _group:{...(car._group||{}), train:selectedTrain, track:g.track, key:g.key},
-              _sa:true,
-              _saTrain:selectedTrain
-            };
+            manualSel[g.track][car.equipId] = makeManualSelectionEntry(g.track, car, g, selectedTrain);
             carRow.classList.remove('exp-car-row-excluded','row-sa-ihosa','row-sa-mhoas');
             carRow.classList.add(selectedTrain==='MHOAS' ? 'row-sa-mhoas' : 'row-sa-ihosa');
             carChks[ci].checked = true;
@@ -29725,18 +31383,43 @@ function getCarSelectionMeta(track, carId, group){
   return {selected:false, train:'', sa:false, source:''};
 }
 
-function setManualCarSelection(track, car, group, assignedTrain){
-  const carId=String(car?.equipId||'').trim();
-  if(!track || !carId) return;
+function makeManualSelectionEntry(track, car, group, assignedTrain){
   const train=String(assignedTrain || getGroupOutboundTrain(group) || departure || group?.train || 'UNKNOWN').trim().toUpperCase();
   const isSaTrain=train==='IHOSA' || train==='MHOAS';
-  if(!manualSel[track]) manualSel[track]={};
-  manualSel[track][carId]={
-    ...car,
+  const entry={...(car||{})};
+  try{
+    const saved=(typeof resolveSsSavedRecordForTrackEquip==='function')
+      ? resolveSsSavedRecordForTrackEquip(track || car?.track || group?.track, car?.equipId, group?.key)
+      : null;
+    if(saved&&saved.ssStart){
+      entry.timeInHold=saved.ssStart;
+      entry.currentSsStart=saved.ssStart;
+      entry.ssStart=saved.ssStart;
+      entry.ssStartTime=saved.ssStart;
+      if(saved.ssEnd){
+        entry.currentSsEnd=saved.ssEnd;
+        entry.ssEnd=saved.ssEnd;
+        entry.ssEndTime=saved.ssEnd;
+      }
+      if(saved.dwell) entry.resolveSsDwell=saved.dwell;
+      entry.resolveSsOnly=true;
+      entry._resolveSsPreserved=true;
+      if(typeof pushResolveSsRecordToNativeStore==='function') pushResolveSsRecordToNativeStore(group,saved);
+    }
+  }catch(e){}
+  return {
+    ...entry,
     _group:{...(group||car?._group||{}), train:train || (group?.train) || 'UNKNOWN', track, key:group?.key},
     _sa:isSaTrain,
     _saTrain:train || (group?.train) || 'UNKNOWN'
   };
+}
+
+function setManualCarSelection(track, car, group, assignedTrain){
+  const carId=String(car?.equipId||'').trim();
+  if(!track || !carId) return;
+  if(!manualSel[track]) manualSel[track]={};
+  manualSel[track][carId]=makeManualSelectionEntry(track, car, group, assignedTrain);
 }
 
 function removeManualCarSelection(track, carId){
@@ -30285,6 +31968,11 @@ function buildCarPicker(groups){
         }
 
         if(toChecked){
+          try{
+            if(isSaTrain && typeof window.__resolveSsAssignmentPreserveCar === 'function'){
+              window.__resolveSsAssignmentPreserveCar(track, c, assignedTrain);
+            }
+          }catch(e){}
           setManualCarSelection(track, c, group, assignedTrain);
           r.classList.add('selected');
           r.classList.remove('sa-ihosa','sa-mhoas');
@@ -36563,7 +38251,7 @@ button.is-hiding.is-hiding[data-bowl-oldest-toggle]:hover {
     const dwellHtml=dwell?` <span class="bowl-dwell ${dwellClassFromText(dwell)}">${esc(dwell).toUpperCase().includes('NET')?esc(dwell):esc(dwell+' NET')}</span>`:''; block.dataset.currentSsStart=clean(ov.ssStart||''); block.dataset.ssStart=clean(ov.ssStart||''); block.dataset.currentSsEnd=clean(ov.ssEnd||''); block.dataset.ssEnd=clean(ov.ssEnd||''); block.dataset.currentArrival=clean(ov.arrival||''); block.dataset.currentTrain=train; if(train && !looksLikeHoldCodeNotTrain(train)) block.dataset.sourceTrain=train; block.dataset.currentBlockType=blockType; block.innerHTML=`<span><b>${ft}</b><span class="bowl-block-pipe-dim">|</span>${esc(label)}${blockType==='SS'?ssHoursInSsBadge(ov.ssStart||block.dataset.currentSsStart||''):''}${dwellHtml}<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button></span>`; if(!block.dataset.currentEditKey) block.dataset.currentEditKey=blockKey(block);}
   function recalcRow(tr){if(!tr)return; let total=0; tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(b=>{const bold=b.querySelector('b'); total+=n(bold?bold.textContent:0);}); const cur=tr.querySelector('.bowl-current'); if(cur)cur.textContent=fmt(total); const capMap={801:1750,802:1750,803:1750,804:2500,805:2500,806:2600,807:2750,808:2500,809:2500}; const track=getTrackFromRow(tr); const delta=(capMap[track]||0)-total; const d=tr.querySelector('.bowl-delta'); if(d){d.textContent=fmt(delta); d.classList.remove('good','warn','bad','sum'); d.classList.add(delta>=750?'good':delta>=300?'warn':'bad');}}
   function enhance(){const edits=load(); document.querySelectorAll('.bowl-board:not(.bowl-board-after) tbody tr').forEach(tr=>{tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(block=>{if(block.querySelector('.manual-tag'))return; let key=block.dataset.currentEditKey||blockKey(block); block.dataset.currentEditKey=key; if(edits[key]){renderBlock(block,edits[key]); key=block.dataset.currentEditKey;} if(!block.querySelector('.current-block-edit-btn')){const span=block.querySelector('span')||block; span.insertAdjacentHTML('beforeend','<button class="current-block-edit-btn" type="button" title="Edit first table block">EDIT</button>');}}); recalcRow(tr);});}
-  function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>x</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, time picker, and calculated dwell. If Block is SS, the time picker means when the block went into SS.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">-</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
+  function ensureModal(){let m=document.getElementById('current-block-edit-modal'); if(m) return m; m=document.createElement('div'); m.id='current-block-edit-modal'; m.innerHTML=`<div class="current-edit-card" role="dialog" aria-modal="true" aria-label="Edit current ramp block"><div class="current-edit-head"><div class="current-edit-title">EDIT CURRENT RAMP BLOCK</div><button class="current-edit-close" type="button" data-current-edit-cancel>x</button></div><div class="current-edit-body"><div class="current-edit-help">Current Ramp Blocking now uses the same edit pattern as Post Outbound Consist: footage, display track, train/inbound, block assignment, SS start/end, and calculated dwell.</div><div class="current-edit-field"><label>Footage</label><input id="current-edit-ft" inputmode="numeric" placeholder="1500"></div><div class="current-edit-field"><label>Display Track</label><input id="current-edit-outtrack" inputmode="numeric" placeholder="802"></div><div class="current-edit-field"><label>Train / Inbound</label><input id="current-edit-train" placeholder="ZLBHO 22"></div><div class="current-edit-field"><label>Block</label><select id="current-edit-block"><option value="">-</option><option value="IHOSA">IHOSA</option><option value="MHOAS">MHOAS</option><option value="SS">SS</option><option value="SL">SL</option><option value="BO">BO</option><option value="SADS">SADS</option><option value="SIDS">SIDS</option><option value="ICTF">ICTF</option><option value="LTDS">LTDS</option><option value="DADS">DADS</option><option value="YTDS">YTDS</option><option value="FXSI">FXSI</option><option value="MXFE">MXFE</option><option value="RAMP">RAMP</option><option value="CU">CU</option><option value="OTHER">OTHER</option></select></div><div class="current-edit-field full"><label id="current-edit-time-label">SS Start</label><input id="current-edit-time" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label for="current-edit-ss-end">SS End</label><input id="current-edit-ss-end" type="text" placeholder="MM/DD/YYYY HH:mm" inputmode="text" step="60"></div><div class="current-edit-field full"><label>Calculated Net Dwell</label><input id="current-edit-net" readonly value="ENTER TIME"></div><div class="current-edit-actions"><button class="current-edit-btn danger" type="button" id="current-edit-reset">Reset</button><button class="current-edit-btn" type="button" data-current-edit-cancel>Cancel</button><button class="current-edit-btn primary" type="button" id="current-edit-save">Save Changes</button></div></div></div>`; document.body.appendChild(m); m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-current-edit-cancel]'))closeModal();}); m.querySelector('#current-edit-save').addEventListener('click',saveModal); m.querySelector('#current-edit-reset').addEventListener('click',resetModal); ['#current-edit-train','#current-edit-block','#current-edit-time','#current-edit-ss-end'].forEach(sel=>{m.querySelector(sel).addEventListener('input',updatePreview); m.querySelector(sel).addEventListener('change',updatePreview);}); return m;}
   function updatePreview(){const m=document.getElementById('current-block-edit-modal'); if(!m)return; const train=clean(m.querySelector('#current-edit-train')?.value); const block=normBlock(m.querySelector('#current-edit-block')?.value); const time=clean(m.querySelector('#current-edit-time')?.value); const timeLabel=m.querySelector('#current-edit-time-label'); const net=m.querySelector('#current-edit-net'); if(timeLabel)timeLabel.textContent='SS Start'; if(!block){if(net)net.value='SELECT BLOCK'; return;} const ssEndEl=m.querySelector('#current-edit-ss-end'); const val=window.DwellFormula ? window.DwellFormula.compute({arrival:getArrivalForTrain(train,m.dataset.currentArrival||''),ssStart:time,ssEnd:ssEndEl?ssEndEl.value:''}).net : calcArrivalToSS(train,time,m.dataset.currentArrival||''); if(net) net.value=time ? (val===null||!Number.isFinite(val)?'SS START ENTERED':Math.round(val)+'H NET') : 'ENTER SS START';}
   function openModal(block){activeBlock=block; activeOriginalRow=block.closest('tr'); activeKey=block.dataset.currentEditKey||blockKey(block); const edits=load(); const base=edits[activeKey]||parseBlock(block); const m=ensureModal(); const tr=block.closest('tr'); const track=getTrackFromRow(tr); let blockType=normBlock(base.blockType||blockTypeFromLabel(base.label)); if(!['','SS','IHOSA','MHOAS'].includes(blockType)) blockType=''; const train=safeTrainValue(base.train, block, base.label); m.dataset.currentArrival=clean(base.arrival||block.dataset.currentArrival||''); m.dataset.originalTrack=track; m.querySelector('.current-edit-title').textContent='EDIT CURRENT RAMP BLOCK - 06-'+track; m.querySelector('#current-edit-ft').value=fmt(base.ft).replace(/,/g,''); m.querySelector('#current-edit-outtrack').value=track; m.querySelector('#current-edit-train').value=train; m.querySelector('#current-edit-block').value=blockType; const hasBaseSsStart=Object.prototype.hasOwnProperty.call(base,'ssStart'); const hasBaseSsEnd=Object.prototype.hasOwnProperty.call(base,'ssEnd'); m.querySelector('#current-edit-time').value=toDisplayValue(hasBaseSsStart?base.ssStart:(block.dataset.currentSsStart||'')); const ssEndInput=m.querySelector('#current-edit-ss-end'); if(ssEndInput) ssEndInput.value=toDisplayValue(hasBaseSsEnd?base.ssEnd:(block.dataset.currentSsEnd||block.dataset.ssEnd||'')); updatePreview(); m.classList.add('open'); setTimeout(()=>m.querySelector('#current-edit-ft')?.focus(),30);}
   function closeModal(){const m=document.getElementById('current-block-edit-modal'); if(m)m.classList.remove('open'); activeBlock=null; activeKey=''; activeOriginalRow=null;}
@@ -40397,7 +42085,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     return s==='SS';
   }
   function hasSsToken(value){return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(value).toUpperCase());}
-  function tracksSs(block){return hasSsToken(label(block));}
+  function tracksSs(block){return exactSS(block);}
   function blocks(){
     return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block,#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap .bowl-block'));
   }
@@ -40436,6 +42124,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
       var edits=JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')||{}, eChanged=false;
       Object.keys(edits).forEach(function(key){
         var edit=edits[key]||{};
+        if(edit.resolveSsOnly) return;
         var sample=clean(edit.sampleCar||edit.equipId||edit.equipmentId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
         var hasSs=clean(edit.ssStart||edit.currentSsStart||edit.ssStartTime||edit.ssEnd||edit.currentSsEnd||edit.ssEndTime||edit.dwell);
         if(!hasSs) return;
@@ -40518,7 +42207,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
       .trim();
     return s === 'SS';
   }
-  function isSsBlock(block){ return hasSsToken(labelText(block)); }
+  function isSsBlock(block){ return isExactSs(block); }
   function currentBlocks(){
     return Array.prototype.slice.call(document.querySelectorAll(
       '#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody .bowl-segments-cell .bowl-block,' +
@@ -40573,6 +42262,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
       var editChanged = false;
       Object.keys(edits).forEach(function(key){
         var edit = edits[key] || {};
+        if(edit.resolveSsOnly) return;
         var sample = clean(edit.sampleCar || edit.equipId || edit.equipmentId || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
         var hasSs = clean(edit.ssStart || edit.currentSsStart || edit.ssStartTime || edit.ssEnd || edit.currentSsEnd || edit.ssEndTime || edit.dwell);
         if(hasSs && !hasSsToken(edit.sourceBlockLabel || edit.label || edit.blockType || '') && (samples[sample] || Object.keys(samples).some(function(s){ return key.toUpperCase().indexOf(s) >= 0; }))){
@@ -40844,14 +42534,17 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   }
   function isSsBlock(block){
     var ds = block && block.dataset || {};
-    var hasSs = hasStandaloneSs(ds.currentBlockType || ds.afterBlockType || '') ||
-      hasStandaloneSs(ds.sourceBlockLabel || ds.afterStatus || '') ||
-      hasStandaloneSs(normalizedVisibleText(block));
+    var hasSs = isExactSsLabel(ds.currentBlockType || '') ||
+      isExactSsLabel(ds.afterBlockType || '') ||
+      isExactSsLabel(ds.sourceBlockLabel || '') ||
+      isExactSsLabel(ds.afterStatus || '') ||
+      isExactSsLabel(normalizedVisibleText(block));
     if(block && block.dataset) block.dataset.hasSsToken = hasSs ? '1' : '0';
     return hasSs;
   }
   function clearEntry(entry){
     if(!entry) return false;
+    if(entry.resolveSsOnly) return false;
     var before = JSON.stringify(entry);
     entry.ssStart = '';
     entry.currentSsStart = '';
@@ -40874,6 +42567,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     if(track && sample){
       Object.keys(store).forEach(function(key){
         var entry = store[key] || {};
+        if(entry.resolveSsOnly) return;
         var entrySample = norm(entry.sampleCar || entry.equipId || entry.equipmentId || '');
         var keyParts = String(key).split('||');
         var keyTrack = clean(keyParts[0]).slice(-3);
@@ -40920,12 +42614,27 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     if(!board) return [];
     return Array.prototype.slice.call(board.querySelectorAll('tbody .bowl-segments-cell .bowl-block, tbody .bowl-segments-wrap .bowl-block'));
   }
+  function afterBoards(){
+    return Array.prototype.slice.call(document.querySelectorAll('table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)'));
+  }
+  function afterBlocks(){
+    /* Post Outbound Consist board. Uses the same dataset keys (afterSsStart/
+       afterSsEnd) and the same shared ssStore/groupKey the current ramp
+       board does, so the generic scrub/store helpers below already handle
+       it - it just was never queried, so CLEAR NON-SS SS START only ever
+       touched Current Ramp Blocking. */
+    var out = [];
+    afterBoards().forEach(function(board){
+      out = out.concat(Array.prototype.slice.call(board.querySelectorAll('tbody .bowl-segments-cell .bowl-block, tbody .bowl-segments-wrap .bowl-block')));
+    });
+    return out;
+  }
   function applySuppressions(){
     var suppressions = loadSuppressions();
     if(!globalClearActive() && !Object.keys(suppressions).length) return 0;
     var store = loadStore();
     var touched = 0;
-    currentBlocks().forEach(function(block){
+    currentBlocks().concat(afterBlocks()).forEach(function(block){
       if(isSsBlock(block) || !isSuppressed(block, suppressions)) return;
       clearStoreForBlock(block, store);
       clearManualSsForBlock(block);
@@ -40940,7 +42649,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     var store = loadStore();
     var suppressions = loadSuppressions();
     var touched = 0;
-    currentBlocks().forEach(function(block){
+    currentBlocks().concat(afterBlocks()).forEach(function(block){
       if(isSsBlock(block)) return;
       markSuppressed(block, suppressions);
       var hadData = blockHasSsFields(block, store);
@@ -40958,7 +42667,7 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
     [60,180,420,900,1600].forEach(function(ms){ setTimeout(applySuppressions, ms); });
     try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
     try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
-    toast(touched ? 'Cleared SS start from ' + touched + ' non-SS current ramp block' + (touched === 1 ? '' : 's') : 'No non-SS current ramp SS starts found');
+    toast(touched ? 'Cleared SS start from ' + touched + ' non-SS block' + (touched === 1 ? '' : 's') + ' (current ramp + post outbound)' : 'No non-SS SS starts found');
   }
   function ensureButton(){
     var head = document.querySelector('#tab-outbound .bowl-ramp-head');
@@ -41041,6 +42750,25 @@ table[aria-label="Inbound summary table"] .block-remove-wrap .row-remove-btn{
   html body #tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .clear-current-non-ss-start-btn:hover{
     border-color:rgba(252,165,165,.90)!important;
     filter:brightness(1.08)!important;
+  }
+</style>
+
+<style id="current-ramp-clear-non-ss-post-outbound-failsafe-css">
+  /* CLEAR NON-SS SS START now also clears Post Outbound Consist (see
+     current-ramp-clear-non-ss-start-button-final-js), but the existing
+     "hide the badge instantly" CSS failsafe was current-ramp-only. Every
+     render bakes a plain arrival-based .bowl-dwell badge into EVERY block
+     regardless of our cleared store data, so without this the old dwell
+     number kept re-appearing on Post Outbound Consist right after each
+     render - fighting the clear until the JS scrub caught up a beat later.
+     This mirrors the current-ramp rule so the hide is instant, not JS-timed. */
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block:not([data-source-block-label="SS"]) [data-ss-hours-in-ss]{
+    display:none!important;
+  }
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-block[data-has-ss-token="1"] .bowl-dwell{
+    display:inline-flex!important;
   }
 </style>
 
@@ -50576,6 +52304,18 @@ table.bowl-board td.bowl-delta.good{
   window.__postOutboundSsNetDwellAuthorityInstalled = true;
 
   function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function exactSsValue(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s === 'SS';
+  }
   function parseDate(raw){
     raw = clean(raw);
     if(!raw) return null;
@@ -50626,12 +52366,15 @@ table.bowl-board td.bowl-delta.good{
   function looksSS(block){
     if(!block) return false;
     var ds = block.dataset || {};
-    var raw = [
+    var candidates = [
       ds.afterBlockType, ds.currentBlockType, ds.postOutboundBlockType,
       ds.afterStatus, ds.sourceBlockLabel, ds.afterLabel, ds.currentLabel,
       textWithoutUi(block)
-    ].map(clean).join(' | ').toUpperCase();
-    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(raw);
+    ];
+    for(var i=0;i<candidates.length;i++){
+      if(exactSsValue(candidates[i])) return true;
+    }
+    return false;
   }
   function trainForBlock(block){
     var ds = block && block.dataset || {};
@@ -51385,6 +53128,7 @@ table.bowl-board td.bowl-delta.good{
     return clean(parts.length > 1 ? parts[1] : text);
   }
   function hasSsStart(block){
+    try{ if(window.__resolveSsBlockHasSavedStart && window.__resolveSsBlockHasSavedStart(block)) return true; }catch(e){}
     return !!clean(block.dataset.currentSsStart || block.dataset.afterSsStart || block.dataset.ssStart || '');
   }
   function shouldFlag(block){
@@ -54978,8 +56722,27 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
   function clean(value){
     return String(value == null ? '' : value).replace(/\s+/g,' ').trim();
   }
+  function exactSsValue(value){
+    var s = clean(value).toUpperCase()
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\bIHOSA\d?\b/g,'')
+      .replace(/\bMHOAS\d?\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    return s === 'SS';
+  }
   function hasSsToken(value){
-    return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/i.test(clean(value));
+    return exactSsValue(value);
+  }
+  function clearNonSsActive(){
+    try{
+      if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1') === '1') return true;
+      var suppressions = JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1') || '{}') || {};
+      return Object.keys(suppressions).length > 0;
+    }catch(e){ return false; }
   }
   function ssHoursAreVisible(){
     try{ return localStorage.getItem(SS_HOURS_HIDE_KEY) !== '1'; }catch(e){ return true; }
@@ -55027,6 +56790,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .footer-
     if(!block || !block.closest) return;
     var board = block.closest('table.bowl-board.bowl-board-after');
     if(!isPostOutboundBoard(board) || !block.closest('.bowl-segments-cell')) return;
+    if(clearNonSsActive() && !blockIsSs(block)){
+      block.dataset.postOutboundDwellSuppressed = '1';
+      block.dataset.hasSsToken = '0';
+      return;
+    }
+    block.dataset.hasSsToken = blockIsSs(block) ? '1' : '0';
     delete block.dataset.postOutboundDwellSuppressed;
     if(block.dataset.postOutboundDwellAuthority === 'ss-hours') delete block.dataset.postOutboundDwellAuthority;
   }
@@ -56279,6 +58048,15 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   function pad(n){ return String(n).padStart(2,'0'); }
   function loadEdits(){ try{ return JSON.parse(localStorage.getItem(STORE)||'{}') || {}; }catch(e){ return {}; } }
   function saveEdits(edits){ try{ localStorage.setItem(STORE, JSON.stringify(edits||{})); }catch(e){ console.warn('Resolve SS save failed', e); } }
+  function stampResolveSsAction(){
+    try{
+      if(typeof window.__dwellSsTimingStampLastAction === 'function') window.__dwellSsTimingStampLastAction('resolve');
+      else localStorage.setItem('dwellSsTimingLastActionV1', JSON.stringify({action:'resolve', at:Date.now()}));
+    }catch(e){}
+  }
+  function clearNonSsLastWins(block, record){
+    try{ return !!(window.__dwellSsTimingClearDominates && window.__dwellSsTimingClearDominates(block, record)); }catch(e){ return false; }
+  }
   function sanitizePartialResolveEdits(){
     var edits = loadEdits();
     var changed = false;
@@ -56543,29 +58321,39 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   function hasSsStart(block, key){
     var ds = block.dataset || {};
     var existing = existingEditFor(block, key || ds.currentEditKey || blockKey(block));
+    if(clearNonSsLastWins(block, existing)) return false;
     return !!clean(ds.currentSsStart || ds.afterSsStart || ds.ssStart || existing.ssStart || existing.currentSsStart || '');
   }
   function hasSsEnd(block, key){
     var ds = block.dataset || {};
     var existing = existingEditFor(block, key || ds.currentEditKey || blockKey(block));
+    if(clearNonSsLastWins(block, existing)) return false;
     return !!clean(ds.currentSsEnd || ds.afterSsEnd || ds.ssEnd || existing.ssEnd || existing.currentSsEnd || '');
   }
   function hasCompleteSsPair(block, key){
     return hasSsStart(block, key) && hasSsEnd(block, key);
   }
+  var CURRENT_RAMP_RESOLVE_BLOCK_SELECTOR = '#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block';
+  function currentRampResolveBlocks(){
+    return Array.prototype.slice.call(document.querySelectorAll(CURRENT_RAMP_RESOLVE_BLOCK_SELECTOR));
+  }
+  function isCurrentRampResolveBlock(block){
+    return !!(block && block.closest && block.closest(CURRENT_RAMP_RESOLVE_BLOCK_SELECTOR));
+  }
   function shouldResolveBlock(block){
     if(!block || !block.closest) return false;
-    if(!block.closest('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell')) return false;
+    if(!isCurrentRampResolveBlock(block)) return false;
     if(block.classList.contains('future-inbound') || block.classList.contains('manual-future')) return false;
     if(block.querySelector('.future-inbound-tag,.future-shove-badge,.manual-tag')) return false;
     var label = labelFromBlock(block);
     var ds = block.dataset || {};
     if(hasCuRamp(label) || hasCuRamp(ds.currentBlockType || ds.afterBlockType || ds.afterStatus || '')) return false;
-    return !hasSsStart(block, ds.currentEditKey || blockKey(block)) || ds.missingSsStart === '1' || block.classList.contains('current-ss-start-missing');
+    if(hasSsStart(block, ds.currentEditKey || blockKey(block))) return false;
+    return true;
   }
   function getResolveBlocks(){
     var found = [];
-    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+    currentRampResolveBlocks().forEach(function(block){
       if(shouldResolveBlock(block)) found.push(block);
     });
     return found;
@@ -56592,8 +58380,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var track = trackFromRow(block.closest('tr'));
     var arrival = clean(existing.arrival || ds.currentArrival || ds.afterArrival || ds.arrival || '');
     if(!arrival) arrival = arrivalForTrain(train);
-    var ssStart = clean(existing.ssStart || ds.currentSsStart || ds.afterSsStart || ds.ssStart || '');
-    var ssEnd = clean(existing.ssEnd || ds.currentSsEnd || ds.afterSsEnd || '');
+    var clearWins = clearNonSsLastWins(block, existing);
+    var ssStart = clearWins ? '' : clean(existing.ssStart || ds.currentSsStart || ds.afterSsStart || ds.ssStart || '');
+    var ssEnd = clearWins ? '' : clean(existing.ssEnd || ds.currentSsEnd || ds.afterSsEnd || '');
     var sampleCar = clean(existing.sampleCar || ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || '');
     var explicitSampleCar = sampleCar;
     var groupKey = groupKeyForBlock(block);
@@ -56616,6 +58405,50 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var colorClass = 'normal';
     ['missing-ss-start','ssmtp','slblue','bo-black','rampcu','inbound-gold','depart-ihosa','ihosa','depart-mhoas','mhoas','normal'].some(function(cls){ if(block.classList.contains(cls)){ colorClass = cls; return true; } return false; });
     return {block:block,key:key,existing:existing,ft:ft,label:label,sourceBlockLabel:label,train:train,track:track,arrival:arrival,ssStart:ssStart,ssEnd:ssEnd,sampleCar:sampleCar,explicitSampleCar:explicitSampleCar,groupKey:groupKey,groupCars:groupCars,blockType:blockType,colorClass:colorClass};
+  }
+  function freshCurrentRampInfo(info, sampleCar){
+    if(!info) return info;
+    if(info.block && info.block.isConnected !== false && isCurrentRampResolveBlock(info.block)){
+      return getBlockInfo(info.block);
+    }
+    var wantedTrack = clean(info.track);
+    var wantedCars = resolveCarsForInfo(info);
+    addNormalizedCar(wantedCars, sampleCar);
+    addNormalizedCar(wantedCars, info.explicitSampleCar);
+    addNormalizedCar(wantedCars, info.sampleCar);
+    var wantedKeys = [
+      info.key,
+      info.existing && info.existing.blockId,
+      stableEditKey(null, sampleCar || info.sampleCar, wantedTrack)
+    ].map(clean).filter(Boolean);
+    var wantedGroup = clean(info.groupKey);
+    var wantedLabel = clean(info.label || info.sourceBlockLabel).toUpperCase();
+    var wantedFt = num(info.ft);
+    var found = null;
+    currentRampResolveBlocks().some(function(block){
+      var track = trackFromRow(block.closest ? block.closest('tr') : null);
+      if(clean(track) !== wantedTrack) return false;
+      var ds = block.dataset || {};
+      var blockKeys = [ds.blockId, ds.currentEditKey, ds.afterEditKey, stableEditKey(block, sampleCar || info.sampleCar, wantedTrack)].map(clean).filter(Boolean);
+      for(var i=0;i<blockKeys.length;i++){
+        if(wantedKeys.indexOf(blockKeys[i]) >= 0){ found = block; return true; }
+      }
+      var blockCar = normalizeCarId(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+      for(i=0;i<wantedCars.length;i++){
+        if(blockCar && (blockCar === wantedCars[i] || compatibleExampleCar(blockCar, wantedCars[i]))){ found = block; return true; }
+      }
+      var blockGroup = groupKeyForBlock(block);
+      if(wantedGroup && blockGroup && wantedGroup === blockGroup){ found = block; return true; }
+      var label = labelFromBlock(block).toUpperCase();
+      var bTag = block.querySelector('b');
+      var ft = num(bTag ? bTag.textContent : '');
+      if(wantedLabel && label && (!wantedFt || !ft || Math.abs(wantedFt - ft) < 2) && (label === wantedLabel || label.indexOf(wantedLabel) >= 0 || wantedLabel.indexOf(label) >= 0)){
+        found = block;
+        return true;
+      }
+      return false;
+    });
+    return found ? getBlockInfo(found) : info;
   }
 
   var COLOR_MAP = {
@@ -56704,6 +58537,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(dwell) span.insertBefore(badge, dwell);
     else span.appendChild(badge);
   }
+  var RSS_DEBUG = false;
+  function rssDebug(){
+    if(!RSS_DEBUG) return;
+    try{ console.log.apply(console, arguments); }catch(e){}
+  }
+
   function sameResolveBlock(block, info, keys, sampleCar){
     if(!block || !info) return false;
     var ds = block.dataset || {};
@@ -56712,23 +58551,36 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     /* Strict identity only: block id / edit key / stable track+car / group /
        exact sample car. The old text-based blockKey() match here let a save
        apply to every block on the track with similar text. */
-    if(clean(ds.blockId) && keys.indexOf(clean(ds.blockId)) >= 0) return true;
+    function debugMatch(rule){
+      try{
+        rssDebug('[RSS-DEBUG] sameResolveBlock MATCHED', {
+          rule: rule, track: track, infoGroupKey: info.groupKey, blockGroupKey: groupKeyForBlock(block),
+          infoSampleCar: info.sampleCar, blockSampleCar: clean(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || ''),
+          blockLabel: clean(ds.sourceBlockLabel || ds.currentBlockType || ds.afterStatus || ''),
+          blockFt: clean((block.querySelector && block.querySelector('b') || {}).textContent || '')
+        });
+      }catch(e){}
+    }
+    if(clean(ds.blockId) && keys.indexOf(clean(ds.blockId)) >= 0){ debugMatch('blockId'); return true; }
     var blockKeys = [ds.currentEditKey, ds.afterEditKey, stableEditKey(block, info.sampleCar || sampleCar, info.track), stableEditKey(block, sampleCar, info.track)].map(clean).filter(Boolean);
     for(var i=0;i<blockKeys.length;i++){
-      if(keys.indexOf(blockKeys[i]) >= 0) return true;
+      if(keys.indexOf(blockKeys[i]) >= 0){ debugMatch('editKey'); return true; }
     }
     var infoGroup = clean(info.groupKey);
     var blockGroup = groupKeyForBlock(block);
-    if(infoGroup && blockGroup && infoGroup === blockGroup) return true;
+    if(infoGroup && blockGroup && infoGroup === blockGroup){ debugMatch('groupKey'); return true; }
     var wantedSamples = resolveCarsForInfo(info);
     addNormalizedCar(wantedSamples, sampleCar);
     addNormalizedCar(wantedSamples, info.sampleCar);
     var blockSample = clean(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '').toUpperCase();
-    return !!blockSample && wantedSamples.indexOf(normalizeCarId(blockSample)) >= 0;
+    var sampleHit = !!blockSample && wantedSamples.indexOf(normalizeCarId(blockSample)) >= 0;
+    if(sampleHit) debugMatch('sampleCar(wantedSamples includes: ' + wantedSamples.join(',') + ')');
+    return sampleHit;
   }
   function applyResolvedTimesToBlock(block, full, ssStart, ssEnd, arrToSS, editKey){
     if(!block || !full) return;
     if(editKey) block.dataset.currentEditKey = editKey;
+    releaseNonSsClearForResolveSave(block);
     block.dataset.currentSsStart = ssStart || '';
     block.dataset.currentSsEnd = ssEnd || '';
     block.dataset.ssStart = ssStart || '';
@@ -56746,21 +58598,46 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     updateSavedBlockSsHours(block, ssStart);
     saveResolveSsToGroupStore(block, ssStart, ssEnd, full.groupKey);
   }
+  function releaseNonSsClearForResolveSave(block){
+    stampResolveSsAction();
+    try{ localStorage.removeItem('dwellCurrentRampClearNonExactSsStartsV1'); }catch(e){}
+    try{ localStorage.removeItem('dwellCurrentRampNonSsSsStartSuppressionsV1'); }catch(e){}
+    try{ document.documentElement.classList.remove('current-ramp-clear-non-exact-ss-starts'); }catch(e){}
+    if(block && block.dataset){
+      delete block.dataset.clearNonSsSuppressed;
+      delete block.dataset.postOutboundDwellSuppressed;
+      block.dataset.resolveSsSaved = '1';
+    }
+  }
   function forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS){
     var touched = false;
+    var touchedCount = 0;
     var keys = (editKeys || []).map(clean).filter(Boolean);
-    document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+    currentRampResolveBlocks().forEach(function(block){
       if(!sameResolveBlock(block, info, keys, sampleCar)) return;
       applyResolvedTimesToBlock(block, full, ssStart, ssEnd, arrToSS, keys[0] || info.key);
       touched = true;
+      touchedCount++;
     });
-    if(!touched && info && info.block){
+    var usedFallback = false;
+    if(!touched && info && info.block && isCurrentRampResolveBlock(info.block)){
       applyResolvedTimesToBlock(info.block, full, ssStart, ssEnd, arrToSS, keys[0] || info.key);
+      usedFallback = true;
     }
+    try{
+      rssDebug('[RSS-DEBUG] forceApplyResolvedTimes', {
+        track: info && info.track, sampleCar: info && info.sampleCar, keys: keys,
+        liveBlocksMatched: touchedCount, usedInfoBlockFallback: usedFallback,
+        infoBlockAttached: !!(info && info.block && info.block.isConnected)
+      });
+    }catch(e){}
   }
   function saveResolveSsToGroupStore(block, ssStart, ssEnd, fallbackGroupKey){
     var groupKey = clean(fallbackGroupKey || (block && block.dataset && (block.dataset.bowlGroupKey || block.dataset.groupKey)) || '');
-    if(!groupKey) return;
+    if(!groupKey){
+      try{ rssDebug('[RSS-DEBUG] saveResolveSsToGroupStore: NO groupKey - native ssStore was NOT written, only the resolve-ss edits store was.'); }catch(e){}
+      return;
+    }
     var startDate = parseAnyDate(ssStart);
     var endDate = parseAnyDate(ssEnd);
     try{
@@ -56786,6 +58663,14 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       }catch(localErr){}
       try{ manualSSStartByTrackEquip = null; }catch(cacheErr){}
       try{ window.manualSSStartByTrackEquip = null; }catch(windowErr){}
+      try{
+        rssDebug('[RSS-DEBUG] saveResolveSsToGroupStore wrote', {
+          groupKey: groupKey,
+          start: entry.start ? entry.start.toISOString() : null,
+          end: entry.end ? entry.end.toISOString() : null,
+          ssStoreNowHas: typeof ssStore === 'object' && ssStore && ssStore[groupKey] ? true : false
+        });
+      }catch(logErr){}
     }catch(e){ console.warn('Resolve SS group store save failed', e); }
   }
 
@@ -56931,8 +58816,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   }
   function parseBulkCarHeader(line){
     var raw = String(line == null ? '' : line);
-    var m = raw.match(/\b([A-Z]{2,5})\s*[- ]?\s*(\d{5,8})\s*View\b/i);
-    if(!m) m = raw.match(/^\s*([A-Z]{2,5})\s+(\d{5,8})\b/i);
+    /* Was \d{5,8} - AAR car numbers are commonly 4-6 digits, so anything
+       shorter than 5 digits silently produced NO section at all for that
+       car (no error, it just never showed up in the parsed count). Widened
+       to 3-8 to stop dropping short car numbers. */
+    var m = raw.match(/\b([A-Z]{2,5})\s*[- ]?\s*(\d{3,8})\s*View\b/i);
+    if(!m) m = raw.match(/(?:^|[\t|])\s*([A-Z]{2,5})\s+(\d{3,8})\b/i);
     if(!m) return null;
     return {car:normalizeCarId(m[1]+m[2]), display:(m[1].toUpperCase()+' '+m[2])};
   }
@@ -56960,6 +58849,16 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       section.start = starts.length ? starts[starts.length - 1] : null;
       section.end = ends.length ? ends[0] : null;
     });
+    try{
+      var candidateNotMatched = lines.filter(function(line){
+        return !parseBulkCarHeader(line) && /[A-Z]{2,5}.{0,3}\d{2,8}/i.test(line) && clean(line);
+      });
+      rssDebug('[RSS-DEBUG] parseBulkSsTrace', {
+        totalLines: lines.length, sectionsFound: sections.length,
+        carsFound: sections.map(function(s){ return s.car; }),
+        linesThatLookCarLikeButDidNotMatchAHeader: candidateNotMatched.slice(0, 20)
+      });
+    }catch(e){}
     return sections;
   }
   function exampleCarForInfo(info){
@@ -57184,9 +59083,9 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       (pendingReady ? ' <button id="rss-bulk-accept-all" type="button" style="margin-left:10px;padding:4px 12px;border-radius:8px;border:1px solid #22c55e;background:#052e16;color:#bbf7d0;font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.8px;cursor:pointer;vertical-align:middle;">ACCEPT ALL ('+pendingReady+')</button>' : '');
     results.innerHTML = parsed.map(function(item, i){
       var match = lookupBulkResolveMatch(item.car, matchMap, bulkInfos);
-      var targetInfo = match && match.info ? match.info : currentInfo();
+      var targetInfo = match && match.info ? freshCurrentRampInfo(match.info, item.car) : currentInfo();
       var canSave = !!item.start;
-      var status = match ? ('06-'+esc(match.info.track || '')+' '+esc(match.info.label || '')) : 'No car match - use current Resolve SS block';
+      var status = match ? ('06-'+esc(targetInfo.track || '')+' '+esc(targetInfo.label || '')) : 'No car match - use current Resolve SS block';
       var startText = item.start ? item.start.display : 'Missing SS';
       var endText = item.end ? item.end.display : 'Missing RH SS';
       var previewHtml = match
@@ -57208,6 +59107,25 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var label = kind === 'end' ? 'E RH SS' : 'E SS';
     return '<div class="rss-bulk-hitline '+kind+'"><span class="rss-bulk-hit-event">'+label+'</span><span class="rss-bulk-hit-time">'+esc(hit.display || '')+'</span><span class="rss-bulk-hit-raw">'+escapeRawLine(hit.raw || '')+'</span></div>';
   }
+  function syncResolveSsMirrorsAfterCurrentRamp(){
+    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
+    try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+    try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
+  }
+  function finalizeBulkResolveAccept(){
+    try{ if(window.BlockAuthority && typeof window.BlockAuthority.restore === 'function') window.BlockAuthority.restore(); }catch(e){}
+    try{ if(typeof window.__resolveSsApplyForcedTimes === 'function') window.__resolveSsApplyForcedTimes(); }catch(e){}
+    try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
+    syncResolveSsMirrorsAfterCurrentRamp();
+    try{ syncResolveButton(); }catch(e){}
+  }
+  function scheduleBulkResolveAcceptFinalizers(){
+    finalizeBulkResolveAccept();
+    [40, 140, 320, 700, 1200].forEach(function(delay){
+      setTimeout(finalizeBulkResolveAccept, delay);
+    });
+  }
   function confirmBulkResult(pos){
     var parsed = window.__rssBulkParsedResolveSs || [];
     var item = parsed[pos];
@@ -57215,9 +59133,19 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var bulkInfos = bulkResolveInfos();
     var matchMap = bulkResolveMap(bulkInfos);
     var match = lookupBulkResolveMatch(item.car, matchMap, bulkInfos);
-    var targetInfo = match && match.info ? match.info : currentInfo();
+    var targetInfo = match && match.info ? freshCurrentRampInfo(match.info, item.car) : currentInfo();
     if(!targetInfo){ toastMsg('No current Resolve SS block available'); return; }
     if(!item.start){ toastMsg('No SS start found for '+(item.display || item.car)); return; }
+    try{
+      rssDebug('[RSS-DEBUG] confirmBulkResult', {
+        parsedCar: item.car, matched: !!match, fuzzy: !!(match && match.fuzzy),
+        usedFallbackToCurrentInfo: !match,
+        targetTrack: targetInfo.track, targetSampleCar: targetInfo.sampleCar, targetGroupKey: targetInfo.groupKey,
+        targetBlockAttached: !!(targetInfo.block && targetInfo.block.isConnected),
+        allUnresolvedBlockSampleCars: bulkInfos.map(function(i){ return {track:i.track, sampleCar: exampleCarForInfo(i), groupKey: i.groupKey}; }),
+        copiedCarSnapshotKeys: Object.keys(window.__rssBulkCopiedCarMap || {})
+      });
+    }catch(e){}
     var ok = saveResolvedInfo(targetInfo, item.start.iso, item.end ? item.end.iso : '', item.car, {toast:false});
     if(!ok) return;
     /* This car's job is done - drop its copy snapshot so a later re-parse
@@ -57230,6 +59158,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       if(btn){ btn.textContent = '✓ Success'; btn.disabled = true; btn.classList.add('rss-bulk-success'); }
     }
     toastMsg((match ? 'Saved matched SS times for ' : 'Saved to current Resolve SS block from ')+(item.display || item.car));
+    scheduleBulkResolveAcceptFinalizers();
     syncResolveButton();
     if(!match && targetInfo === currentInfo()){
       setTimeout(function(){
@@ -57256,8 +59185,10 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
          block simply won't match and falls through to skipped. */
       var match = lookupBulkResolveMatch(item.car, matchMap, bulkInfos);
       if(!match || !match.info){ skipped++; return; }
-      var ok = saveResolvedInfo(match.info, item.start.iso, item.end ? item.end.iso : '', item.car, {toast:false, render:false});
+      var targetInfo = freshCurrentRampInfo(match.info, item.car);
+      var ok = saveResolvedInfo(targetInfo, item.start.iso, item.end ? item.end.iso : '', item.car, {toast:false, render:false, deferMirrorSync:true});
       if(!ok){ skipped++; return; }
+      match.info = targetInfo;
       try{ if(window.__rssBulkCopiedCarMap) delete window.__rssBulkCopiedCarMap[normalizeCarId(item.car)]; }catch(snapErr){}
       savedCount++;
       if(row){
@@ -57276,15 +59207,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       /* One board re-render for the whole batch, then force the full
          restore chain so rebuilt blocks get their SS datasets re-stamped
          and the purple flags recompute from them. */
+      scheduleBulkResolveAcceptFinalizers();
       setTimeout(function(){
         try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){}
-        setTimeout(function(){
-          try{ if(window.BlockAuthority && typeof window.BlockAuthority.restore === 'function') window.BlockAuthority.restore(); }catch(e){}
-          try{ if(typeof window.__resolveSsApplyForcedTimes === 'function') window.__resolveSsApplyForcedTimes(); }catch(e){}
-          try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
-          syncResolveButton();
-        }, 180);
+        scheduleBulkResolveAcceptFinalizers();
       }, 120);
+      setTimeout(function(){ try{ closeModal(); }catch(e){} }, 220);
     }
     syncResolveButton();
     toastMsg(savedCount
@@ -57312,8 +59240,12 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     }
     var normalizedEvent = clean(event).toUpperCase();
     var kind = '';
-    if(normalizedEvent === 'SS') kind = 'start';
-    else if(normalizedEvent === 'RH SS') kind = 'end';
+    /* Trace dumps report these as "E SS" / "E RH SS" (event-code prefix), not
+       bare "SS"/"RH SS". Matching only the bare form meant parseEventLine
+       returned null for almost every real pasted line, so SS Start/SS End
+       and thus the car-matching preview looked broken. Accept both forms. */
+    if(/^E?\s*RH\s*SS$/.test(normalizedEvent)) kind = 'end';
+    else if(/^E?\s*SS$/.test(normalizedEvent)) kind = 'start';
     if(!kind) return null;
     var iso = toIso(dateMatch[1]+' '+dateMatch[2]);
     if(!iso) return null;
@@ -57433,6 +59365,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   }
   function saveResolvedInfo(info, ssStart, ssEnd, sampleCar, opts){
     opts = opts || {};
+    var deferMirrorSync = !!opts.deferMirrorSync;
     if(!info) return false;
     ssStart = toIso(ssStart) || rawClean(ssStart);
     ssEnd = toIso(ssEnd) || rawClean(ssEnd);
@@ -57468,6 +59401,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       resolveSsOnly: true,
       updatedAt: new Date().toISOString()
     };
+    releaseNonSsClearForResolveSave(info.block || null);
     var stableKey = stableEditKey(info.block || null, full.sampleCar || info.sampleCar, info.track);
     var editKeys = editKeysForSave(info, full.sampleCar || sampleCar, full);
     if(stableKey && editKeys.indexOf(stableKey) < 0) editKeys.push(stableKey);
@@ -57488,6 +59422,13 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       info.block.dataset.currentEditKey = canonicalKey;
     }
     saveEdits(edits);
+    try{
+      rssDebug('[RSS-DEBUG] saveResolvedInfo', {
+        track: info.track, sampleCarUsed: full.sampleCar, canonicalKey: canonicalKey,
+        groupKey: full.groupKey, editKeys: editKeys, ssStart: ssStart, ssEnd: ssEnd,
+        infoBlockAttached: !!(info.block && info.block.isConnected)
+      });
+    }catch(logErr){}
     try{
       if(typeof window.__resolveSsPersistFinal === 'function'){
         window.__resolveSsPersistFinal({
@@ -57510,28 +59451,35 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     info.existing = full;
 
     try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
-    try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
-    try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
-    try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
-    try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
+    if(!deferMirrorSync) syncResolveSsMirrorsAfterCurrentRamp();
     [40, 180, 420].forEach(function(delay){
       setTimeout(function(){
         forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS);
         try{ if(typeof window.enhanceCurrentBoardEditIcons === 'function') window.enhanceCurrentBoardEditIcons(); }catch(e){}
-        try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
-        try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
-        try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
-        try{ if(typeof window.normalizePostOutboundSsCarryoverDisplay === 'function') window.normalizePostOutboundSsCarryoverDisplay(); }catch(e){}
+        if(!deferMirrorSync) syncResolveSsMirrorsAfterCurrentRamp();
       }, delay);
     });
+    setTimeout(function(){
+      try{
+        var stillUnresolved = getResolveBlocks();
+        var stillThere = stillUnresolved.indexOf(info.block) >= 0;
+        var stillPurpleByClass = !!(info.block && info.block.isConnected && (info.block.classList.contains('missing-ss-start') || info.block.classList.contains('current-ss-start-missing')));
+        rssDebug('[RSS-DEBUG] post-save check (900ms later)', {
+          track: info.track,
+          infoBlockStillAttached: !!(info.block && info.block.isConnected),
+          infoBlockStillInGetResolveBlocks: stillThere,
+          infoBlockStillHasPurpleClass: stillPurpleByClass,
+          infoBlockCurrentSsStart: info.block && info.block.dataset ? info.block.dataset.currentSsStart : null,
+          totalUnresolvedBlocksNow: stillUnresolved.length
+        });
+      }catch(e){ rssDebug('[RSS-DEBUG] post-save check failed', e); }
+    }, 900);
     if(opts.render !== false){
       setTimeout(function(){
         try{ if(typeof window.renderOB === 'function') window.renderOB(); }catch(e){}
         setTimeout(function(){
           forceApplyResolvedTimes(info, full, ssStart, ssEnd, sampleCar, editKeys, arrToSS);
-          try{ if(typeof window.syncStableCurrentEditsToPostOutbound === 'function') window.syncStableCurrentEditsToPostOutbound(); }catch(e){}
-          try{ if(typeof window.syncCurrentEditsToPostOutbound === 'function') window.syncCurrentEditsToPostOutbound(); }catch(e){}
-          try{ if(typeof window.applyPostOutboundSsNetDwellAuthority === 'function') window.applyPostOutboundSsNetDwellAuthority(); }catch(e){}
+          if(!deferMirrorSync) syncResolveSsMirrorsAfterCurrentRamp();
         }, 80);
       }, 120);
     }
@@ -57606,6 +59554,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
       resolveSsOnly: true,
       updatedAt: new Date().toISOString()
     };
+    releaseNonSsClearForResolveSave(info.block || null);
     var stableKey = stableEditKey(info.block || null, full.sampleCar || info.sampleCar, info.track);
     var editKeys = editKeysForSave(info, sampleCar, full);
     if(stableKey && editKeys.indexOf(stableKey) < 0) editKeys.push(stableKey);
@@ -57638,6 +59587,7 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     if(block){
       if(canonicalKey) block.dataset.blockId = canonicalKey;
       block.dataset.currentEditKey = canonicalKey || info.key;
+      releaseNonSsClearForResolveSave(block);
       block.dataset.currentSsStart = ssStart;
       block.dataset.currentSsEnd = ssEnd;
       block.dataset.ssStart = ssStart;
@@ -57700,6 +59650,11 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
     var val = rawClean((document.getElementById('rss-sample-car')||{}).value);
     if(!val) return;
     var copied = copyText(val);
+    /* Register this car the same way Copy Cars does, so a car copied one at
+       a time in Resolve Car By Car still matches back to its block when its
+       trace is later pasted into Resolve In Bulk. Without this, only cars
+       copied via the bulk "Copy Cars" button could ever match. */
+    try{ rememberCopiedBulkCar(val, currentInfo()); }catch(e){}
     var btn = document.getElementById('rss-copy-btn');
     if(btn){ btn.textContent = copied ? 'OK' : 'FAIL'; setTimeout(function(){ btn.textContent = 'COPY'; }, 1000); }
     toastMsg(copied ? ('Copied example car: '+val) : 'Copy failed - selected example car text');
@@ -57740,7 +59695,10 @@ html body #trainStack .train-card .table-footer.inbound-footer-controls .with-80
   function copyCurrentExampleCar(){
     var info = currentInfo();
     var sample = info && (info.sampleCar || rawClean((document.getElementById('rss-sample-car')||{}).value));
-    if(copyText(sample)) toastMsg('Copied next example car: '+sample);
+    if(copyText(sample)){
+      try{ rememberCopiedBulkCar(sample, info); }catch(e){}
+      toastMsg('Copied next example car: '+sample);
+    }
   }
 
   function findRampHead(){ return document.querySelector('#tab-outbound .bowl-ramp-head'); }
@@ -59866,6 +61824,10 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   }
   function assignCarToTrain(car, group, fallbackTrack, kind){
     var carTrack = blockTrack({dataset:{displayTrack:(car && car.track) || (group && group.track) || fallbackTrack || ''}});
+    try{
+      var resolveCarSnapshot = resolveSsAssignmentSnapshotForCar(carTrack || (group && group.track) || fallbackTrack, car, kind);
+      if(resolveCarSnapshot) scheduleResolveAssignmentPreserve(resolveCarSnapshot);
+    }catch(e){}
     setManualCarSelection(carTrack || (group && group.track) || fallbackTrack, car, group, kind);
     try{
       var id = String(car && car.equipId || '').trim();
@@ -60034,6 +61996,225 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     });
     return out;
   }
+  var ASSIGN_PRESERVE_EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var ASSIGN_PRESERVE_FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var pendingResolveSsAssignmentPreserves = [];
+  function loadJsonStore(key){
+    try{
+      var parsed = JSON.parse(localStorage.getItem(key) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    }catch(e){ return {}; }
+  }
+  function saveJsonStore(key, value){
+    try{ localStorage.setItem(key, JSON.stringify(value || {})); }catch(e){}
+  }
+  function normCarKey(value){
+    return normText(value).replace(/[^A-Z0-9]/g,'');
+  }
+  function newerResolveRecord(a, b){
+    if(!a) return b || null;
+    if(!b) return a || null;
+    var at = Date.parse(normText(a.updatedAt || '')) || 0;
+    var bt = Date.parse(normText(b.updatedAt || '')) || 0;
+    return bt >= at ? b : a;
+  }
+  function normalizeResolveRecord(raw, key){
+    if(!raw || typeof raw !== 'object') return null;
+    var rec = Object.assign({}, raw);
+    rec.key = normText(key || rec.key || rec.blockId || '');
+    rec.blockId = normText(rec.blockId || rec.key);
+    rec.ssStart = String(rec.ssStart || rec.currentSsStart || rec.ssStartTime || '').trim();
+    rec.ssEnd = String(rec.ssEnd || rec.currentSsEnd || rec.ssEndTime || '').trim();
+    if(!rec.ssStart && !rec.ssEnd) return null;
+    rec.sampleCar = normCarKey(rec.sampleCar || rec.sampleEquipId || rec.equipId || rec.equipmentId || '');
+    if(!rec.sampleCar && /^\d{3}\|\|/.test(rec.key)) rec.sampleCar = normCarKey(rec.key.split('||')[1]);
+    rec.track = blockTrack({dataset:{displayTrack:rec.track || (/^\d{3}\|\|/.test(rec.key) ? rec.key.split('||')[0] : '')}});
+    rec.groupKey = normText(rec.groupKey || rec.bowlGroupKey || '');
+    rec.groupCars = Array.isArray(rec.groupCars) ? rec.groupCars.map(normCarKey).filter(Boolean) : [];
+    if(rec.sampleCar && rec.groupCars.indexOf(rec.sampleCar) < 0) rec.groupCars.unshift(rec.sampleCar);
+    return rec;
+  }
+  function resolveStoreRecordForBlock(block){
+    var ds = block && block.dataset || {};
+    var edits = loadJsonStore(ASSIGN_PRESERVE_EDIT_STORE);
+    var forced = loadJsonStore(ASSIGN_PRESERVE_FORCE_STORE);
+    var track = blockTrack(block);
+    var car = normCarKey(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || '');
+    var keys = [];
+    function add(key){ key = normText(key); if(key && keys.indexOf(key) < 0) keys.push(key); }
+    add(ds.blockId);
+    add(ds.currentEditKey);
+    if(track && car) add(track + '||' + car);
+    var best = null;
+    keys.forEach(function(key){
+      best = newerResolveRecord(best, normalizeResolveRecord(edits[key], key));
+      best = newerResolveRecord(best, normalizeResolveRecord(forced[key], key));
+    });
+    try{
+      if(typeof window.__resolveSsBlockSavedRecord === 'function'){
+        best = newerResolveRecord(best, normalizeResolveRecord(window.__resolveSsBlockSavedRecord(block)));
+      }
+    }catch(e){}
+    return best;
+  }
+  function resolveDwellForSnapshot(block, rec){
+    try{
+      if(window.DwellFormula && typeof window.DwellFormula.computeForBlock === 'function'){
+        var computed = window.DwellFormula.computeForBlock(block, {
+          arrival: rec.arrival || undefined,
+          ssStart: rec.ssStart || undefined,
+          ssEnd: rec.ssEnd || undefined
+        });
+        if(computed && Number.isFinite(computed.net)) return Math.round(computed.net) + 'H NET';
+      }
+    }catch(e){}
+    return normText(rec.dwell || (block && block.dataset && (block.dataset.currentDwell || block.dataset.resolveSsDwell)) || '');
+  }
+  function resolveAssignmentSnapshot(block, kind){
+    if(!block || !block.dataset) return null;
+    var rec = resolveStoreRecordForBlock(block) || {};
+    var ds = block.dataset;
+    var ssStart = String(rec.ssStart || ds.currentSsStart || ds.ssStart || ds.afterSsStart || '').trim();
+    var ssEnd = String(rec.ssEnd || ds.currentSsEnd || ds.ssEnd || ds.afterSsEnd || '').trim();
+    if(!ssStart && !ssEnd) return null;
+    var track = blockTrack(block);
+    var groups = assignBlockCars._groups || (typeof buildGroups === 'function' ? buildGroups() : []);
+    var cars = currentRampCarsForBlock(block, groups).map(function(item){ return normCarKey(item.equip); }).filter(Boolean);
+    var sampleCar = normCarKey(rec.sampleCar || ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || cars[0] || '');
+    if(sampleCar && cars.indexOf(sampleCar) < 0) cars.unshift(sampleCar);
+    cars = cars.filter(function(car, index, self){ return car && self.indexOf(car) === index; });
+    if(!track || !cars.length) return null;
+    rec = Object.assign({}, rec, {
+      track: track,
+      sampleCar: sampleCar || cars[0],
+      groupCars: cars,
+      groupKey: normText(rec.groupKey || ds.bowlGroupKey || ds.groupKey || ''),
+      train: normText(rec.train || ds.sourceTrain || ds.currentTrain || ds.afterTrain || ''),
+      sourceBlockLabel: normText(rec.sourceBlockLabel || rec.label || ds.sourceBlockLabel || ds.currentBlockType || ds.afterStatus || labelFromBlock(block)),
+      label: normText(rec.label || rec.sourceBlockLabel || ds.sourceBlockLabel || ds.currentBlockType || ds.afterStatus || labelFromBlock(block)),
+      blockType: normText(rec.blockType || ds.currentBlockType || ''),
+      arrival: String(rec.arrival || ds.currentArrival || ds.afterArrival || ds.arrival || '').trim(),
+      ssStart: ssStart,
+      ssEnd: ssEnd,
+      resolveSsOnly: true,
+      preservedDuringAssignment: kind,
+      updatedAt: new Date().toISOString()
+    });
+    rec.dwell = resolveDwellForSnapshot(block, rec);
+    return {track:track, cars:cars, rec:rec};
+  }
+  function persistResolveAssignmentSnapshot(snapshot){
+    if(!snapshot || !snapshot.rec || !snapshot.cars || !snapshot.cars.length) return false;
+    var edits = loadJsonStore(ASSIGN_PRESERVE_EDIT_STORE);
+    var forced = loadJsonStore(ASSIGN_PRESERVE_FORCE_STORE);
+    var changed = false;
+    snapshot.cars.forEach(function(car){
+      var key = snapshot.track + '||' + car;
+      var rec = Object.assign({}, edits[key] || {}, forced[key] || {}, snapshot.rec, {
+        key: key,
+        blockId: key,
+        track: snapshot.track,
+        sampleCar: car,
+        groupCars: snapshot.cars.slice(),
+        resolveSsOnly: true,
+        updatedAt: new Date().toISOString()
+      });
+      edits[key] = rec;
+      forced[key] = rec;
+      changed = true;
+    });
+    if(changed){
+      saveJsonStore(ASSIGN_PRESERVE_EDIT_STORE, edits);
+      saveJsonStore(ASSIGN_PRESERVE_FORCE_STORE, forced);
+      try{
+        if(typeof window.__dwellSsTimingStampLastAction === 'function') window.__dwellSsTimingStampLastAction('resolve');
+        else localStorage.setItem('dwellSsTimingLastActionV1', JSON.stringify({action:'resolve', at:Date.now()}));
+      }catch(e){}
+    }
+    return changed;
+  }
+  function liveCurrentBlocksForSnapshot(snapshot){
+    if(!snapshot) return [];
+    var wanted = {};
+    snapshot.cars.forEach(function(car){ wanted[car] = true; });
+    var out = [];
+    document.querySelectorAll('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(blockTrack(block) !== snapshot.track) return;
+      var car = normCarKey(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || block.dataset.equipId || block.dataset.equipmentId || ''));
+      if(car && wanted[car]) out.push(block);
+      else if(snapshot.rec.groupKey && normText(block && block.dataset && (block.dataset.bowlGroupKey || block.dataset.groupKey || '')) === snapshot.rec.groupKey) out.push(block);
+    });
+    return out.filter(function(block, index, self){ return self.indexOf(block) === index; });
+  }
+  function applyResolveAssignmentSnapshot(snapshot){
+    if(!snapshot || !snapshot.rec) return 0;
+    persistResolveAssignmentSnapshot(snapshot);
+    var count = 0;
+    liveCurrentBlocksForSnapshot(snapshot).forEach(function(block){
+      var rec = snapshot.rec;
+      block.dataset.currentSsStart = rec.ssStart || '';
+      block.dataset.ssStart = rec.ssStart || '';
+      block.dataset.currentSsEnd = rec.ssEnd || '';
+      block.dataset.ssEnd = rec.ssEnd || '';
+      if(rec.arrival) block.dataset.currentArrival = rec.arrival;
+      if(rec.train){ block.dataset.currentTrain = rec.train; block.dataset.sourceTrain = rec.train; }
+      if(rec.sourceBlockLabel) block.dataset.sourceBlockLabel = rec.sourceBlockLabel;
+      if(rec.groupKey) block.dataset.bowlGroupKey = rec.groupKey;
+      if(rec.dwell){ block.dataset.currentDwell = rec.dwell; block.dataset.resolveSsDwell = rec.dwell; }
+      block.classList.remove('missing-ss-start','current-ss-start-missing');
+      delete block.dataset.missingSsStart;
+      block.dataset.missingSsStartAuthority = '0';
+      count++;
+    });
+    try{ if(window.BlockAuthority && typeof window.BlockAuthority.restore === 'function') window.BlockAuthority.restore(); }catch(e){}
+    try{ if(typeof window.__resolveSsApplyForcedTimes === 'function') window.__resolveSsApplyForcedTimes(); }catch(e){}
+    try{ if(typeof window.__resolveSsRevertGuardApply === 'function') window.__resolveSsRevertGuardApply(); }catch(e){}
+    try{ if(typeof window.__blockDisplayGovernorFinalApply === 'function') window.__blockDisplayGovernorFinalApply(); }catch(e){}
+    return count;
+  }
+  function scheduleResolveAssignmentPreserve(snapshot){
+    if(!snapshot) return;
+    pendingResolveSsAssignmentPreserves.push(snapshot);
+    persistResolveAssignmentSnapshot(snapshot);
+    clearTimeout(scheduleResolveAssignmentPreserve._timer);
+    function run(){
+      var pending = pendingResolveSsAssignmentPreserves.slice();
+      pending.forEach(applyResolveAssignmentSnapshot);
+    }
+    [0,80,220,520,1100,2200].forEach(function(delay){ setTimeout(run, delay); });
+    scheduleResolveAssignmentPreserve._timer = setTimeout(function(){
+      run();
+      pendingResolveSsAssignmentPreserves = [];
+    }, 3600);
+  }
+  function resolveSsAssignmentSnapshotForCar(track, car, kind){
+    var carId = normCarKey(car && (car.equipId || car.equipmentId || car.carId || car.id || car));
+    var trackId = blockTrack({dataset:{displayTrack:track || (car && car.track) || ''}});
+    if(!carId || !trackId) return null;
+    var groups = assignBlockCars._groups || (typeof buildGroups === 'function' ? buildGroups() : []);
+    var found = null;
+    document.querySelectorAll('#tab-outbound table.bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block').forEach(function(block){
+      if(found || blockTrack(block) !== trackId) return;
+      var direct = normCarKey(block && block.dataset && (block.dataset.sampleCar || block.dataset.sampleEquipId || block.dataset.equipId || block.dataset.equipmentId || ''));
+      if(direct === carId){ found = block; return; }
+      var cars = currentRampCarsForBlock(block, groups).map(function(item){ return normCarKey(item.equip); });
+      if(cars.indexOf(carId) >= 0) found = block;
+    });
+    if(!found) return null;
+    return resolveAssignmentSnapshot(found, kind);
+  }
+  window.__resolveSsAssignmentPreserveBlock = function(block, kind){
+    var snap = resolveAssignmentSnapshot(block, kind);
+    if(snap) scheduleResolveAssignmentPreserve(snap);
+    return snap;
+  };
+  window.__resolveSsAssignmentPreserveCar = function(track, car, kind){
+    var snap = resolveSsAssignmentSnapshotForCar(track, car, kind);
+    if(snap) scheduleResolveAssignmentPreserve(snap);
+    return snap;
+  };
+  window.__resolveSsAssignmentApplySnapshot = applyResolveAssignmentSnapshot;
+  window.__resolveSsAssignmentScheduleSnapshot = scheduleResolveAssignmentPreserve;
   function assignBlockCars(block, kind){
     if(typeof buildGroups !== 'function' || typeof setManualCarSelection !== 'function') return 0;
     var track = blockTrack(block);
@@ -60412,6 +62593,8 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     return true;
   }
   function assignBlock(block, kind){
+    var resolveSnapshot = resolveAssignmentSnapshot(block, kind);
+    if(resolveSnapshot) scheduleResolveAssignmentPreserve(resolveSnapshot);
     block.dataset.outboundDeparture = kind;
     block.dataset.afterDepart = kind;
     block.dataset.afterDeparting = '1';
@@ -60424,6 +62607,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     addBadge(block, kind);
     savePostOutboundAssignment(block, kind);
     assignBlockCars(block, kind);
+    if(resolveSnapshot) scheduleResolveAssignmentPreserve(resolveSnapshot);
     stampPostAssignmentBlock(block);
     scheduleProjectedDwellRefresh();
   }
@@ -60467,6 +62651,11 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     var fastRefreshed = refreshOutboundTrackTablesNow();
     refreshProjectedDwellNow();
     schedulePostAssignmentBadges();
+    if(pendingResolveSsAssignmentPreserves.length){
+      [0,160,520,1200,2600].forEach(function(delay){
+        setTimeout(function(){ pendingResolveSsAssignmentPreserves.forEach(applyResolveAssignmentSnapshot); }, delay);
+      });
+    }
     try{
       if(typeof window.renderOB === 'function'){
         setTimeout(function(){
@@ -60474,6 +62663,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
           try{ refreshProjectedDwellNow(); }catch(e){}
           window.renderOB();
           try{ refreshProjectedDwellNow(); }catch(e){}
+          try{ pendingResolveSsAssignmentPreserves.forEach(applyResolveAssignmentSnapshot); }catch(e){}
           schedulePostAssignmentBadges();
           scheduleTaggedCurrentRampCarSync();
           scheduleProjectedDwellRefresh();
@@ -61304,7 +63494,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     return s==='SS';
   }
   function hasSsToken(value){return /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(clean(value).toUpperCase());}
-  function tracksSs(block){return hasSsToken(label(block));}
+  function tracksSs(block){return exactSS(block);}
   function blocks(){
     return Array.prototype.slice.call(document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block,#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-wrap .bowl-block'));
   }
@@ -61336,6 +63526,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
       var edits=JSON.parse(localStorage.getItem('dwellCurrentBoardBlockEditsV2')||'{}')||{}, changed=false, sampleList=Object.keys(samples);
       Object.keys(edits).forEach(function(k){
         var e=edits[k]||{};
+        if(e.resolveSsOnly) return;
         var has=clean(e.ssStart||e.currentSsStart||e.ssStartTime||e.ssEnd||e.currentSsEnd||e.ssEndTime||e.dwell);
         var s=clean(e.sampleCar||e.equipId||e.equipmentId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
         var savedLabel=clean(e.sourceBlockLabel||e.label||e.blockType||'');
@@ -62020,6 +64211,7 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
   }
   function hasSsStart(block){
     var ds = block && block.dataset || {};
+    try{ if(window.__resolveSsBlockHasSavedStart && window.__resolveSsBlockHasSavedStart(block)) return true; }catch(e){}
     return !!clean(ds.currentSsStart || ds.ssStart || ds.ssStartTime || ds.afterSsStart || '');
   }
   function shouldFlag(block){
@@ -62029,7 +64221,8 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
     if(block.querySelector('.future-inbound-tag,.future-shove-badge')) return false;
     var text = label(block);
     if(hasCuRamp(text)) return false;
-    return !hasSsStart(block) || block.dataset.missingSsStart === '1' || block.classList.contains('current-ss-start-missing');
+    if(hasSsStart(block)) return false;
+    return true;
   }
   function applyState(){
     var isHidden = hidden();
@@ -63393,198 +65586,579 @@ html body #tab-outbound .bowl-board-next-day .bowl-segments-cell .bowl-block.nex
 })();
 </script>
 
-<script id="rss-selftest-harness-js">
-/* TEMPORARY self-test harness for the Resolve SS bulk workflow.
-   Auto-runs ONCE per RUN_ID, snapshots + restores all touched stores,
-   paints an on-screen PASS/FAIL panel, then reloads clean. Remove after
-   verification. */
+<style id="post-outbound-clear-non-ss-absolute-last-css">
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-post-outbound-dwell-suppressed="1"] .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block[data-clear-non-ss-suppressed="1"] [data-ss-hours-in-ss],
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .bowl-dwell,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) .ss-hours-in-ss,
+  html.current-ramp-clear-non-exact-ss-starts body #tab-outbound
+  table.bowl-board.bowl-board-after:not(.bowl-board-next-day):not(.bowl-outbound-track-table)
+  .bowl-block:not([data-has-ss-token="1"]) [data-ss-hours-in-ss]{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    width:0!important;
+    min-width:0!important;
+    max-width:0!important;
+    height:0!important;
+    min-height:0!important;
+    max-height:0!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    overflow:hidden!important;
+  }
+</style>
+
+<script id="post-outbound-clear-non-ss-absolute-last-js">
 (function(){
   'use strict';
-  var RUN_ID = 'run1';
-  var RESULT_KEY = 'rssSelfTestResultsV1';
-  var DONE_KEY = 'rssSelfTestDoneV1';
-  var STORE_KEYS = ['dwellCurrentBoardBlockEditsV2','dwellResolveSsForcedTimesV1','dwellManualSSStoreV1'];
-  var PURPLE_SEL = '#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) .bowl-segments-cell .bowl-block.missing-ss-start';
-  var results = [];
-  var toasts = [];
-  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-  function rec(name, pass, detail){
-    results.push({p: pass === true ? 'PASS' : (pass === null ? 'WARN' : 'FAIL'), n: name, d: String(detail == null ? '' : detail)});
-    draw(false);
-  }
-  function panel(){
-    var p = document.getElementById('rss-selftest-panel');
-    if(!p){
-      p = document.createElement('div');
-      p.id = 'rss-selftest-panel';
-      p.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;max-width:900px;max-height:92vh;overflow:auto;background:#020617;border:2px solid #22c55e;border-radius:10px;padding:10px 14px;font-family:Consolas,monospace;font-size:12px;line-height:1.5;color:#e2e8f0;white-space:pre-wrap;box-shadow:0 10px 40px rgba(0,0,0,.65);';
-      (document.body || document.documentElement).appendChild(p);
-    }
-    return p;
-  }
-  function draw(final){
-    var p = panel();
-    var head = 'RSS SELF-TEST ' + RUN_ID + (final ? ' -- FINISHED (data restored)' : ' -- RUNNING...');
-    p.textContent = head + '\n' + results.map(function(r){ return r.p + ' | ' + r.n + (r.d ? ' -- ' + r.d : ''); }).join('\n') + (toasts.length ? '\n--- toasts ---\n' + toasts.join('\n') : '');
-  }
-  function snapshotStores(){
-    var snap = {};
-    STORE_KEYS.forEach(function(k){ try{ snap[k] = localStorage.getItem(k); }catch(e){ snap[k] = null; } });
-    return snap;
-  }
-  function restoreStores(snap){
-    STORE_KEYS.forEach(function(k){
-      try{
-        if(snap[k] == null) localStorage.removeItem(k);
-        else localStorage.setItem(k, snap[k]);
-      }catch(e){}
-    });
-  }
-  function click(sel){
-    var el = document.querySelector(sel);
-    if(el) el.click();
-    return !!el;
-  }
-  function hookToast(){
-    var old = window.toast;
-    window.toast = function(m){
-      toasts.push(String(m));
-      if(toasts.length > 14) toasts.shift();
-      try{ return typeof old === 'function' ? old.apply(this, arguments) : undefined; }catch(e){}
-    };
-  }
-  function assessBlocks(stage, targets){
-    var seen = {};
-    targets.forEach(function(t){
-      t = String(t || '').trim();
-      if(!t || seen[t] || /No car match/i.test(t)) return;
-      seen[t] = true;
-      var m = t.match(/^06-(\d{3})\s+(.*)$/);
-      if(!m){ rec(stage + ' [' + t.slice(0,30) + ']', null, 'unparsable target'); return; }
-      var track = m[1];
-      var label = (m[2] || '').toUpperCase().replace(/\s+/g,' ').slice(0, 14);
-      var found = null;
-      var rows = document.querySelectorAll('#tab-outbound .bowl-board:not(.bowl-board-after):not(.bowl-board-next-day):not(.bowl-outbound-track-table) tbody tr');
-      Array.prototype.forEach.call(rows, function(tr){
-        if(found) return;
-        var tc = tr.querySelector('.bowl-track');
-        if(!tc || (tc.textContent || '').indexOf(track) < 0) return;
-        tr.querySelectorAll('.bowl-segments-cell .bowl-block').forEach(function(b){
-          if(found) return;
-          var txt = (b.textContent || '').toUpperCase().replace(/\s+/g,' ');
-          if(!label || txt.indexOf(label) >= 0) found = b;
-        });
-      });
-      var tag = stage + ' [06-' + track + ' ' + label + ']';
-      if(!found){ rec(tag, false, 'block not found on board'); return; }
-      var ds = found.dataset || {};
-      var ss = ds.currentSsStart || ds.ssStart || '';
-      var purple = found.classList.contains('missing-ss-start');
-      var dw = found.querySelector('.bowl-dwell');
-      var arr = ds.currentArrival || ds.arrival || '';
-      var ok;
-      if(!ss || purple) ok = false;
-      else if(dw) ok = true;
-      else ok = arr ? false : null; /* no arrival => dwell not computable => WARN not FAIL */
-      rec(tag, ok, 'ss=' + (ss || '-') + ' purple=' + purple + ' dwell=' + (dw ? dw.textContent : 'none') + ' arrival=' + (arr ? 'yes' : 'NO'));
-    });
-  }
-  function displayStored(){
+  if(window.__postOutboundClearNonSsAbsoluteLastInstalled) return;
+  window.__postOutboundClearNonSsAbsoluteLastInstalled = true;
+  function active(){
     try{
-      var stored = JSON.parse(localStorage.getItem(RESULT_KEY) || 'null');
-      if(!stored || stored.run !== RUN_ID) return;
-      results = stored.results || [];
-      toasts = stored.toasts || [];
-      draw(true);
+      if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1') === '1') return true;
+      var suppressions = JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1') || '{}') || {};
+      return Object.keys(suppressions).length > 0;
+    }catch(e){ return false; }
+  }
+  function run(){
+    if(!active()) return;
+    document.documentElement.classList.add('current-ramp-clear-non-exact-ss-starts');
+    try{
+      if(typeof window.__postOutboundClearNonSsTailGuardApply === 'function') window.__postOutboundClearNonSsTailGuardApply();
     }catch(e){}
   }
-  async function run(){
-    hookToast();
-    await sleep(4500);
-    var snap = snapshotStores();
-    try{
-      var btn = document.querySelector('#tab-outbound [data-resolve-ss-btn]');
-      rec('app ready', !!(window.openResolveSsQueue && window.renderOB), 'resolveBtn=' + (btn ? btn.textContent.trim() : 'MISSING'));
-      var purple0 = document.querySelectorAll(PURPLE_SEL).length;
-      rec('purple census', purple0 > 0 ? true : null, purple0 + ' purple blocks on board');
-      if(!purple0 || !window.openResolveSsQueue){ rec('aborted', null, 'nothing to test against'); return finish(snap); }
-      window.openResolveSsQueue();
-      await sleep(600);
-      var modal = document.getElementById('resolve-ss-modal');
-      rec('modal open', !!(modal && modal.classList.contains('open')), '');
-      click('#rss-mode-bulk');
-      await sleep(350);
-      click('#rss-bulk-copy-missing');
-      await sleep(450);
-      var copied = {};
-      try{ Object.keys(window.__rssBulkCopiedCarMap || {}).forEach(function(k){ copied[k] = true; }); }catch(e){}
-      var cars = Object.keys(copied);
-      rec('copy cars', cars.length > 0, cars.length + ' cars: ' + cars.slice(0,6).join(',') + (cars.length > 6 ? '...' : ''));
-      if(!cars.length){ rec('aborted', false, 'no example cars copied'); return finish(snap); }
-      var trace = cars.map(function(car){
-        var m2 = car.match(/^([A-Z]+)(\d+)$/);
-        var disp = m2 ? m2[1] + ' ' + m2[2] : car;
-        return disp + 'View\n07/03/2026 09:12\tSS\tE SS TEST YARD\n07/04/2026 16:17\tRH SS\tE RH SS TEST YARD';
-      }).join('\n');
-      var mv = cars[0].match(/^([A-Z]+)(\d+)$/);
-      var variantAdded = false;
-      if(mv && mv[1].length >= 3){
-        var vp = mv[1].slice(0,-1) + (mv[1].slice(-1) === 'X' ? 'A' : 'X');
-        trace += '\n' + vp + ' ' + mv[2] + 'View\n07/02/2026 08:00\tSS\tE SS VARIANT MARK\n07/04/2026 12:00\tRH SS\tE RH SS VARIANT MARK';
-        variantAdded = true;
-      }
-      var box = document.getElementById('rss-bulk-text');
-      box.value = trace;
-      box.dispatchEvent(new Event('input', {bubbles:true}));
-      await sleep(800);
-      var rows = Array.prototype.slice.call(document.querySelectorAll('#rss-bulk-results .rss-bulk-row'));
-      var noMatch = rows.filter(function(r){ return /No car match/i.test((r.querySelector('.rss-bulk-match') || {}).textContent || ''); }).length;
-      var summaryTxt = (document.getElementById('rss-bulk-summary') || {}).textContent || '';
-      rec('parse+match', rows.length >= cars.length && noMatch === 0, rows.length + ' rows, ' + noMatch + ' no-match | ' + summaryTxt.slice(0,110));
-      if(variantAdded){
-        var lastRow = rows[rows.length - 1];
-        var lastStatus = lastRow ? ((lastRow.querySelector('.rss-bulk-match') || {}).textContent || '') : '';
-        rec('mark-variant match (DTTA/DTTX case)', !/No car match/i.test(lastStatus) && !!lastStatus, lastStatus.trim().slice(0,60));
-      }
-      var targets = rows.map(function(r){ return ((r.querySelector('.rss-bulk-match') || {}).textContent || '').trim(); });
-      var acceptBtn = document.getElementById('rss-bulk-accept-all');
-      rec('accept-all button', !!acceptBtn, acceptBtn ? acceptBtn.textContent.trim() : 'MISSING');
-      if(acceptBtn) acceptBtn.click();
-      await sleep(2000);
-      var savedRows = rows.filter(function(r){ return r.classList.contains('saved'); }).length;
-      rec('rows saved', savedRows > 0, savedRows + ' of ' + rows.length + ' rows marked saved');
-      assessBlocks('T1 modal-open', targets);
-      click('#rss-close');
-      await sleep(250);
-      try{ window.renderOB(); }catch(e){ rec('renderOB after exit', false, String(e && e.message || e)); }
-      await sleep(1700);
-      assessBlocks('T2 after EXIT+render', targets);
-      try{ window.renderOB(); }catch(e){}
-      await sleep(1500);
-      assessBlocks('T3 second render', targets);
-      var purple1 = document.querySelectorAll(PURPLE_SEL).length;
-      rec('purple reduced', purple1 < purple0, purple0 + ' -> ' + purple1);
-      var btn2 = document.querySelector('#tab-outbound [data-resolve-ss-btn]');
-      rec('resolve button after', true, btn2 ? btn2.textContent.trim() : '-');
-    }catch(err){
-      rec('UNCAUGHT', false, String(err && (err.stack || err.message) || err).slice(0,220));
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__postOutboundClearNonSsAbsoluteLastWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      run();
+      setTimeout(run, 80);
+      setTimeout(run, 240);
+      return result;
+    };
+    wrapped.__postOutboundClearNonSsAbsoluteLastWrapped = true;
+    window[name] = wrapped;
+  }
+  [
+    'renderOB','renderBowlTurnover','restoreFinalPostOutboundDwell',
+    'restoreMissingPostOutboundDwell','applyPostOutboundSsNetDwellAuthority',
+    'normalizePostOutboundSsCarryoverDisplay','normalizePostOutboundBlockDisplay',
+    'normalizePostOutboundSingleDisplayOwner','syncCurrentEditsToPostOutbound',
+    'syncStableCurrentEditsToPostOutbound','syncPostOutboundSingleDwellAuthority'
+  ].forEach(wrap);
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound [data-clear-current-non-ss-start],#tab-outbound .clear-current-non-ss-start-btn')){
+      try{ localStorage.setItem('dwellCurrentRampClearNonExactSsStartsV1', '1'); }catch(err){}
+      run();
+      setTimeout(run, 80);
+      setTimeout(run, 240);
     }
-    return finish(snap);
+  }, true);
+  try{
+    new MutationObserver(function(){ if(active()) run(); }).observe(document.getElementById('tab-outbound') || document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+  setInterval(run, 250);
+  run();
+})();
+</script>
+
+<script id="resolve-ss-revert-guard-real-last-runner-js">
+(function(){
+  'use strict';
+  if(window.__resolveSsRevertGuardRealLastRunnerInstalled) return;
+  window.__resolveSsRevertGuardRealLastRunnerInstalled = true;
+  var timer = null;
+  function apply(){
+    try{
+      if(typeof window.__resolveSsRevertGuardApply === 'function'){
+        window.__resolveSsRevertGuardApply();
+      }
+    }catch(e){}
   }
-  function finish(snap){
-    try{ restoreStores(snap); }catch(e){}
-    try{ localStorage.setItem(RESULT_KEY, JSON.stringify({run:RUN_ID, at:new Date().toISOString(), results:results, toasts:toasts})); }catch(e){}
-    try{ localStorage.setItem(DONE_KEY, RUN_ID); }catch(e){}
-    draw(true);
-    setTimeout(function(){ try{ location.reload(); }catch(e){} }, 1200);
+  function schedule(){
+    clearTimeout(timer);
+    timer = setTimeout(apply, 20);
+    [90, 220, 480, 900, 1800, 3200].forEach(function(ms){ setTimeout(apply, ms); });
   }
-  function boot(){
-    var done = '';
-    try{ done = localStorage.getItem(DONE_KEY) || ''; }catch(e){}
-    if(done === RUN_ID){ setTimeout(displayStored, 1500); return; }
-    run();
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__resolveSsRevertGuardRealLastWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__resolveSsRevertGuardRealLastWrapped = true;
+    window[name] = wrapped;
   }
+  function wrapAll(){
+    [
+      'renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons',
+      'syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound',
+      'finalEnhanceBowlEditButtons','applyPostOutboundSsNetDwellAuthority',
+      'normalizePostOutboundSsCarryoverDisplay','syncPostOutboundSingleDwellAuthority',
+      'restoreFinalPostOutboundDwell','restoreMissingPostOutboundDwell'
+    ].forEach(wrap);
+  }
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#rss-save,[data-rss-bulk-confirm],#rss-bulk-accept-all,#tab-outbound,[data-resolve-ss-btn]')) schedule();
+  }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#resolve-ss-modal,#tab-outbound')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#resolve-ss-modal,#tab-outbound')) schedule(); }, true);
+  try{
+    new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('#tab-outbound')){ schedule(); return; }
+      }
+    }).observe(document.getElementById('tab-outbound') || document.documentElement, {
+      childList:true,
+      subtree:true,
+      attributes:true,
+      attributeFilter:['class','data-current-ss-start','data-ss-start','data-current-edit-key','data-block-id','data-missing-ss-start']
+    });
+  }catch(e){}
+  function boot(){ wrapAll(); schedule(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
   else boot();
+  window.addEventListener('load', boot, {once:true});
+  [0,250,900,2200].forEach(function(ms){ setTimeout(boot, ms); });
+  setInterval(function(){ wrapAll(); apply(); }, 1500);
+})();
+</script>
+
+<style id="block-display-governor-final-css">
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .bowl-dwell,
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .ss-hours-in-ss,
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] [data-ss-hours-in-ss]{
+    display:inline-flex;
+    align-items:center;
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .bowl-dwell{
+    border-radius:5px;
+    padding:2px 7px;
+    font-size:9px;
+    font-weight:900;
+    letter-spacing:.5px;
+    line-height:1.15;
+  }
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .ss-hours-in-ss,
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] [data-ss-hours-in-ss]{
+    background:#020617!important;
+    border:0!important;
+    border-radius:999px!important;
+    box-shadow:none!important;
+    padding:2px 7px!important;
+    font-size:10px!important;
+    font-weight:950!important;
+    line-height:1.1!important;
+  }
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .ss-hours-in-ss.ss-age-ok,
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] [data-ss-hours-in-ss].ss-age-ok{
+    color:#22c55e!important;
+  }
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] .ss-hours-in-ss.ss-age-warn,
+  html body #tab-outbound .bowl-block[data-block-display-governed="1"] [data-ss-hours-in-ss].ss-age-warn{
+    color:#ef4444!important;
+  }
+  html.dwell-hide-bowl-dwell-authority body #tab-outbound .bowl-block .bowl-dwell,
+  body.dwell-hide-bowl-dwell-authority #tab-outbound .bowl-block .bowl-dwell,
+  #tab-outbound.dwell-hide-bowl-dwell-authority .bowl-block .bowl-dwell,
+  html.bowl-hide-dwell body #tab-outbound .bowl-block .bowl-dwell,
+  body.bowl-hide-dwell #tab-outbound .bowl-block .bowl-dwell,
+  #tab-outbound .bowl-page-shell.bowl-hide-dwell .bowl-block .bowl-dwell,
+  html body #tab-outbound .bowl-block[data-final-clear-dominates="1"] .bowl-dwell,
+  html body #tab-outbound .bowl-block[data-final-clear-dominates="1"] .ss-hours-in-ss,
+  html body #tab-outbound .bowl-block[data-final-clear-dominates="1"] [data-ss-hours-in-ss]{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    width:0!important;
+    min-width:0!important;
+    max-width:0!important;
+    height:0!important;
+    min-height:0!important;
+    max-height:0!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    overflow:hidden!important;
+  }
+</style>
+
+<script id="block-display-governor-final-js">
+(function(){
+  'use strict';
+  if(window.__blockDisplayGovernorFinalInstalled) return;
+  window.__blockDisplayGovernorFinalInstalled = true;
+
+  var EDIT_STORE = 'dwellCurrentBoardBlockEditsV2';
+  var FORCE_STORE = 'dwellResolveSsForcedTimesV1';
+  var timer = null;
+  var running = false;
+
+  function clean(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
+  function normTrack(v){ var m = clean(v).match(/(\d{3})/); return m ? m[1] : ''; }
+  function normCar(v){ return clean(v).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function num(v){
+    var n = parseFloat(clean(v).replace(/,/g,'').replace(/H/ig,'').replace(/NET/ig,''));
+    return Number.isFinite(n) ? n : null;
+  }
+  function load(key){ try{ return JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ return {}; } }
+  function newer(a,b){
+    if(!a) return b;
+    if(!b) return a;
+    var at = Date.parse(clean(a.updatedAt || '')) || 0;
+    var bt = Date.parse(clean(b.updatedAt || '')) || 0;
+    return bt >= at ? b : a;
+  }
+  function normalizeRecord(raw, key){
+    raw = raw || {};
+    var rec = Object.assign({}, raw);
+    rec.key = clean(key || rec.key || rec.blockId || '');
+    rec.blockId = clean(rec.blockId || rec.key);
+    rec.ssStart = clean(rec.ssStart || rec.currentSsStart || rec.ssStartTime || '');
+    rec.ssEnd = clean(rec.ssEnd || rec.currentSsEnd || rec.ssEndTime || '');
+    rec.sampleCar = normCar(rec.sampleCar || rec.sampleEquipId || rec.equipId || rec.equipmentId || '');
+    rec.track = normTrack(rec.track || '');
+    if(!rec.track && /^\d{3}\|\|/.test(rec.key)) rec.track = normTrack(rec.key.split('||')[0]);
+    if(!rec.sampleCar && /^\d{3}\|\|/.test(rec.key)) rec.sampleCar = normCar(rec.key.split('||')[1]);
+    rec.groupKey = clean(rec.groupKey || rec.bowlGroupKey || '');
+    rec.groupCars = Array.isArray(rec.groupCars) ? rec.groupCars.map(normCar).filter(Boolean) : [];
+    if(rec.sampleCar && rec.groupCars.indexOf(rec.sampleCar) < 0) rec.groupCars.unshift(rec.sampleCar);
+    return rec.ssStart ? rec : null;
+  }
+  function trackOf(block){
+    var row = block && block.closest && block.closest('tr');
+    return normTrack(row && row.querySelector && row.querySelector('.bowl-track') && row.querySelector('.bowl-track').textContent);
+  }
+  function carOf(block){
+    var ds = block && block.dataset || {};
+    return normCar(ds.sampleCar || ds.sampleEquipId || ds.equipId || ds.equipmentId || ds.carId || '');
+  }
+  function groupOf(block){
+    var ds = block && block.dataset || {};
+    return clean(ds.bowlGroupKey || ds.groupKey || ds.currentGroupKey || '');
+  }
+  function keyCandidates(block){
+    var ds = block && block.dataset || {};
+    var track = trackOf(block);
+    var car = carOf(block);
+    var out = [];
+    function add(k){ k = clean(k); if(k && out.indexOf(k) < 0) out.push(k); }
+    add(ds.blockId);
+    add(ds.currentEditKey);
+    add(ds.afterEditKey);
+    if(track && car) add(track + '||' + car);
+    return out;
+  }
+  function strictRecordMatches(block, rec, key){
+    if(!block || !rec) return false;
+    var keys = keyCandidates(block);
+    if(keys.indexOf(clean(key)) >= 0 || keys.indexOf(clean(rec.key)) >= 0 || keys.indexOf(clean(rec.blockId)) >= 0) return true;
+    var track = trackOf(block);
+    if(rec.track && track && rec.track !== track) return false;
+    var car = carOf(block);
+    if(car && (rec.sampleCar === car || rec.groupCars.indexOf(car) >= 0)) return true;
+    var group = groupOf(block);
+    return !!(group && rec.groupKey && group === rec.groupKey);
+  }
+  function savedRecordFor(block){
+    var best = null;
+    try{
+      if(typeof window.__resolveSsBlockSavedRecord === 'function'){
+        var external = window.__resolveSsBlockSavedRecord(block);
+        external = normalizeRecord(external, external && (external.key || external.blockId));
+        if(strictRecordMatches(block, external, external && external.key)) best = newer(best, external);
+      }
+    }catch(e){}
+    var edits = load(EDIT_STORE);
+    var forced = load(FORCE_STORE);
+    keyCandidates(block).forEach(function(key){
+      best = newer(best, normalizeRecord(edits[key], key));
+      best = newer(best, normalizeRecord(forced[key], key));
+    });
+    Object.keys(forced).forEach(function(key){
+      var rec = normalizeRecord(forced[key], key);
+      if(strictRecordMatches(block, rec, key)) best = newer(best, rec);
+    });
+    Object.keys(edits).forEach(function(key){
+      var rec = normalizeRecord(edits[key], key);
+      if(strictRecordMatches(block, rec, key)) best = newer(best, rec);
+    });
+    return best;
+  }
+  function labelText(block, rec){
+    var ds = block && block.dataset || {};
+    var explicit = clean((rec && (rec.sourceBlockLabel || rec.label)) || ds.sourceBlockLabel || ds.currentBlockType || ds.afterBlockType || ds.postOutboundBlockType || ds.afterStatus || '');
+    if(explicit) return explicit.toUpperCase();
+    if(!block || !block.cloneNode) return '';
+    var clone = block.cloneNode(true);
+    clone.querySelectorAll('button,b,.bowl-block-pipe-dim,.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss],.after-depart-badge,.future-status-badge,.bowl-inbound-source-tag,.manual-tag,.future-inbound-tag,.future-shove-badge,.bowl-oldest-flag,.bowl-track-suffix,[data-current-display-track-label]').forEach(function(el){ el.remove(); });
+    return clean(clone.textContent)
+      .toUpperCase()
+      .replace(/^\|+\s*/,'')
+      .replace(/^\d[\d,]*\s*\|\s*/,'')
+      .replace(/\b\d+H(?:\s+NET)?\b/g,'')
+      .replace(/\bNET\b/g,'')
+      .replace(/\[[^\]]+\]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function hasSsToken(block, rec){
+    var s = labelText(block, rec);
+    return s === 'SS' || /(^|[^A-Z0-9])SS([^A-Z0-9]|$)/.test(s);
+  }
+  function clearActive(){
+    try{
+      if(localStorage.getItem('dwellCurrentRampClearNonExactSsStartsV1') === '1') return true;
+      var suppressions = JSON.parse(localStorage.getItem('dwellCurrentRampNonSsSsStartSuppressionsV1') || '{}') || {};
+      return Object.keys(suppressions).length > 0;
+    }catch(e){ return false; }
+  }
+  function lastTimingAction(){
+    try{
+      if(typeof window.__dwellSsTimingLastAction === 'function') return window.__dwellSsTimingLastAction() || null;
+      return JSON.parse(localStorage.getItem('dwellSsTimingLastActionV1') || 'null') || null;
+    }catch(e){ return null; }
+  }
+  function clearDominates(block, rec){
+    try{ if(window.__dwellSsTimingClearDominates && window.__dwellSsTimingClearDominates(block, rec)) return true; }catch(e){}
+    var last = lastTimingAction();
+    if(last && last.action === 'resolve') return false;
+    return clearActive() && !hasSsToken(block, rec);
+  }
+  function applyRecordDatasets(block, rec){
+    if(!block || !rec || !rec.ssStart || !block.dataset) return;
+    var ds = block.dataset;
+    function set(k,v){ v = clean(v); if(v) ds[k] = v; }
+    set('currentSsStart', rec.ssStart);
+    set('ssStart', rec.ssStart);
+    if(rec.ssEnd){ set('currentSsEnd', rec.ssEnd); set('ssEnd', rec.ssEnd); }
+    if(rec.arrival) set('currentArrival', rec.arrival);
+    if(rec.train){ ds.currentTrain = clean(rec.train).toUpperCase(); ds.sourceTrain = clean(rec.train).toUpperCase(); }
+    if(rec.sourceBlockLabel || rec.label) set('sourceBlockLabel', rec.sourceBlockLabel || rec.label);
+    if(rec.blockType) set('currentBlockType', rec.blockType);
+    if(rec.groupKey) set('bowlGroupKey', rec.groupKey);
+    if(rec.sampleCar) set('sampleCar', rec.sampleCar);
+    if(rec.key){ ds.currentEditKey = rec.key; ds.blockId = rec.blockId || rec.key; }
+    block.classList.remove('missing-ss-start','current-ss-start-missing');
+    delete ds.missingSsStart;
+    ds.missingSsStartAuthority = '0';
+  }
+  function parseDate(raw){
+    try{
+      if(window.DwellFormula && typeof window.DwellFormula.parseDate === 'function') return window.DwellFormula.parseDate(raw);
+    }catch(e){}
+    var d = new Date(clean(raw));
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  function hoursSince(raw){
+    var d = parseDate(raw);
+    if(!d) return null;
+    var h = (new Date() - d) / 3600000;
+    return Number.isFinite(h) ? Math.max(0, h) : null;
+  }
+  function dwellInfo(block, rec){
+    try{
+      var ds = block.dataset || {};
+      var start = clean((rec && rec.ssStart) || ds.currentSsStart || ds.ssStart || '');
+      var end = clean((rec && rec.ssEnd) || ds.currentSsEnd || ds.ssEnd || '');
+      var arrival = clean((rec && rec.arrival) || ds.currentArrival || ds.afterArrival || ds.arrival || '');
+      if(window.DwellFormula && typeof window.DwellFormula.computeForBlock === 'function' && (arrival || start)){
+        var computed = window.DwellFormula.computeForBlock(block, {arrival: arrival || undefined, ssStart: start || undefined, ssEnd: end || undefined});
+        if(computed && Number.isFinite(computed.net)){
+          return {text: window.DwellFormula.text(computed.net), cls: window.DwellFormula.cls(computed.net), value: computed.net};
+        }
+      }
+    }catch(e){}
+    var text = clean((rec && rec.dwell) || (block.dataset && (block.dataset.currentDwell || block.dataset.resolveSsDwell)) || '');
+    if(!text){
+      var existing = block.querySelector && block.querySelector('.bowl-dwell');
+      text = clean(existing && existing.textContent);
+    }
+    if(!text) return null;
+    var value = num(text);
+    var cls = value == null ? '' : (value < 7 ? 'dw-green' : (value < 11 ? 'dw-gold' : 'dw-red'));
+    if(value != null) text = Math.round(value) + 'H NET';
+    return {text:text.toUpperCase().indexOf('NET') >= 0 ? text.toUpperCase() : text.toUpperCase() + ' NET', cls:cls, value:value};
+  }
+  function keepFirst(block, selector){
+    var items = Array.prototype.slice.call(block.querySelectorAll(selector));
+    var first = items.shift() || null;
+    items.forEach(function(el){ el.remove(); });
+    return first;
+  }
+  function removeBadges(block){
+    block.querySelectorAll('.bowl-dwell,.ss-hours-in-ss,[data-ss-hours-in-ss]').forEach(function(el){ el.remove(); });
+  }
+  function place(block, el){
+    if(!el) return;
+    var span = block.querySelector('span') || block;
+    if(el.parentNode !== span) span.appendChild(el);
+    var edit = span.querySelector('button') || block.querySelector('button');
+    if(edit && edit.parentNode === span && el.nextSibling !== edit) span.insertBefore(el, edit);
+  }
+  function ensureDwell(block, rec){
+    var info = dwellInfo(block, rec);
+    var badge = keepFirst(block, '.bowl-dwell');
+    if(!info || !info.text){
+      if(badge) badge.remove();
+      delete block.dataset.currentDwell;
+      delete block.dataset.resolveSsDwell;
+      delete block.dataset.ssNetDwellAuthority;
+      return null;
+    }
+    if(!badge){
+      badge = document.createElement('span');
+      badge.className = 'bowl-dwell';
+    }
+    badge.className = 'bowl-dwell ' + clean(info.cls || '');
+    badge.dataset.blockDisplayGovernor = '1';
+    badge.dataset.ssNetDwellAuthority = '1';
+    badge.textContent = info.text;
+    block.dataset.currentDwell = info.text;
+    block.dataset.resolveSsDwell = info.text;
+    if(info.value != null) block.dataset.ssNetDwellAuthority = String(Math.round(info.value));
+    place(block, badge);
+    return badge;
+  }
+  function ensureSsHours(block, rec, dwellBadge){
+    var ds = block.dataset || {};
+    var start = clean((rec && rec.ssStart) || ds.currentSsStart || ds.ssStart || '');
+    var badge = keepFirst(block, '.ss-hours-in-ss,[data-ss-hours-in-ss]');
+    if(!start || !hasSsToken(block, rec)){
+      if(badge) badge.remove();
+      delete ds.ssHoursLabel;
+      delete ds.ssHoursTone;
+      delete ds.ssHoursValid;
+      return null;
+    }
+    var hrs = hoursSince(start);
+    if(hrs == null){
+      if(badge) badge.remove();
+      return null;
+    }
+    if(!badge){
+      badge = document.createElement('span');
+      badge.className = 'ss-hours-in-ss';
+      badge.dataset.ssHoursInSs = '1';
+    }
+    var ok = hrs >= 24;
+    badge.className = 'ss-hours-in-ss ' + (ok ? 'ss-age-ok' : 'ss-age-warn');
+    badge.dataset.ssHoursInSs = '1';
+    badge.dataset.blockDisplayGovernor = '1';
+    badge.title = 'Hours in SS';
+    badge.textContent = Math.floor(hrs) + 'H';
+    ds.ssHoursLabel = badge.textContent;
+    ds.ssHoursTone = ok ? 'ok' : 'warn';
+    ds.ssHoursValid = '1';
+    if(dwellBadge && dwellBadge.parentNode === badge.parentNode) badge.parentNode.insertBefore(badge, dwellBadge);
+    else place(block, badge);
+    return badge;
+  }
+  function normalizeBlock(block){
+    if(!block || !block.dataset) return;
+    block.dataset.blockDisplayGoverned = '1';
+    var rec = savedRecordFor(block);
+    if(clearDominates(block, rec)){
+      block.dataset.finalClearDominates = '1';
+      block.dataset.clearNonSsSuppressed = '1';
+      block.dataset.postOutboundDwellSuppressed = '1';
+      ['currentSsStart','ssStart','ssStartTime','currentSsEnd','ssEnd','ssEndTime','afterSsStart','afterSsEnd','currentDwell','resolveSsDwell','ssNetDwellAuthority','ssHoursLabel','ssHoursTone','ssHoursValid'].forEach(function(k){ delete block.dataset[k]; });
+      removeBadges(block);
+      return;
+    }
+    delete block.dataset.finalClearDominates;
+    if(rec) applyRecordDatasets(block, rec);
+    var dwellBadge = ensureDwell(block, rec);
+    ensureSsHours(block, rec, dwellBadge);
+    keepFirst(block, '.bowl-dwell');
+    keepFirst(block, '.ss-hours-in-ss,[data-ss-hours-in-ss]');
+  }
+  function blocks(){
+    return Array.prototype.slice.call(document.querySelectorAll(
+      '#tab-outbound table.bowl-board .bowl-segments-cell .bowl-block,'+
+      '#tab-outbound .bowl-outbound-track-table .bowl-block'
+    ));
+  }
+  function run(){
+    if(running) return;
+    running = true;
+    try{ blocks().forEach(normalizeBlock); }
+    finally{ running = false; }
+  }
+  function schedule(){
+    clearTimeout(timer);
+    timer = setTimeout(run, 20);
+    [80, 180, 420, 900, 1800].forEach(function(ms){ setTimeout(run, ms); });
+  }
+  function wrap(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__blockDisplayGovernorFinalWrapped) return;
+    var wrapped = function(){
+      var result = fn.apply(this, arguments);
+      schedule();
+      return result;
+    };
+    wrapped.__blockDisplayGovernorFinalWrapped = true;
+    window[name] = wrapped;
+  }
+  function wrapAll(){
+    [
+      'renderOB','renderBowlTurnover','enhanceCurrentBoardEditIcons',
+      'finalEnhanceBowlEditButtons','applyCurrentRampMissingSSStartWarning',
+      'syncCurrentEditsToPostOutbound','syncStableCurrentEditsToPostOutbound',
+      'restoreFinalPostOutboundDwell','restoreMissingPostOutboundDwell',
+      'applyPostOutboundSsNetDwellAuthority','normalizePostOutboundSsCarryoverDisplay',
+      'normalizePostOutboundBlockDisplay','normalizePostOutboundSingleDisplayOwner',
+      'syncPostOutboundSingleDwellAuthority','__resolveSsApplyForcedTimes',
+      '__resolveSsRevertGuardApply','__resolveSsSavedPurpleFinalApply'
+    ].forEach(wrap);
+  }
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal,[data-resolve-ss-btn],#rss-save,#rss-bulk-accept-all,[data-rss-bulk-confirm]')) schedule();
+  }, true);
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal')) schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#tab-outbound,#resolve-ss-modal')) schedule(); }, true);
+  try{
+    new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var target = mutations[i].target && (mutations[i].target.nodeType === 1 ? mutations[i].target : mutations[i].target.parentElement);
+        if(target && target.closest && target.closest('#tab-outbound')){ schedule(); return; }
+      }
+    }).observe(document.getElementById('tab-outbound') || document.documentElement, {
+      childList:true,
+      subtree:true,
+      attributes:true,
+      attributeFilter:['class','style','data-current-ss-start','data-ss-start','data-current-ss-end','data-ss-end','data-current-dwell','data-resolve-ss-dwell','data-ss-hours-label','data-missing-ss-start','data-clear-non-ss-suppressed']
+    });
+  }catch(e){}
+  function boot(){ wrapAll(); schedule(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
+  window.addEventListener('load', boot, {once:true});
+  [0,180,600,1400,3000].forEach(function(ms){ setTimeout(boot, ms); });
+  setInterval(function(){ wrapAll(); run(); }, 500);
+  window.__blockDisplayGovernorFinalApply = run;
 })();
 </script>
